@@ -1,0 +1,59 @@
+{
+	/* This is the base TypeScript config file. It isocalized for this project */
+	"compilerOptions": {
+		/* Visit https://aka.ms/tsconfig.json to read more about this file */
+
+		/* Basic Options */
+		"target": "ES2022", // Sets the JavaScript language version for emitted JavaScript and includes compatible library declarations. Node.js 18 support.
+		"jsx": "react", // Specifies the JSX factory function to use when targeting React JSX emit.
+		"moduleDetection": "force", // Ensures that each file is treated as a module, regardless of its content.
+		"declaration": true, // Generates corresponding '.d.ts' files.
+		"noEmitOnError": true, // Prevents the compiler from creating output files if any errors are reported.
+		"newLine": "lf", // Enforces Unix-style line endings (LF) in the emitted files.
+		"removeComments": true, // Strips all comments from the TypeScript output.
+		"lib": [
+			"ES2022" // Node.js 18
+		], // Specifies the set of built-in API declarations to include in compilation.
+		"skipLibCheck": true, // Skips type checking of all declaration files (*.d.ts), which can speed up compilation.
+
+		/* Strict Type-Checking Options */
+		"strict": true, // Enables all strict type-checking options for robust code.
+		"noImplicitAny": true, // Raises an error on expressions and declarations with an implied 'any' type.
+		"strictNullChecks": true, // When true, 'null' and 'undefined' have their own distinct types.
+		"strictFunctionTypes": true, // Ensures that function parameters are checked more correctly.
+		"strictBindCallApply": true, // Enables stricter checking of the 'bind', 'call', and 'apply' methods on functions.
+		// https://stackoverflow.com/a/50241920/9387542
+		"strictPropertyInitialization": false, // If true, requires that all class properties are either initialized in the constructor or have an initializer. Disabled for flexibility.
+		"noImplicitThis": true, // Raises an error on 'this' expressions with an implied 'any' type.
+		"alwaysStrict": true, // Ensures that "use strict" is emitted in every source file, enforcing stricter parsing and error handling in JavaScript.
+
+		/* Additional Checks */
+		"noUnusedLocals": true, // Reports errors on unused local variables.
+		"noUnusedParameters": true, // Reports errors on unused parameters in functions.
+		"noImplicitReturns": true, // Reports an error if not all code paths in a function return a value.
+		"noFallthroughCasesInSwitch": true, // Reports errors for fallthrough cases in a switch statement, preventing unintentional bugs.
+		"noUncheckedIndexedAccess": true, // Adds 'undefined' to the type of any indexed property access.
+		"noImplicitOverride": true, // Ensures explicit usage of 'override' keyword when a method overrides a method in its base class.
+		"useDefineForClassFields": true, // When true, class fields are defined with Object.defineProperty. When false, they are assigned.
+
+		/* Module Resolution Options */
+		"module": "node16", // Specifies the module system for the final JavaScript output, aligning with modern Node.js capabilities.
+		"moduleResolution": "node16", // Determines how modules get resolved. 'node16' supports modern Node.js module resolution features.
+		"allowSyntheticDefaultImports": true, // Allows default imports from modules with no default export, for better compatibility.
+		// ESM doesn't yet support JSON modules.
+		"resolveJsonModule": false, // Allows importing, extracting types from, and generating .json files.
+		"esModuleInterop": true, // Enables compatibility between CommonJS and ES Modules by creating namespace objects for all imports.
+
+		/* Experimental Options */
+		"experimentalDecorators": true, // Enables experimental support for ES7 decorators.
+		"emitDecoratorMetadata": true, // Enables experimental support for emitting type metadata for decorators, often used with reflection libraries.
+
+		/* Advanced Options */
+		"forceConsistentCasingInFileNames": true, // Disallows inconsistently-cased references to the same file.
+		"stripInternal": true, // Do not emit declarations for code that is annotated with @internal.
+		"noUncheckedSideEffectImports": true, // Ensures that import statements that are only for side effects are not elided from the output.
+	},
+	"exclude": [
+		"node_modules"
+	]
+}

@@ -1,0 +1,126 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_extName__",
+  "version": "0.0.0",
+  "default_locale": "en",
+  "description": "__MSG_extDescription__",
+  "homepage_url": "https://github.com/lyove/coolhusky",
+  "short_name": "__MSG_extName__",
+
+  "permissions": [
+    "storage",
+    "tabs",
+    "webRequest",
+    "downloads",
+    "declarativeNetRequest",
+    "notifications"
+  ],
+
+  "__chrome__permissions": [
+    "storage",
+    "tabs",
+    "webRequest",
+    "downloads",
+    "declarativeNetRequest",
+    "notifications",
+    "sidePanel",
+    "webNavigation"
+  ],
+
+  "__firefox__permissions": [
+    "storage",
+    "tabs",
+    "webRequest",
+    "downloads",
+    "declarativeNetRequest",
+    "notifications",
+    "webRequestBlocking"
+  ],
+
+  "host_permissions": ["<all_urls>"],
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+  },
+
+  "__chrome|firefox__author": "lyove",
+
+  "__chrome__minimum_chrome_version": "102",
+
+  "action": {
+    "default_title": "__MSG_extName__",
+    "default_icon": {
+      "16": "icon/16.png",
+      "32": "icon/32.png",
+      "48": "icon/48.png",
+      "128": "icon/128.png"
+    }
+  },
+
+  "__chrome__side_panel": {
+    "default_path": "Sidepanel/sidepanel.html"
+  },
+
+  "__firefox__sidebar_action": {
+    "default_panel": "Sidepanel/sidepanel.html",
+    "default_title": "__MSG_extName__",
+    "default_popup": "Popup/popup.html",
+    "default_icon": {
+      "16": "icon/16.png",
+      "32": "icon/32.png",
+      "48": "icon/48.png",
+      "128": "icon/128.png"
+    },
+    "browser_style": false,
+    "open_at_install": false
+  },
+
+  "__firefox__browser_action": {
+    "default_title": "__MSG_extName__",
+    "default_icon": {
+      "16": "icon/16.png",
+      "32": "icon/32.png",
+      "48": "icon/48.png",
+      "128": "icon/128.png"
+    }
+  },
+
+  "__firefox__browser_specific_settings": {
+    "gecko": {
+      "id": "coolhusky@coolhusky",
+      "strict_min_version": "112.0",
+      "data_collection_permissions": {
+        "required": ["none"],
+        "optional": []
+      }
+    }
+  },
+
+  "background": {
+    "__chrome__service_worker": "assets/js/background.bundle.js",
+    "__chrome__type": "module",
+    "__firefox__scripts": ["assets/js/background.bundle.js"],
+    "__firefox__type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "run_at": "document_end",
+      "all_frames": true,
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["assets/js/contentScript.bundle.js"]
+    },
+    {
+      "run_at": "document_idle",
+      "matches": ["*://www.douyin.com/*", "*://www.iesdouyin.com/*"],
+      "js": ["assets/js/douyin.bundle.js"]
+    }
+  ],
+
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/js/injected.bundle.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

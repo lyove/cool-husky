@@ -1,0 +1,42 @@
+@use './variables.scss' as variables;
+
+// Theme CSS variables (light default + dark overrides).
+// The applyTheme() in utils/i18n.ts toggles the .dark class on documentElement.
+
+:root {
+  color-scheme: light;
+  --fp-bg: #{variables.$white};
+  --fp-bg-input: #{variables.$white};
+  --fp-text: #{variables.$black};
+  --fp-muted: #{variables.$skyBlue};
+  --fp-border: #{variables.$border};
+  --fp-border-hover: #{variables.$primary};
+  --fp-accent: #{variables.$primary};
+  --fp-accent-soft: rgba(99, 102, 241, 0.12);
+  --fp-tag-bg: rgba(128, 128, 128, 0.12);
+  --fp-overlay: rgba(0, 0, 0, 0.6);
+  --fp-danger: #e5484d;
+}
+
+html.dark {
+  color-scheme: dark;
+  --fp-bg: #14141d;
+  --fp-bg-input: #1d1d2b;
+  --fp-text: #e2e8f0;
+  --fp-muted: #94a3b8;
+  --fp-border: #2a2a3d;
+  --fp-border-hover: #60a5fa;
+  --fp-accent: #60a5fa;
+  --fp-accent-soft: rgba(96, 165, 250, 0.16);
+  --fp-tag-bg: rgba(148, 163, 184, 0.16);
+  --fp-overlay: rgba(0, 0, 0, 0.75);
+  --fp-danger: #f87171;
+}
+
+/* 兜底：显式给页面画布设置主题背景，防止深色系统下 color-scheme 透出深色 */
+html,
+body {
+  background: var(--fp-bg);
+  color: var(--fp-text);
+  margin: 0;
+}
