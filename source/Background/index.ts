@@ -621,6 +621,25 @@ async function mapWithConcurrency<T, R>(
     }
   });
 
+  // Remove all sniffed media for a tab (used on page refresh and manual clear).
+  // Page reloads keep the same tabId, so they never hit tabs.onRemoved.
+  function clearTabMediaData(tabId: number): void {
+    tabMap.delete(tabId);
+    bilibiliManagedUrls.delete(tabId);
+    platformManagedUrls.delete(tabId);
+    platformTaskPriorities.delete(tabId);
+    douyinMediaMetadata.delete(tabId);
+    douyinNativeTracks.delete(tabId);
+    masterPrefixIndex.delete(tabId);
+    tabMediaVersion.delete(tabId);
+    deleteTabList(tabId).catch(() => {});
+    for (const key of processedRequests) {
+      if (key.startsWith(`${tabId}:`)) {
+        processedRequests.delete(key);
+      }
+    }
+  }
+
   try {
     if (browser.webNavigation) {
       browser.webNavigation.onBeforeNavigate.addListener(() => {});
@@ -631,6 +650,17 @@ async function mapWithConcurrency<T, R>(
   }
 
   browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'loading') {
+      // Page is reloading or navigating to a new document: stale media from the
+      // previous load no longer applies. New requests are sniffed into a fresh list.
+      clearTabMediaData(tabId);
+      try {
+        updateBadge(tabId);
+      } catch {}
+      // broadcastDebounced skips tabs without data; send an explicit empty
+      // list so an open popup/sidepanel clears its UI immediately.
+      broadcast(tabId, []);
+    }
     if (changeInfo.url) {
       tabPageUrls.set(tabId, changeInfo.url);
     } else if (tab.url) {
@@ -1530,20 +1560,7 @@ async function mapWithConcurrency<T, R>(
 
     if (msg.type === 'CLEAR_LIST') {
       const tabId = msg.tabId as number;
-      tabMap.delete(tabId);
-      bilibiliManagedUrls.delete(tabId);
-      platformManagedUrls.delete(tabId);
-      platformTaskPriorities.delete(tabId);
-      douyinMediaMetadata.delete(tabId);
-      douyinNativeTracks.delete(tabId);
-      masterPrefixIndex.delete(tabId);
-      tabMediaVersion.delete(tabId);
-      deleteTabList(tabId);
-      for (const key of processedRequests) {
-        if (key.startsWith(`${tabId}:`)) {
-          processedRequests.delete(key);
-        }
-      }
+      clearTabMediaData(tabId);
       try {
         updateBadge(tabId);
       } catch {}
