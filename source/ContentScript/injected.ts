@@ -270,11 +270,11 @@
         (url.includes('/flv') || url.includes('.flv') || url.includes('live')),
       format: 'flv',
     },
-    // Douyin/ByteDance short-video CDN: URLs lack extensions, content-type is usually octet-stream
+    // Douyin/TikTok (ByteDance) short-video CDN: URLs lack extensions, content-type is usually octet-stream
     // Fall back to mp4 (the background webRequest corrects via content-type)
     {
       test: (url, hostname) =>
-        /\.(douyinvod|douyinpic|douyincdn|amemv|iesdouyin|snssdk|bytecdn|byteimg|bytego|bytedns|byteoss|bytedance|pstatp|toutiaovod|ixigua)\.(?:com|cn|net)\b/i.test(
+        /\.(douyinvod|douyinpic|douyincdn|amemv|iesdouyin|snssdk|bytecdn|byteimg|bytego|bytedns|byteoss|bytedance|pstatp|toutiaovod|ixigua|tiktokcdn|tiktokcdn-us|tiktokcdn-eu|tiktokcdn-in|tiktokv|muscdn|musical|byteoversea)\.(?:com|cn|net|us|eu|in|gg|io|ly)\b/i.test(
           hostname
         ) &&
         !url.includes('.m3u8') &&
@@ -999,7 +999,9 @@
     try {
       const parsed = new URL(url, location.href);
       return (
-        /(^|\.)(douyin\.com|iesdouyin\.com)$/i.test(parsed.hostname) &&
+        /(^|\.)(douyin\.com|iesdouyin\.com|tiktok\.com|musical\.ly)$/i.test(
+          parsed.hostname
+        ) &&
         /\/aweme\/.*(?:detail|feed|post|recommend|item)/i.test(parsed.pathname)
       );
     } catch {

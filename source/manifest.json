@@ -119,7 +119,12 @@
     },
     {
       "run_at": "document_idle",
-      "matches": ["*://www.douyin.com/*", "*://www.iesdouyin.com/*"],
+      "matches": [
+        "*://*.douyin.com/*",
+        "*://*.iesdouyin.com/*",
+        "*://*.tiktok.com/*",
+        "*://*.musical.ly/*"
+      ],
       "js": ["assets/js/douyin.bundle.js"]
     }
   ],

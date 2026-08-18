@@ -196,6 +196,8 @@ export const IMAGE_FORMATS = [
   'avif',
   'heic',
   'heif',
+  'apng',
+  'tiff',
 ];
 export const DOCUMENT_FORMATS = [
   'pdf',
@@ -210,6 +212,9 @@ export const SUBTITLE_FORMATS = ['srt', 'vtt', 'ass', 'ssa'];
 
 export function getFormatGroup(format: string): SniffingGroup | null {
   const f = format.toLowerCase();
+  // Synthetic MSE streams are surfaced as streaming resources so the
+  // streaming sniff switch and minSizeKB rule apply to them as well.
+  if (f === 'mse') return 'streaming';
   if (STREAMING_FORMATS.includes(f)) return 'streaming';
   if (VIDEO_FORMATS.includes(f)) return 'video';
   if (AUDIO_FORMATS.includes(f)) return 'audio';

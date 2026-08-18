@@ -272,6 +272,12 @@
   color: var(--fp-muted);
 }
 
+.selectAllActive {
+  border-color: var(--fp-accent);
+  color: var(--fp-accent);
+  background: var(--fp-accent-soft);
+}
+
 .filterToolbarBtnActive {
   border-color: var(--fp-accent);
   color: var(--fp-accent);
@@ -392,19 +398,72 @@
 .itemCheckbox {
   width: 18px;
   height: 18px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.92);
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: opacity 0.15s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
 
   input {
-    width: 13px;
-    height: 13px;
+    appearance: none;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
     margin: 0;
     cursor: pointer;
+    border: 1.5px solid var(--fp-muted);
+    border-radius: 4px;
+    background: transparent;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+
+    &:hover {
+      border-color: var(--fp-text);
+    }
+
+    &:checked {
+      background-color: var(--fp-accent);
+      border-color: var(--fp-accent);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E");
+      background-size: 12px 12px;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+  }
+}
+
+.checkbox {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  input {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    cursor: pointer;
+    border: 1.5px solid var(--fp-muted);
+    border-radius: 4px;
+    background: transparent;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+
+    &:hover {
+      border-color: var(--fp-text);
+    }
+
+    &:checked {
+      background-color: var(--fp-accent);
+      border-color: var(--fp-accent);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E");
+      background-size: 12px 12px;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
   }
 }
 
@@ -561,11 +620,57 @@
   white-space: nowrap;
 }
 
+.itemSize {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--fp-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.itemUrl {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--fp-muted);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+
+  &:hover {
+    color: var(--fp-accent);
+  }
+}
+
 .itemActions {
   display: flex;
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+}
+
+.actionBtn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fp-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background: var(--fp-tag-bg);
+    color: var(--fp-text);
+  }
+
+  .densityComfortable & {
+    width: 26px;
+    height: 26px;
+  }
 }
 
 .actionBtnCopy {
@@ -762,6 +867,31 @@
   padding: 8px 10px;
 }
 
+.groupSelect {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fp-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+
+  &:hover {
+    color: var(--fp-text);
+    background: var(--fp-tag-bg);
+  }
+}
+
+.groupSelectActive {
+  color: var(--fp-accent);
+}
+
 .groupName {
   flex: 1;
   min-width: 0;
@@ -771,6 +901,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   word-break: break-all;
+}
+
+.groupHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .expandBtn {

@@ -1,4 +1,10 @@
 import browser from 'webextension-polyfill';
+import { detectFormatFromUrl } from '../utils/detect';
+import {
+  extractDomImages,
+  extractDomImagesInSubtree,
+  type DomImageCandidate,
+} from './image-extractor';
 
 {
   if (!document.querySelector('script[data-m3u8-injected]')) {
@@ -138,7 +144,7 @@ import browser from 'webextension-polyfill';
     try {
       const parsed = new URL(value);
       if (
-        !/\.(douyinvod|douyincdn|amemv|iesdouyin|snssdk|bytecdn|bytego|bytedance|toutiaovod)\.(?:com|cn|net)$/i.test(
+        !/\.(douyinvod|douyincdn|amemv|iesdouyin|snssdk|bytecdn|bytego|bytedance|toutiaovod|tiktokcdn|tiktokcdn-us|tiktokcdn-eu|tiktokcdn-in|tiktokv|muscdn|musical|byteoversea)\.(?:com|cn|net|us|eu|in|gg|io|ly)$/i.test(
           parsed.hostname
         )
       )
@@ -199,8 +205,18 @@ import browser from 'webextension-polyfill';
           duration:
             Number.isFinite(duration) && duration! > 0 ? duration : undefined,
           candidates: [
-            { url: video, format: 'mp4', role: 'video', label: '视频' },
-            { url: audio, format: 'mp4', role: 'audio', label: '音频' },
+            {
+              url: video,
+              format: detectFormatFromUrl(video),
+              role: 'video',
+              label: '视频',
+            },
+            {
+              url: audio,
+              format: detectFormatFromUrl(audio),
+              role: 'audio',
+              label: '音频',
+            },
           ],
         },
       })
@@ -603,4 +619,97 @@ import browser from 'webextension-polyfill';
   //     return 'download';
   //   }
   // }
+
+  // ---- DOM image extraction (complements webRequest-based sniffing) ----
+  // The webRequest sniffer only sees images whose request is actually in flight.
+  // Cache hits, already-loaded images, CSS backgrounds, srcset candidates and
+  // lazy-loaded (data-src) images are invisible to it; walking the DOM/CSSOM
+  // (modeled after the Media-downloader extension) finds those proactively.
+  // Only the top frame walks the DOM; images inside iframes are still caught
+  // by the background webRequest listener.
+  if (window.top === window.self && typeof document !== 'undefined') {
+    const reportedImageUrls = new Set<string>();
+    const dispatchImages = (candidates: DomImageCandidate[]): void => {
+      const fresh = candidates.filter((c) => {
+        if (reportedImageUrls.has(c.url)) return false;
+        reportedImageUrls.add(c.url);
+        return true;
+      });
+      if (!fresh.length) return;
+      // Split into chunks to avoid oversized runtime messages
+      for (let i = 0; i < fresh.length; i += 100) {
+        const batch = fresh.slice(i, i + 100);
+        browser.runtime
+          .sendMessage({ type: 'MEDIA_FOUND_BATCH', items: batch })
+          .catch(() => {});
+      }
+    };
+
+    const scanPage = (): void => {
+      try {
+        dispatchImages(extractDomImages());
+      } catch {}
+    };
+    const scanSubtree = (node: Node): void => {
+      try {
+        dispatchImages(extractDomImagesInSubtree(node));
+      } catch {}
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener(
+        'DOMContentLoaded',
+        () => {
+          scanPage();
+          // Second pass: catches lazy-loaded / async-rendered images
+          setTimeout(scanPage, 2500);
+        },
+        { once: true }
+      );
+    } else {
+      scanPage();
+      setTimeout(scanPage, 2500);
+    }
+
+    // Incremental scan: catches lazy-loading src replacements and dynamically inserted images
+    let pendingImageMutations: MutationRecord[] = [];
+    let mutationTimer: number | null = null;
+    const observer = new MutationObserver((mutations) => {
+      // Accumulate records so mutations arriving while a scan is scheduled are
+      // not lost (a 600ms throttle without buffering would skip them).
+      pendingImageMutations.push(...mutations);
+      if (mutationTimer !== null) return;
+      mutationTimer = window.setTimeout(() => {
+        mutationTimer = null;
+        if (pendingImageMutations.length === 0) return;
+        const batch = pendingImageMutations;
+        pendingImageMutations = [];
+        for (const m of batch) {
+          if (m.type === 'childList') {
+            for (const node of m.addedNodes) scanSubtree(node);
+          } else if (m.type === 'attributes') {
+            scanSubtree(m.target);
+          }
+        }
+      }, 600);
+    });
+    try {
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: [
+          'src',
+          'srcset',
+          'data-src',
+          'data-original',
+          'data-lazy-src',
+          'data-lazy',
+          'data-url',
+          'data-original-src',
+          'data-hi-res-src',
+        ],
+      });
+    } catch {}
+  }
 }

@@ -83,21 +83,39 @@ const AudioIcon = (): ReactNode => (
   </svg>
 );
 
-const SelectAllIconSvg = ({ checked }: { checked: boolean }): ReactNode => (
-  <svg
-    viewBox="0 0 24 24"
-    width="16"
-    height="16"
-    fill={checked ? 'currentColor' : 'none'}
-    stroke="currentColor"
-    strokeWidth={1.5}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <circle cx="12" cy="12" r="9" />
-    {checked && <path d="M8 12l2.5 2.5L16 9" stroke="#fff" />}
-  </svg>
-);
+type SelectState = 'none' | 'some' | 'all';
+
+const SelectAllIconSvg = ({ state }: { state: SelectState }): ReactNode => {
+  const filled = state !== 'none';
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect
+        x="3.75"
+        y="3.75"
+        width="16.5"
+        height="16.5"
+        rx="3"
+        ry="3"
+        fill={filled ? 'currentColor' : 'none'}
+      />
+      {state === 'all' && (
+        <path d="M8 12l2.5 2.5L16 9" stroke="#fff" strokeWidth={2.2} />
+      )}
+      {state === 'some' && (
+        <path d="M8.5 12h7" stroke="#fff" strokeWidth={2.2} />
+      )}
+    </svg>
+  );
+};
 
 const SortIconSvg = ({ desc }: { desc: boolean }): ReactNode => (
   <svg
@@ -571,8 +589,11 @@ const HoverPreview: FC<HoverPreviewProps> = ({ state }) => {
         )}
       </div>
       <div className={styles.hoverPreviewInfo}>
-        <div className={styles.hoverPreviewName} title={item.url}>
-          {getFileName(item.url)}
+        <div
+          className={styles.hoverPreviewName}
+          title={item.tabTitle || item.url}
+        >
+          {item.tabTitle || getFileName(item.url)}
         </div>
         <div className={styles.hoverPreviewMeta}>
           <span
@@ -899,6 +920,10 @@ export default function Popup({
   const allVisibleSelected =
     visibleItemKeys.length > 0 &&
     visibleItemKeys.every((k) => selectedUrls.has(k));
+  const someVisibleSelected =
+    visibleItemKeys.length > 0 &&
+    !allVisibleSelected &&
+    visibleItemKeys.some((k) => selectedUrls.has(k));
 
   const toggleSelectAll = useCallback((): void => {
     setSelectedUrls((prev) => {
@@ -956,7 +981,7 @@ export default function Popup({
   const handleCopyUrl = useCallback(
     async (url: string): Promise<void> => {
       const ok = await actions.copyUrl(url);
-      if (ok) showToast(t('copiedUrl'));
+      if (ok) showToast(t('copyTips'));
     },
     [actions, showToast, t]
   );
@@ -964,14 +989,22 @@ export default function Popup({
   // ── Rename ──
   const getDisplayName = useCallback(
     (item: MediaListItem): string =>
-      customNames.get(item.url) || getFileName(item.url) || 'download',
+      customNames.get(item.url) ||
+      (item.tabTitle && item.tabTitle.trim() ? item.tabTitle : '') ||
+      getFileName(item.url) ||
+      'download',
     [customNames]
   );
 
   const startRename = useCallback(
     (item: MediaListItem): void => {
       setEditingUrl(item.url);
-      setEditingName(customNames.get(item.url) || getFileName(item.url) || '');
+      setEditingName(
+        customNames.get(item.url) ||
+          (item.tabTitle && item.tabTitle.trim() ? item.tabTitle : '') ||
+          getFileName(item.url) ||
+          ''
+      );
     },
     [customNames]
   );
@@ -1227,7 +1260,7 @@ export default function Popup({
                 ) : (
                   <span
                     className={styles.itemName}
-                    title={item.url}
+                    title={item.tabTitle || item.url}
                     role="button"
                     tabIndex={0}
                     onDoubleClick={() => startRename(item)}
@@ -1251,7 +1284,11 @@ export default function Popup({
                 >
                   {getFormatLabel(item.format)}
                 </span>
-                <span className={styles.sizeBadge}>{formatItemSize(item)}</span>
+                {formatItemSize(item) && (
+                  <span className={styles.sizeBadge}>
+                    {formatItemSize(item)}
+                  </span>
+                )}
                 {showDuration && (
                   <span className={styles.metaTag}>
                     {formatDuration(effectiveDuration)}
@@ -1267,6 +1304,25 @@ export default function Popup({
                     {hostname}
                   </span>
                 )}
+                <span
+                  className={styles.itemUrl}
+                  title={item.url}
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleCopyUrl(item.url);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void handleCopyUrl(item.url);
+                    }
+                  }}
+                >
+                  {item.url}
+                </span>
               </div>
             </div>
 
@@ -1376,6 +1432,10 @@ export default function Popup({
       const keys = itemKeysOfGroup(group);
       const allSelected =
         keys.length > 0 && keys.every((k) => selectedUrls.has(k));
+      const someSelected =
+        keys.length > 0 &&
+        !allSelected &&
+        keys.some((k) => selectedUrls.has(k));
       const master = group.master;
       const hasChildren =
         group.variants.length > 0 || group.audioItems.length > 0;
@@ -1410,6 +1470,10 @@ export default function Popup({
         const effectiveHeight =
           item.height && item.height > 0 ? item.height : probedMeta?.height;
         const res = getResolutionLabel(effectiveWidth, effectiveHeight);
+        const effectiveDuration =
+          item.duration && item.duration > 0
+            ? item.duration
+            : probedMeta?.duration;
         return (
           <div
             className={`${styles.variantRow} ${isSelected ? styles.itemSelected : ''}`}
@@ -1428,16 +1492,32 @@ export default function Popup({
               {getFormatLabel(item.format)}
             </span>
             {res && <span className={styles.metaTag}>{res}</span>}
+            {effectiveDuration && effectiveDuration > 0 && (
+              <span className={styles.metaTag}>
+                {formatDuration(effectiveDuration)}
+              </span>
+            )}
             {item.variantBandwidth !== undefined && (
               <span className={styles.metaTag}>
                 {Math.round(item.variantBandwidth / 1024)} kbps
               </span>
             )}
-            <span className={styles.variantName} title={item.url}>
+            <span
+              className={styles.variantName}
+              title={item.tabTitle || item.url}
+            >
               {getDisplayName(item)}
             </span>
             <span className={styles.itemSize}>{formatItemSize(item)}</span>
             <div className={styles.variantActions}>
+              <button
+                type="button"
+                className={styles.actionBtn}
+                onClick={() => void handleCopyUrl(item.url)}
+                title={t('copyUrl')}
+              >
+                <CopyIconSvg />
+              </button>
               <button
                 type="button"
                 className={styles.actionBtn}
@@ -1482,13 +1562,18 @@ export default function Popup({
       return (
         <div className={styles.groupCard}>
           <div className={styles.groupHeader}>
-            <label className={styles.checkbox}>
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={() => toggleSelectGroup(group)}
+            <button
+              type="button"
+              className={`${styles.groupSelect} ${
+                allSelected || someSelected ? styles.groupSelectActive : ''
+              }`}
+              onClick={() => toggleSelectGroup(group)}
+              title={allSelected ? t('deselectAll') : t('selectAll')}
+            >
+              <SelectAllIconSvg
+                state={allSelected ? 'all' : someSelected ? 'some' : 'none'}
               />
-            </label>
+            </button>
             <div
               className={styles.thumbnailWrap}
               onMouseEnter={(e) => {
@@ -1545,7 +1630,7 @@ export default function Popup({
             ) : (
               <span
                 className={styles.groupName}
-                title={master?.url}
+                title={master?.tabTitle || master?.url}
                 onDoubleClick={() => {
                   if (master) startRename(master);
                 }}
@@ -1556,6 +1641,40 @@ export default function Popup({
               </span>
             )}
             <span className={styles.itemSize}>{formatFileSize(totalSize)}</span>
+            {master && (
+              <div className={styles.groupHeaderActions}>
+                <button
+                  type="button"
+                  className={styles.actionBtnPrimary}
+                  onClick={() => {
+                    if (isPlayableInlineFormat(master.format.toLowerCase())) {
+                      setPlayingItem((prev) =>
+                        prev?.url === master.url ? null : master
+                      );
+                    } else {
+                      setPreviewItem(master);
+                    }
+                  }}
+                  title={
+                    playingItem?.url === master.url ? t('pause') : t('play')
+                  }
+                >
+                  {playingItem?.url === master.url ? (
+                    <PauseIconSvg />
+                  ) : (
+                    <PlayIconSvg />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className={styles.actionBtnSuccess}
+                  onClick={() => void handleDownloadItem(master)}
+                  title={t('download')}
+                >
+                  <DownloadIconSvg />
+                </button>
+              </div>
+            )}
             {hasChildren && (
               <button
                 type="button"
@@ -1586,6 +1705,7 @@ export default function Popup({
       toggleSelectGroup,
       toggleGroup,
       handleDownloadItem,
+      handleCopyUrl,
       editingUrl,
       editingName,
       startRename,
@@ -1789,12 +1909,24 @@ export default function Popup({
               <div className={styles.actionToolbarLeft}>
                 <button
                   type="button"
-                  className={styles.iconBtn}
+                  className={`${styles.iconBtn} ${
+                    allVisibleSelected || someVisibleSelected
+                      ? styles.selectAllActive
+                      : ''
+                  }`}
                   onClick={toggleSelectAll}
                   disabled={!visibleItemKeys.length}
                   title={allVisibleSelected ? t('deselectAll') : t('selectAll')}
                 >
-                  <SelectAllIconSvg checked={allVisibleSelected} />
+                  <SelectAllIconSvg
+                    state={
+                      allVisibleSelected
+                        ? 'all'
+                        : someVisibleSelected
+                          ? 'some'
+                          : 'none'
+                    }
+                  />
                 </button>
                 <button
                   type="button"

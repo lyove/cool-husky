@@ -62,6 +62,9 @@ export const IMAGE_FORMATS = [
   'bmp',
   'ico',
   'avif',
+  'heic',
+  'heif',
+  'apng',
   'tiff',
 ];
 export const DOC_FORMATS = [

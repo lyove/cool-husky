@@ -24,8 +24,9 @@ const MEDIA_FORMATS = {
 
   // Audio formats
   'audio/mpeg': 'mp3',
-  'audio/mp4': 'mp4',
-  'audio/x-m4a': 'mp4',
+  'audio/mp4': 'm4a',
+  'audio/m4a': 'm4a',
+  'audio/x-m4a': 'm4a',
   'audio/ogg': 'oga',
   'audio/webm': 'weba',
   'audio/x-wav': 'wav',
@@ -47,6 +48,15 @@ const MEDIA_FORMATS = {
   'image/png': 'png',
   'image/webp': 'webp',
   'image/svg+xml': 'svg',
+  'image/avif': 'avif',
+  'image/bmp': 'bmp',
+  'image/x-ms-bmp': 'bmp',
+  'image/x-icon': 'ico',
+  'image/vnd.microsoft.icon': 'ico',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
+  'image/apng': 'apng',
+  'image/tiff': 'tiff',
 };
 
 // File extension to format mapping
@@ -87,6 +97,14 @@ const EXTENSION_MAP: Record<string, string> = {
   '.png': 'png',
   '.webp': 'webp',
   '.svg': 'svg',
+  '.avif': 'avif',
+  '.bmp': 'bmp',
+  '.ico': 'ico',
+  '.heic': 'heic',
+  '.heif': 'heif',
+  '.apng': 'apng',
+  '.tiff': 'tiff',
+  '.tif': 'tiff',
 };
 
 // Supported media types (used for filtering)
@@ -115,6 +133,13 @@ export const SUPPORTED_MEDIA_TYPES = [
   'png',
   'webp',
   'svg',
+  'avif',
+  'bmp',
+  'ico',
+  'heic',
+  'heif',
+  'apng',
+  'tiff',
 ];
 
 // Excluded media types (DASH/HLS segment formats, not shown individually)
@@ -136,10 +161,11 @@ const EXCLUDED_EXTENSIONS = [
 export const MIN_OCTET_STREAM_SIZE = 1 * 1024 * 1024;
 
 // Known media CDN domain signatures (fallback recognition by domain for extension-less URLs with octet-stream)
-// Douyin/ByteDance: douyinvod, bytecdn, byteimg, bytego, bytedns, amemv, iesdouyin, snssdk
+// Douyin/TikTok/ByteDance: douyinvod, bytecdn, byteimg, bytego, bytedns, amemv, iesdouyin, snssdk,
+// tiktokcdn, tiktokv, byteoversea, ...
 // Other common media CDNs: polyv, qiniu(my-qiniu), ks-cdn(Kuaishou), taobao/alicdn
 const MEDIA_CDN_PATTERNS: RegExp[] = [
-  /\.(douyinvod|douyinpic|douyincdn|amemv|iesdouyin|snssdk|bytecdn|byteimg|bytego|bytedns|byteoss|bytedance)\.(?:com|cn|net|org)\b/i,
+  /\.(douyinvod|douyinpic|douyincdn|amemv|iesdouyin|snssdk|bytecdn|byteimg|bytego|bytedns|byteoss|bytedance|tiktokcdn|tiktokcdn-us|tiktokcdn-eu|tiktokcdn-in|tiktokv|muscdn|musical|byteoversea)\.(?:com|cn|net|org|us|eu|in|gg|io|ly)\b/i,
   /\.(pstatp|toutiaovod|ixigua|xituovod|西瓜视频)\.(?:com|cn)\b/i,
   /\.(ks-yxcdn|kwaixiaodian|yx-fes|kscdn|qiniucdn|qcloudcdn)\.(?:com|cn)\b/i,
   /\.(polyv|videocc|myqcloud|alicdn|taobao|mmcdn)\.(?:com|cn)\b/i,
@@ -192,6 +218,9 @@ export function detectDataImageUrl(url: string): string | null {
     avif: 'avif',
     heic: 'heic',
     heif: 'heif',
+    apng: 'apng',
+    tiff: 'tiff',
+    tif: 'tiff',
   };
   return map[subtype] || null;
 }
@@ -298,6 +327,20 @@ export function detectMediaFromUrl(url: string): string | null {
   }
 }
 
+/**
+ * Infer a format label from a raw media URL (used when pairing Douyin/TikTok
+ * separated audio/video streams). Covers HLS/DASH/FLV and common audio
+ * extensions; anything else falls back to mp4.
+ */
+export function detectFormatFromUrl(url: string): string {
+  if (/\.m3u8(?:[?#]|$)/i.test(url)) return 'm3u8';
+  if (/\.mpd(?:[?#]|$)/i.test(url)) return 'mpd';
+  if (/\.flv|\/flv/i.test(url)) return 'flv';
+  const audioMatch = /\.(m4a|aac|mp3|oga|weba|wav|flac)(?:[?#]|$)/i.exec(url);
+  if (audioMatch) return audioMatch[1]!.toLowerCase();
+  return 'mp4';
+}
+
 // Detect whether it is a supported media format
 export function isMediaFormat(value: unknown): boolean {
   const url = normalizeUrl(value);
@@ -333,7 +376,20 @@ export function isImageFormat(value: unknown): boolean {
   if (!url) return false;
 
   const format = detectMediaFromUrl(url);
-  const imageFormats = ['gif', 'jpg', 'png', 'webp', 'svg'];
+  const imageFormats = [
+    'gif',
+    'jpg',
+    'png',
+    'webp',
+    'svg',
+    'avif',
+    'bmp',
+    'ico',
+    'heic',
+    'heif',
+    'apng',
+    'tiff',
+  ];
   return format !== null && imageFormats.includes(format);
 }
 

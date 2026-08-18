@@ -1,5 +1,11 @@
 import browser from 'webextension-polyfill';
-import { detectMedia, detectDoc, type MediaCategory } from '../utils/detect';
+import {
+  detectMedia,
+  detectMediaFromUrl,
+  detectDoc,
+  detectFormatFromUrl,
+  type MediaCategory,
+} from '../utils/detect';
 import {
   loadAllTabData,
   saveTabList,
@@ -753,7 +759,9 @@ async function mapWithConcurrency<T, R>(
 
   const pendingRequestHeaders = new Map<string, Record<string, string>>();
 
-  // Header names to cache and replay (auth-related)
+  // Header names to cache and replay (auth-related). `referer` is kept too:
+  // many media CDNs (TikTok/Douyin and friends) reject playback without the
+  // original page as Referer, so it must travel with the captured media entry.
   const AUTH_HEADER_NAMES = new Set([
     'cookie',
     'authorization',
@@ -764,10 +772,11 @@ async function mapWithConcurrency<T, R>(
     'x-api-key',
     'x-csrf-token',
     'wbi-key',
+    'referer',
   ]);
 
   const isPotentialMediaRequest = (url: string): boolean =>
-    /\.(m3u8|m3u|mpd|mp4|m4v|webm|ogv|flv|mkv|mov|avi|3gp|3g2|mpeg|mpg|mp3|m4a|oga|weba|wav|flac|aac|gif|jpe?g|png|webp|svg|pdf|docx?|xlsx?|pptx?|epub|csv|rtf|srt|vtt|ass|ssa|ttml)(?:[?#]|$)|(?:subtitle|caption)/i.test(
+    /\.(m3u8|m3u|mpd|mp4|m4v|webm|ogv|flv|mkv|mov|avi|3gp|3g2|mpeg|mpg|mp3|m4a|oga|weba|wav|flac|aac|gif|jpe?g|png|webp|svg|avif|bmp|ico|heic|heif|apng|tiff?|pdf|docx?|xlsx?|pptx?|epub|csv|rtf|srt|vtt|ass|ssa|ttml)(?:[?#]|$)|(?:subtitle|caption)/i.test(
       url
     );
 
@@ -922,15 +931,25 @@ async function mapWithConcurrency<T, R>(
       let category: MediaCategory = 'media';
 
       if (details.type === 'media') {
-        // Refine the format via Content-Type, falling back to mp4 when unrecognized
+        // Refine the format via Content-Type, falling back to URL detection,
+        // then to mp4 when unrecognized (media CDNs often serve extension-less URLs)
         detectedFormat = contentType
-          ? (detectMedia(details.url, contentType, contentLength) ?? 'mp4')
+          ? (detectMedia(details.url, contentType, contentLength) ??
+            detectMediaFromUrl(details.url) ??
+            'mp4')
           : 'mp4';
         const settings = currentSettings;
         const pageUrl = tabPageUrls.get(effectiveTabId);
         if (settings && pageUrl && isDomainExcluded(pageUrl, settings))
           return undefined;
         if (settings && !isFormatAllowed(detectedFormat, settings))
+          return undefined;
+        if (
+          settings &&
+          detectedFormat !== 'm3u8' &&
+          detectedFormat !== 'mpd' &&
+          !isSizeAllowed(detectedFormat, contentLength, settings)
+        )
           return undefined;
         addMedia(
           details.url,
@@ -963,7 +982,12 @@ async function mapWithConcurrency<T, R>(
         return undefined;
       if (settings && !isFormatAllowed(detectedFormat, settings))
         return undefined;
-      if (settings && !isSizeAllowed(detectedFormat, contentLength, settings))
+      if (
+        settings &&
+        detectedFormat !== 'm3u8' &&
+        detectedFormat !== 'mpd' &&
+        !isSizeAllowed(detectedFormat, contentLength, settings)
+      )
         return undefined;
 
       // Player resources fetched via XHR/fetch must also keep their response Content-Type.
@@ -1760,7 +1784,8 @@ async function mapWithConcurrency<T, R>(
     }
 
     if (msg.type === 'REMOVE_MEDIA_IF_TOO_SMALL') {
-      sendResponse({ ok: true, removed: false });
+      const removed = pruneTooSmallMedia(currentSettings, msg.tabId as number);
+      sendResponse({ ok: true, removed });
       return true;
     }
 
@@ -1770,7 +1795,11 @@ async function mapWithConcurrency<T, R>(
     }
 
     if (msg.type === 'SAVE_SETTINGS') {
-      saveSettings(msg.settings).then(() => sendResponse({ ok: true }));
+      saveSettings(msg.settings).then(() => {
+        // Re-apply size rules to already-collected media across all tabs.
+        pruneTooSmallMedia(msg.settings);
+        sendResponse({ ok: true });
+      });
       return true;
     }
 
@@ -1977,8 +2006,28 @@ async function mapWithConcurrency<T, R>(
     contentType?: string,
     tabTitle?: string
   ) {
+    // Respect domain exclusion on every ingestion path (webRequest, ContentScript
+    // messages, MSE streams): resources from excluded pages must not be stored.
+    const pageUrlForCheck = tabPageUrls.get(tabId);
+    if (pageUrlForCheck && isDomainExcluded(pageUrlForCheck, currentSettings)) {
+      return;
+    }
     // Respect per-type sniffing switches: disabled types should not be stored or counted at all.
     if (!isFormatAllowed(format, currentSettings)) {
+      return;
+    }
+    // Respect per-type minSizeKB thresholds. Formats whose size is not meaningful
+    // (HLS/DASH playlists, segments, synthetic MSE streams) are exempt: their size
+    // does not reflect the final media size.
+    if (
+      size !== undefined &&
+      format !== 'm3u8' &&
+      format !== 'mpd' &&
+      format !== 'mse' &&
+      format !== 'ts' &&
+      format !== 'm4s' &&
+      !isSizeAllowed(format, size, currentSettings)
+    ) {
       return;
     }
     const managedNow =
@@ -2141,6 +2190,46 @@ async function mapWithConcurrency<T, R>(
     action.setBadgeBackgroundColor({ color: '#EF4444', tabId });
   }
 
+  // Remove already-collected media entries that fall below the per-type minSizeKB
+  // thresholds. Formats whose size is not meaningful (HLS/DASH playlists,
+  // segments, synthetic MSE streams) are exempt. Returns the number of removals.
+  function pruneTooSmallMedia(settings: Settings, tabId?: number): number {
+    let removedTotal = 0;
+    const pruneTab = (id: number): void => {
+      const mediaMap = tabMap.get(id);
+      if (!mediaMap) return;
+      let removed = 0;
+      for (const [url, entry] of mediaMap) {
+        if (
+          entry.size !== undefined &&
+          entry.format !== 'm3u8' &&
+          entry.format !== 'mpd' &&
+          entry.format !== 'mse' &&
+          entry.format !== 'ts' &&
+          entry.format !== 'm4s' &&
+          !isSizeAllowed(entry.format, entry.size, settings)
+        ) {
+          mediaMap.delete(url);
+          removed += 1;
+        }
+      }
+      if (removed > 0) {
+        saveTabList(id, mediaMap).catch(() => {});
+        try {
+          updateBadge(id);
+        } catch {}
+        broadcastDebounced(id);
+        removedTotal += removed;
+      }
+    };
+    if (tabId !== undefined) {
+      pruneTab(tabId);
+    } else {
+      for (const id of tabMap.keys()) pruneTab(id);
+    }
+    return removedTotal;
+  }
+
   function broadcast(
     tabId: number,
     list: Array<{
@@ -2172,8 +2261,14 @@ async function mapWithConcurrency<T, R>(
 
   /** Convert Bilibili's playurl response into one virtual stream group. */
   function upsertBilibiliDashTask(tabId: number, task: any, tabTitle?: string) {
+    // Platform tasks must respect the same display rules: domain exclusion,
+    // per-type sniff switches and the max-items cap.
+    const pageUrl = tabPageUrls.get(tabId);
+    if (pageUrl && isDomainExcluded(pageUrl, currentSettings)) return;
+    if (!isFormatAllowed('mpd', currentSettings)) return;
     if (!tabMap.has(tabId)) tabMap.set(tabId, new Map());
     const mediaMap = tabMap.get(tabId)!;
+    if (mediaMap.size >= (currentSettings.maxItems ?? 1000)) return;
     const taskKey = String(task.key || 'current').replace(
       /[^a-zA-Z0-9_-]/g,
       '_'
@@ -2274,9 +2369,14 @@ async function mapWithConcurrency<T, R>(
   }
 
   // ── Audio/video separated-stream grouping (Bilibili/YouTube etc.)
-  const DOUYIN_PAGE_HOST = /(^|\.)(douyin\.com|iesdouyin\.com)$/i;
+  // ByteDance short-video platforms: Douyin (domestic) and TikTok (overseas).
+  // TikTok shares the same aweme API shape and CDN layout, so page JSON
+  // (SIGI_STATE etc.) and native player preloads are handled through the same
+  // provider. The media-host list must cover TikTok CDNs for playback to work.
+  const DOUYIN_PAGE_HOST =
+    /(^|\.)(douyin\.com|iesdouyin\.com|tiktok\.com|musical\.ly)$/i;
   const DOUYIN_MEDIA_HOST =
-    /(^|\.)(douyinvod|douyincdn|bytecdn|bytego|byteimg|bytedance|amemv|iesdouyin|snssdk|pstatp|toutiaovod|ixigua)\.(com|cn|net)$/i;
+    /(^|\.)(douyinvod|douyincdn|bytecdn|bytego|byteimg|bytedance|amemv|iesdouyin|snssdk|pstatp|toutiaovod|ixigua|tiktokcdn|tiktokcdn-us|tiktokcdn-eu|tiktokcdn-in|tiktokv|muscdn|musical|byteoversea)\.(com|cn|net|us|eu|in|gg|io|ly)$/i;
 
   function isAllowedDouyinMediaUrl(value: unknown): value is string {
     if (typeof value !== 'string') return false;
@@ -2322,8 +2422,15 @@ async function mapWithConcurrency<T, R>(
     task: PlatformMediaTask,
     tabTitle?: string
   ) {
+    // Platform tasks must respect the same display rules: domain exclusion,
+    // per-type sniff switches and the max-items cap.
+    const pageUrl = tabPageUrls.get(tabId);
+    if (pageUrl && isDomainExcluded(pageUrl, currentSettings)) return;
+    const masterFormat = (task.candidates?.[0]?.format || 'mp4').toLowerCase();
+    if (!isFormatAllowed(masterFormat, currentSettings)) return;
     if (!tabMap.has(tabId)) tabMap.set(tabId, new Map());
     const mediaMap = tabMap.get(tabId)!;
+    if (mediaMap.size >= (currentSettings.maxItems ?? 1000)) return;
     const key =
       task.key.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100) || 'current';
     const masterUrl = `vid_grp_${task.provider}_${key}`;
@@ -2409,15 +2516,6 @@ async function mapWithConcurrency<T, R>(
         });
       }
       douyinMediaMetadata.set(tabId, metadataByUrl);
-
-      // A feed/detail response frequently exposes only a video URL. It is
-      // metadata, not a completed downloadable unit; wait for the player's
-      // matching audio/video preload pair to create the visible card.
-      if (!audioCandidates.length) {
-        saveTabList(tabId, mediaMap).catch(() => {});
-        broadcastDebounced(tabId);
-        return;
-      }
     }
 
     const previousMaster = mediaMap.get(masterUrl);
@@ -2514,6 +2612,56 @@ async function mapWithConcurrency<T, R>(
         url.searchParams.get('aweme_id');
       if (!role || !key) return;
 
+      // Do not hard-code 'mp4': the native player may stream HLS (video/audio
+      // m3u8 playlists) or FLV (live), which must be detected so the popup
+      // player picks hls.js/mpegts.js instead of a bare <video> element.
+      const buildTask = (
+        videoUrl: string,
+        audioUrl: string | undefined,
+        priority: number
+      ) => {
+        const groupKey = getDouyinTrackGroupKey(videoUrl);
+        const metadataByUrl = douyinMediaMetadata.get(tabId);
+        const metadata =
+          metadataByUrl?.get(videoUrl) ||
+          metadataByUrl?.get(getDouyinMediaResourceKey(videoUrl));
+        const candidates: Array<{
+          url: string;
+          format: string;
+          role: 'video' | 'audio';
+          label: string;
+        }> = [
+          {
+            url: videoUrl,
+            format: detectFormatFromUrl(videoUrl),
+            role: 'video',
+            label: '视频',
+          },
+        ];
+        if (audioUrl) {
+          candidates.push({
+            url: audioUrl,
+            format: detectFormatFromUrl(audioUrl),
+            role: 'audio',
+            label: '音频',
+          });
+        }
+        upsertPlatformMediaTask(
+          tabId,
+          {
+            provider: 'douyin',
+            key: groupKey,
+            referer: pageUrl,
+            priority,
+            title: metadata?.title || tabPageTitles.get(tabId),
+            coverUrl: metadata?.coverUrl,
+            duration: metadata?.duration,
+            candidates,
+          },
+          tabPageTitles.get(tabId)
+        );
+      };
+
       const byToken =
         douyinNativeTracks.get(tabId) ||
         new Map<
@@ -2526,6 +2674,10 @@ async function mapWithConcurrency<T, R>(
       );
       const oppositeIndex = pending.findIndex((track) => track.role !== role);
       if (oppositeIndex < 0) {
+        // A video preload may never meet its audio counterpart (cached audio
+        // responses, muxed streams, prefetch cancelled mid-flight). Surface
+        // the card immediately and let the paired audio upgrade it later.
+        if (role === 'video') buildTask(value, undefined, 3);
         pending.push({ url: value, role, at: now });
         byToken.set(key, pending);
         douyinNativeTracks.set(tabId, byToken);
@@ -2536,29 +2688,7 @@ async function mapWithConcurrency<T, R>(
       douyinNativeTracks.set(tabId, byToken);
       const video = role === 'video' ? value : opposite.url;
       const audio = role === 'audio' ? value : opposite.url;
-      const groupKey = getDouyinTrackGroupKey(video);
-      const metadataByUrl = douyinMediaMetadata.get(tabId);
-      const metadata =
-        metadataByUrl?.get(video) ||
-        metadataByUrl?.get(getDouyinMediaResourceKey(video));
-
-      upsertPlatformMediaTask(
-        tabId,
-        {
-          provider: 'douyin',
-          key: groupKey,
-          referer: pageUrl,
-          priority: 4,
-          title: metadata?.title || tabPageTitles.get(tabId),
-          coverUrl: metadata?.coverUrl,
-          duration: metadata?.duration,
-          candidates: [
-            { url: video, format: 'mp4', role: 'video', label: '视频' },
-            { url: audio, format: 'mp4', role: 'audio', label: '音频' },
-          ],
-        },
-        tabPageTitles.get(tabId)
-      );
+      buildTask(video, audio, 4);
     } catch {}
   }
 
@@ -2627,7 +2757,7 @@ async function mapWithConcurrency<T, R>(
       const host = u.host;
       const path = u.pathname;
       if (
-        /\.(douyinvod|douyinpic|douyincdn|amemv|iesdouyin|snssdk|bytecdn|byteimg|bytego|bytedns|byteoss|bytedance|pstatp|toutiaovod|ixigua)\.(?:com|cn|net)\b/i.test(
+        /\.(douyinvod|douyinpic|douyincdn|amemv|iesdouyin|snssdk|bytecdn|byteimg|bytego|bytedns|byteoss|bytedance|pstatp|toutiaovod|ixigua|tiktokcdn|tiktokcdn-us|tiktokcdn-eu|tiktokcdn-in|tiktokv|muscdn|musical|byteoversea)\.(?:com|cn|net|us|eu|in|gg|io|ly)\b/i.test(
           host
         )
       ) {
@@ -2727,7 +2857,7 @@ async function mapWithConcurrency<T, R>(
       const full = (host + path).toLowerCase();
       // Known media CDN domains
       const isMediaCdn =
-        /\.(douyinvod|douyinpic|douyincdn|amemv|iesdouyin|snssdk|bytecdn|byteimg|bytego|bytedns|byteoss|bytedance|pstatp|toutiaovod|ixigua|ks-yxcdn|kwaixiaodian)\.(?:com|cn|net)\b/i.test(
+        /\.(douyinvod|douyinpic|douyincdn|amemv|iesdouyin|snssdk|bytecdn|byteimg|bytego|bytedns|byteoss|bytedance|pstatp|toutiaovod|ixigua|tiktokcdn|tiktokcdn-us|tiktokcdn-eu|tiktokcdn-in|tiktokv|muscdn|musical|byteoversea|ks-yxcdn|kwaixiaodian)\.(?:com|cn|net|us|eu|in|gg|io|ly)\b/i.test(
           host
         );
       if (!isMediaCdn) return null;
@@ -2817,10 +2947,10 @@ async function mapWithConcurrency<T, R>(
       // audio pathSegs differ. Skip the similarity check and pair by time
       // window + URL features + size ratio instead.
       const isDouyinCdn =
-        /\.(douyinvod|douyinpic|douyincdn|amemv|iesdouyin|snssdk|bytecdn|byteimg|bytego|bytedns|byteoss|bytedance|pstatp|toutiaovod|ixigua)\.(?:com|cn|net)\b/i.test(
+        /\.(douyinvod|douyinpic|douyincdn|amemv|iesdouyin|snssdk|bytecdn|byteimg|bytego|bytedns|byteoss|bytedance|pstatp|toutiaovod|ixigua|tiktokcdn|tiktokcdn-us|tiktokcdn-eu|tiktokcdn-in|tiktokv|muscdn|musical|byteoversea)\.(?:com|cn|net|us|eu|in|gg|io|ly)\b/i.test(
           newUrl
         ) &&
-        /\.(douyinvod|douyinpic|douyincdn|amemv|iesdouyin|snssdk|bytecdn|byteimg|bytego|bytedns|byteoss|bytedance|pstatp|toutiaovod|ixigua)\.(?:com|cn|net)\b/i.test(
+        /\.(douyinvod|douyinpic|douyincdn|amemv|iesdouyin|snssdk|bytecdn|byteimg|bytego|bytedns|byteoss|bytedance|pstatp|toutiaovod|ixigua|tiktokcdn|tiktokcdn-us|tiktokcdn-eu|tiktokcdn-in|tiktokv|muscdn|musical|byteoversea)\.(?:com|cn|net|us|eu|in|gg|io|ly)\b/i.test(
           candidateUrl
         );
       if (!isDouyinCdn) {

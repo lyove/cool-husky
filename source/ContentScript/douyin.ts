@@ -10,8 +10,11 @@ import type {
   const announced = new Set<string>();
   let scheduled = false;
 
+  // ByteDance media CDNs — Douyin (domestic) plus TikTok (overseas). TikTok
+  // pages embed the same aweme-style playAddr/playUrl structures in SIGI_STATE,
+  // so the same parser feeds both platforms.
   const mediaUrlPattern =
-    /(^|\.)(douyinvod|douyincdn|bytecdn|bytego|byteimg|bytedance|amemv|iesdouyin|snssdk|pstatp|toutiaovod|ixigua)\.(com|cn|net)$/i;
+    /(^|\.)(douyinvod|douyincdn|bytecdn|bytego|byteimg|bytedance|amemv|iesdouyin|snssdk|pstatp|toutiaovod|ixigua|tiktokcdn|tiktokcdn-us|tiktokcdn-eu|tiktokcdn-in|tiktokv|muscdn|musical|byteoversea)\.(com|cn|net|us|eu|in|gg|io|ly)$/i;
   const addressKeys = new Set([
     'playaddr',
     'play_addr',
