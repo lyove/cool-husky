@@ -161,13 +161,35 @@ export function sanitizeFilename(name: string): string {
 /** Extract filename from URL (without extension) */
 export function getFileName(url: string): string {
   try {
-    const pathname = new URL(url).pathname;
+    if (url.startsWith('data:')) {
+      let h = 0;
+      for (let i = 0; i < url.length; i++)
+        h = (h * 31 + url.charCodeAt(i)) >>> 0;
+      return `image-${h.toString(36).slice(0, 8)}`;
+    }
+
+    const pathname = decodeURIComponent(new URL(url).pathname);
     const last = pathname.split('/').pop() || '';
+
+    // CDN signed URLs often expose an unreadable query-style path segment.
+    if (last.length > 48 || /[=?&]/.test(last)) {
+      const extMatch = last.match(
+        /\.(mp4|m3u8|webm|mov|m4v|mp3|m4a|ts|png|jpe?g|webp|gif|svg|pdf|mkv|avi|flv|ogg|wav|aac)(?=$|&|\?)/i
+      );
+      const ext = extMatch && extMatch[1] ? extMatch[1].toLowerCase() : '';
+      let h = 0;
+      for (let i = 0; i < url.length; i++) {
+        h = (h * 31 + url.charCodeAt(i)) >>> 0;
+      }
+      const short = h.toString(36).slice(0, 6);
+      return ext ? `media-${short}.${ext}` : `media-${short}`;
+    }
+
     const withoutQuery = last.split('?')[0] || '';
     const dot = withoutQuery.lastIndexOf('.');
     return dot > 0 ? withoutQuery.slice(0, dot) : withoutQuery;
   } catch {
-    return 'download';
+    return url.split('/').pop() || url;
   }
 }
 

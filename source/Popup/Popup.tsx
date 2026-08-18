@@ -20,6 +20,7 @@ import {
 import { useMediaActions } from './hooks/useMediaActions';
 import { useI18n } from './hooks/useI18n';
 import { useSettings } from './hooks/useSettings';
+import { useVideoThumbnails } from './hooks/useVideoThumbnails';
 import {
   formatFileSize,
   formatItemSize,
@@ -30,6 +31,7 @@ import {
   getRelativeTime,
   getDownloadFilename,
   getFileName,
+  isAudioFormat,
   isImageFormat,
   isStreamFormat,
   isVideoFormat,
@@ -41,6 +43,7 @@ import type {
   MetadataBatchResponse,
 } from '../utils/popup-types';
 import MediaPlayerModal from './components/MediaPlayerModal/MediaPlayerModal';
+import InlineMediaPlayer from './components/InlineMediaPlayer/InlineMediaPlayer';
 import SettingsView from './components/SettingsView/SettingsView';
 import styles from './Popup.module.scss';
 
@@ -63,6 +66,218 @@ const isMobileBrowser = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 const mobileCapabilityTip = /zh/i.test(navigator.language)
   ? '移动端提示：普通下载可用；直播录制和 MSE 下载可能受后台运行及内存限制。'
   : 'Mobile note: regular downloads are supported; live recording and MSE downloads may be limited by background execution and memory.';
+
+// ── Inline SVG icons for the media cards (flowpick-style) ──
+const AudioIcon = (): ReactNode => (
+  <svg
+    viewBox="0 0 24 24"
+    width="20"
+    height="20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+  </svg>
+);
+
+const SelectAllIconSvg = ({ checked }: { checked: boolean }): ReactNode => (
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill={checked ? 'currentColor' : 'none'}
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx="12" cy="12" r="9" />
+    {checked && <path d="M8 12l2.5 2.5L16 9" stroke="#fff" />}
+  </svg>
+);
+
+const SortIconSvg = ({ desc }: { desc: boolean }): ReactNode => (
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    strokeWidth="1.5"
+    fill="none"
+    stroke="currentColor"
+    style={desc ? undefined : { transform: 'scaleY(-1)' }}
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4"
+    />
+  </svg>
+);
+
+const TrashIconSvg = (): ReactNode => (
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    strokeWidth="1.5"
+    fill="none"
+    stroke="currentColor"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+    />
+  </svg>
+);
+
+const RefreshIconSvg = (): ReactNode => (
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M21 12a9 9 0 01-9 9 9 9 0 010-18 9 9 0 017.1 3.5" />
+    <path d="M21 3v6h-6" />
+  </svg>
+);
+
+const FilterIconSvg = ({ active }: { active: boolean }): ReactNode => (
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill={active ? 'currentColor' : 'none'}
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M3 5h18M7 12h10M10 19h4" />
+  </svg>
+);
+
+const VideoIcon = (): ReactNode => (
+  <svg
+    viewBox="0 0 24 24"
+    width="20"
+    height="20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.361a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+  </svg>
+);
+
+const FileIcon = (): ReactNode => (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+    <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+  </svg>
+);
+
+const CopyIconSvg = (): ReactNode => (
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+  </svg>
+);
+
+const PlayIconSvg = (): ReactNode => (
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    <path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+  </svg>
+);
+
+const PauseIconSvg = (): ReactNode => (
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    <path d="M10 9v6m4-6v6" />
+  </svg>
+);
+
+const PreviewIconSvg = (): ReactNode => (
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+  </svg>
+);
+
+const DownloadIconSvg = (): ReactNode => (
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+  </svg>
+);
+
+/** 根据格式返回 badge 颜色类，与 flowpick 风格对齐 */
+function getFormatBadgeClass(fmt: string, streamLabel?: boolean): string {
+  const f = fmt.toLowerCase();
+  if (streamLabel) return styles.formatBadgeStream ?? '';
+  if (isImageFormat(f)) return styles.formatBadgeImage ?? '';
+  if (isAudioFormat(f)) return styles.formatBadgeAudio ?? '';
+  if (isVideoFormat(f) || isStreamFormat(f)) {
+    return styles.formatBadgeVideo ?? '';
+  }
+  return styles.formatBadgeDocument ?? '';
+}
+
+function isPlayableInlineFormat(fmt: string): boolean {
+  return isAudioFormat(fmt) || isVideoFormat(fmt) || isStreamFormat(fmt);
+}
 
 // ────────────────────────────── Generic virtual list ──────────────────────────────
 
@@ -88,6 +303,11 @@ function VirtualList<T>({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
+  const [measureTick, setMeasureTick] = useState(0);
+
+  // 已测量的条目内容高度（不含 gap），未测量前回退到 estimateHeight。
+  // 保证条目按真实高度摆放，估算偏低时也不会重叠。
+  const measuredHeightsRef = useRef(new Map<number, number>());
 
   useEffect(() => {
     const el = containerRef.current;
@@ -100,16 +320,37 @@ function VirtualList<T>({
     return (): void => ro.disconnect();
   }, []);
 
+  /** 实测条目高度；只有高度真正变化（>0.5px）才触发重排，避免渲染抖动 */
+  const measureItem = useCallback(
+    (el: HTMLDivElement, index: number): void => {
+      const measured = el.getBoundingClientRect().height - gap;
+      if (!(measured > 0)) {
+        return;
+      }
+      const prev = measuredHeightsRef.current.get(index);
+      if (prev !== undefined && Math.abs(prev - measured) < 0.5) {
+        return;
+      }
+      measuredHeightsRef.current.set(index, measured);
+      setMeasureTick((t) => t + 1);
+    },
+    [gap]
+  );
+
   const offsets = useMemo(() => {
+    // measureTick 仅作为“测量值已更新”的重算触发信号
+    void measureTick;
     const arr = new Array<number>(items.length + 1);
     arr[0] = 0;
     for (let i = 0; i < items.length; i++) {
-      arr[i + 1] = (arr[i] ?? 0) + estimateHeight(items[i]!, i) + gap;
+      const h =
+        measuredHeightsRef.current.get(i) ?? estimateHeight(items[i]!, i);
+      arr[i + 1] = (arr[i] ?? 0) + h + gap;
     }
     return arr;
-  }, [items, estimateHeight, gap]);
+  }, [items, estimateHeight, gap, measureTick]);
 
-  const total = (offsets[items.length] ?? 0) - gap;
+  const total = Math.max(0, (offsets[items.length] ?? 0) - gap);
 
   let start = 0;
   while (start < items.length && (offsets[start + 1] ?? 0) <= scrollTop)
@@ -125,6 +366,11 @@ function VirtualList<T>({
     vItem.push(
       <div
         key={getKey(items[i]!, i)}
+        ref={(el) => {
+          if (el) {
+            measureItem(el, i);
+          }
+        }}
         style={{
           position: 'absolute',
           top: offsets[i],
@@ -221,7 +467,7 @@ const Lightbox: FC<LightboxProps> = ({
               void onCopy(current.url);
             }}
           >
-            {t('copyLink')}
+            {t('copyUrl')}
           </button>
           <button
             type="button"
@@ -329,7 +575,9 @@ const HoverPreview: FC<HoverPreviewProps> = ({ state }) => {
           {getFileName(item.url)}
         </div>
         <div className={styles.hoverPreviewMeta}>
-          <span className={styles.formatBadge}>
+          <span
+            className={`${styles.formatBadge} ${getFormatBadgeClass(item.format)}`}
+          >
             {getFormatLabel(item.format)}
           </span>
           {resolution && <span className={styles.metaTag}>{resolution}</span>}
@@ -373,11 +621,19 @@ export default function Popup({
 }: PopupProps): ReactNode {
   const { t, density } = useI18n();
   const { settings, saveSettings } = useSettings();
+  const {
+    isFailed: isVideoThumbFailed,
+    getMetadata: getVideoMetadata,
+    onVideoLoadedData,
+    markFailed: markVideoThumbFailed,
+  } = useVideoThumbnails();
 
   // ── UI state ──
   const [showSettings, setShowSettings] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
   const [previewItem, setPreviewItem] = useState<MediaListItem | null>(null);
+  const [playingItem, setPlayingItem] = useState<MediaListItem | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [editingUrl, setEditingUrl] = useState('');
   const [editingName, setEditingName] = useState('');
@@ -443,6 +699,7 @@ export default function Popup({
     searchError,
     clearSearch,
     tabCounts,
+    enabledTabs,
     typeOptions,
     filteredMediaList,
     filteredImageList,
@@ -772,13 +1029,13 @@ export default function Popup({
           8
         );
       }
-      return density === 'comfortable' ? 104 : 92;
+      return density === 'comfortable' ? 98 : 82;
     },
     [expandedGroups, density]
   );
 
   const estimateItemHeight = useCallback(
-    (): number => (density === 'comfortable' ? 104 : 92),
+    (): number => (density === 'comfortable' ? 98 : 82),
     [density]
   );
 
@@ -856,7 +1113,7 @@ export default function Popup({
     return cleanup;
   }, []);
 
-  // ── Render: regular media card ──
+  // ── Render: regular media card (flowpick-style) ──
   const renderItemCard = useCallback(
     (item: MediaListItem): ReactNode => {
       const key = getMediaKey(item);
@@ -864,108 +1121,224 @@ export default function Popup({
       const isLive =
         item.isLiveStream && (item.format === 'flv' || item.format === 'ts');
       const isRecording = actions.isLiveRecording(item);
-      const resolution = getResolutionLabel(item.width, item.height);
       const isEditing = editingUrl === item.url;
       const displayName = getDisplayName(item);
+      const fmt = item.format.toLowerCase();
+      const hasThumbnail = Boolean(item.coverUrl) || isImageFormat(fmt);
+      const canVideoThumb = isVideoFormat(fmt) && !isStreamFormat(fmt);
+      const showVideoThumb =
+        canVideoThumb && !hasThumbnail && !isVideoThumbFailed(item.url);
+      const probedMeta = getVideoMetadata(item.url);
+      const effectiveDuration =
+        item.duration && item.duration > 0
+          ? item.duration
+          : probedMeta?.duration;
+      const effectiveWidth =
+        item.width && item.width > 0 ? item.width : probedMeta?.width;
+      const effectiveHeight =
+        item.height && item.height > 0 ? item.height : probedMeta?.height;
+      const showDuration = Boolean(effectiveDuration && effectiveDuration > 0);
+
+      const thumbnailFallbackType = isAudioFormat(fmt)
+        ? 'audio'
+        : isVideoFormat(fmt) || isStreamFormat(fmt)
+          ? 'video'
+          : 'file';
+
+      let hostname = '';
+      try {
+        hostname = new URL(item.url).hostname;
+      } catch {
+        hostname = '';
+      }
+
       return (
         <div
           className={`${styles.item} ${selected ? styles.itemSelected : ''}`}
-          onMouseEnter={(e) => handleCardHover(e, item)}
-          onMouseLeave={handleCardLeave}
         >
-          <label className={styles.checkbox}>
+          <label className={styles.itemCheckbox}>
             <input
               type="checkbox"
               checked={selected}
               onChange={() => toggleSelectItem(key)}
+              onClick={(e) => e.stopPropagation()}
             />
           </label>
-          <div className={styles.itemBody}>
-            <div className={styles.itemMain}>
-              <span className={styles.formatBadge}>
-                {getFormatLabel(item.format)}
-              </span>
-              {isEditing ? (
-                <input
-                  className={styles.renameInput}
-                  value={editingName}
-                  autoFocus
-                  onChange={(e) => setEditingName(e.target.value)}
-                  onBlur={confirmRename}
-                  onKeyDown={onRenameKeyDown}
-                />
-              ) : (
-                <span
-                  className={styles.itemUrl}
-                  title={item.url}
-                  onDoubleClick={() => startRename(item)}
-                >
-                  {displayName}
-                </span>
-              )}
-            </div>
-            <div className={styles.itemMeta}>
-              {resolution && (
-                <span className={styles.metaTag}>{resolution}</span>
-              )}
-              {item.category && (
-                <span className={styles.metaTag}>{item.category}</span>
-              )}
-              {item.groupLabel && (
-                <span className={styles.metaTag}>{item.groupLabel}</span>
-              )}
-              {item.trackCount !== undefined && (
-                <span className={styles.metaTag}>
-                  {item.trackCount} {t('tracks')}
-                </span>
-              )}
-              {item.mseComplete !== undefined && (
-                <span className={styles.metaTag}>
-                  {item.mseComplete ? '✓' : '●'}
-                </span>
-              )}
-              {formatDuration(item.duration)}
-              {getRelativeTime(item.detectedAt, t)}
-              <span className={styles.itemSize}>{formatItemSize(item)}</span>
-            </div>
-          </div>
-          <div className={styles.itemActions}>
-            <button
-              type="button"
-              className={styles.actionBtn}
-              onClick={() => setPreviewItem(item)}
-              title={t('play')}
-            >
-              ▶
-            </button>
-            {isLive ? (
-              <button
-                type="button"
-                className={`${styles.actionBtn} ${isRecording ? styles.actionBtnRecording : ''}`}
-                onClick={() => actions.toggleLiveRecording(item)}
-                title={isRecording ? t('stopRecording') : t('startRecording')}
-              >
-                {isRecording ? '⏹' : '⏺'}
-              </button>
+          <div
+            className={styles.thumbnailWrap}
+            onMouseEnter={(e) => handleCardHover(e, item)}
+            onMouseLeave={handleCardLeave}
+          >
+            {hasThumbnail ? (
+              <img
+                src={item.coverUrl || item.url}
+                alt=""
+                className={styles.thumbnailImg}
+                loading="lazy"
+              />
+            ) : showVideoThumb ? (
+              <video
+                src={item.url}
+                className={styles.thumbnailImg}
+                preload="metadata"
+                muted
+                playsInline
+                onLoadedData={(e) => onVideoLoadedData(e, item.url)}
+                onError={() => markVideoThumbFailed(item.url)}
+              />
             ) : (
+              <div
+                className={`${styles.thumbnailFallback} ${
+                  thumbnailFallbackType === 'audio'
+                    ? styles.thumbnailAudio
+                    : thumbnailFallbackType === 'video'
+                      ? styles.thumbnailVideo
+                      : styles.thumbnailFile
+                }`}
+              >
+                {thumbnailFallbackType === 'audio' ? (
+                  <AudioIcon />
+                ) : thumbnailFallbackType === 'video' ? (
+                  <VideoIcon />
+                ) : (
+                  <FileIcon />
+                )}
+              </div>
+            )}
+            {showDuration && (
+              <span className={styles.thumbnailDuration}>
+                {formatDuration(effectiveDuration)}
+              </span>
+            )}
+          </div>
+
+          <div className={styles.itemMain}>
+            <div className={styles.itemBody}>
+              <div className={styles.itemTitleRow}>
+                {isEditing ? (
+                  <input
+                    className={styles.renameInput}
+                    value={editingName}
+                    autoFocus
+                    onChange={(e) => setEditingName(e.target.value)}
+                    onBlur={confirmRename}
+                    onKeyDown={onRenameKeyDown}
+                  />
+                ) : (
+                  <span
+                    className={styles.itemName}
+                    title={item.url}
+                    role="button"
+                    tabIndex={0}
+                    onDoubleClick={() => startRename(item)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        startRename(item);
+                      }
+                    }}
+                  >
+                    {displayName}
+                  </span>
+                )}
+                <span className={styles.itemTime}>
+                  {getRelativeTime(item.detectedAt, t)}
+                </span>
+              </div>
+              <div className={styles.itemMeta}>
+                <span
+                  className={`${styles.formatBadge} ${getFormatBadgeClass(fmt)}`}
+                >
+                  {getFormatLabel(item.format)}
+                </span>
+                <span className={styles.sizeBadge}>{formatItemSize(item)}</span>
+                {showDuration && (
+                  <span className={styles.metaTag}>
+                    {formatDuration(effectiveDuration)}
+                  </span>
+                )}
+                {getResolutionLabel(effectiveWidth, effectiveHeight) && (
+                  <span className={styles.metaTag}>
+                    {getResolutionLabel(effectiveWidth, effectiveHeight)}
+                  </span>
+                )}
+                {hostname && (
+                  <span className={styles.metaTag} title={item.url}>
+                    {hostname}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className={styles.itemActions}>
               <button
                 type="button"
-                className={styles.actionBtn}
-                onClick={() => void handleDownloadItem(item)}
-                title={t('download')}
+                className={styles.actionBtnCopy}
+                onClick={() => void handleCopyUrl(item.url)}
+                title={t('copyUrl')}
               >
-                ⬇
+                <CopyIconSvg />
               </button>
-            )}
-            <button
-              type="button"
-              className={styles.actionBtn}
-              onClick={() => void handleCopyUrl(item.url)}
-              title={t('copyLink')}
-            >
-              ⧉
-            </button>
+              <button
+                type="button"
+                className={styles.actionBtnPrimary}
+                onClick={() => {
+                  if (isImageFormat(fmt)) {
+                    const index = filteredImageList.indexOf(item);
+                    if (index >= 0) setLightboxIndex(index);
+                  } else if (isPlayableInlineFormat(fmt)) {
+                    setPlayingItem((prev) =>
+                      prev?.url === item.url ? null : item
+                    );
+                  } else {
+                    setPreviewItem(item);
+                  }
+                }}
+                title={
+                  isImageFormat(fmt)
+                    ? t('preview')
+                    : playingItem?.url === item.url
+                      ? t('pause')
+                      : t('play')
+                }
+              >
+                {isImageFormat(fmt) ? (
+                  <PreviewIconSvg />
+                ) : playingItem?.url === item.url ? (
+                  <PauseIconSvg />
+                ) : (
+                  <PlayIconSvg />
+                )}
+              </button>
+              {isLive ? (
+                <button
+                  type="button"
+                  className={`${styles.actionBtnSuccess} ${isRecording ? styles.actionBtnRecording : ''}`}
+                  onClick={() => actions.toggleLiveRecording(item)}
+                  title={isRecording ? t('stopRecording') : t('startRecording')}
+                >
+                  {isRecording ? '⏹' : '⏺'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={styles.actionBtnSuccess}
+                  onClick={() => void handleDownloadItem(item)}
+                  title={t('download')}
+                >
+                  <DownloadIconSvg />
+                </button>
+              )}
+            </div>
           </div>
+          {playingItem?.url === item.url && (
+            <div className={styles.inlinePlayer}>
+              <InlineMediaPlayer
+                item={playingItem}
+                currentTabId={currentTabId}
+              />
+            </div>
+          )}
         </div>
       );
     },
@@ -984,6 +1357,15 @@ export default function Popup({
       t,
       handleCardHover,
       handleCardLeave,
+      filteredImageList,
+      setLightboxIndex,
+      playingItem,
+      setPlayingItem,
+      currentTabId,
+      isVideoThumbFailed,
+      getVideoMetadata,
+      onVideoLoadedData,
+      markVideoThumbFailed,
     ]
   );
 
@@ -1002,10 +1384,32 @@ export default function Popup({
         return sum + (item?.size || 0);
       }, 0);
 
+      const masterFmt = master?.format.toLowerCase() ?? '';
+      const groupIconType = master
+        ? isAudioFormat(masterFmt)
+          ? 'audio'
+          : isVideoFormat(masterFmt) || isStreamFormat(masterFmt)
+            ? 'video'
+            : 'file'
+        : 'video';
+      const hasGroupThumbnail =
+        Boolean(master?.coverUrl) || isImageFormat(masterFmt);
+      const canGroupVideoThumb =
+        master && isVideoFormat(masterFmt) && !isStreamFormat(masterFmt);
+      const showGroupVideoThumb =
+        canGroupVideoThumb &&
+        !hasGroupThumbnail &&
+        !isVideoThumbFailed(master?.url ?? '');
+
       const renderRow = (item: MediaListItem): ReactNode => {
         const key = getMediaKey(item);
         const isSelected = selectedUrls.has(key);
-        const res = getResolutionLabel(item.width, item.height);
+        const probedMeta = getVideoMetadata(item.url);
+        const effectiveWidth =
+          item.width && item.width > 0 ? item.width : probedMeta?.width;
+        const effectiveHeight =
+          item.height && item.height > 0 ? item.height : probedMeta?.height;
+        const res = getResolutionLabel(effectiveWidth, effectiveHeight);
         return (
           <div
             className={`${styles.variantRow} ${isSelected ? styles.itemSelected : ''}`}
@@ -1018,7 +1422,9 @@ export default function Popup({
                 onChange={() => toggleSelectItem(key)}
               />
             </label>
-            <span className={styles.formatBadge}>
+            <span
+              className={`${styles.formatBadge} ${getFormatBadgeClass(item.format)}`}
+            >
               {getFormatLabel(item.format)}
             </span>
             {res && <span className={styles.metaTag}>{res}</span>}
@@ -1035,10 +1441,22 @@ export default function Popup({
               <button
                 type="button"
                 className={styles.actionBtn}
-                onClick={() => setPreviewItem(item)}
-                title={t('play')}
+                onClick={() => {
+                  if (isPlayableInlineFormat(item.format.toLowerCase())) {
+                    setPlayingItem((prev) =>
+                      prev?.url === item.url ? null : item
+                    );
+                  } else {
+                    setPreviewItem(item);
+                  }
+                }}
+                title={playingItem?.url === item.url ? t('pause') : t('play')}
               >
-                ▶
+                {playingItem?.url === item.url ? (
+                  <PauseIconSvg />
+                ) : (
+                  <PlayIconSvg />
+                )}
               </button>
               <button
                 type="button"
@@ -1046,21 +1464,23 @@ export default function Popup({
                 onClick={() => void handleDownloadItem(item)}
                 title={t('download')}
               >
-                ⬇
+                <DownloadIconSvg />
               </button>
             </div>
+            {playingItem?.url === item.url && (
+              <div className={styles.inlinePlayer}>
+                <InlineMediaPlayer
+                  item={playingItem}
+                  currentTabId={currentTabId}
+                />
+              </div>
+            )}
           </div>
         );
       };
 
       return (
-        <div
-          className={styles.groupCard}
-          onMouseEnter={(e) => {
-            if (master) handleCardHover(e, master);
-          }}
-          onMouseLeave={handleCardLeave}
-        >
+        <div className={styles.groupCard}>
           <div className={styles.groupHeader}>
             <label className={styles.checkbox}>
               <input
@@ -1069,9 +1489,50 @@ export default function Popup({
                 onChange={() => toggleSelectGroup(group)}
               />
             </label>
-            <span className={styles.formatBadge}>
-              {master ? getFormatLabel(master.format) : 'STREAM'}
-            </span>
+            <div
+              className={styles.thumbnailWrap}
+              onMouseEnter={(e) => {
+                if (master) handleCardHover(e, master);
+              }}
+              onMouseLeave={handleCardLeave}
+            >
+              {hasGroupThumbnail ? (
+                <img
+                  src={master?.coverUrl || master?.url}
+                  alt=""
+                  className={styles.thumbnailImg}
+                  loading="lazy"
+                />
+              ) : showGroupVideoThumb && master ? (
+                <video
+                  src={master.url}
+                  className={styles.thumbnailImg}
+                  preload="metadata"
+                  muted
+                  playsInline
+                  onLoadedData={(e) => onVideoLoadedData(e, master.url)}
+                  onError={() => markVideoThumbFailed(master.url)}
+                />
+              ) : (
+                <div
+                  className={`${styles.thumbnailFallback} ${
+                    groupIconType === 'audio'
+                      ? styles.thumbnailAudio
+                      : groupIconType === 'video'
+                        ? styles.thumbnailVideo
+                        : styles.thumbnailFile
+                  }`}
+                >
+                  {groupIconType === 'audio' ? (
+                    <AudioIcon />
+                  ) : groupIconType === 'video' ? (
+                    <VideoIcon />
+                  ) : (
+                    <FileIcon />
+                  )}
+                </div>
+              )}
+            </div>
             {master && editingUrl === master.url ? (
               <input
                 className={styles.renameInput}
@@ -1134,6 +1595,14 @@ export default function Popup({
       t,
       handleCardHover,
       handleCardLeave,
+      playingItem,
+      setPlayingItem,
+      currentTabId,
+      setPreviewItem,
+      isVideoThumbFailed,
+      getVideoMetadata,
+      onVideoLoadedData,
+      markVideoThumbFailed,
     ]
   );
 
@@ -1145,13 +1614,13 @@ export default function Popup({
     [renderGroupCard, renderItemCard]
   );
 
-  // ── Tab definitions (dynamic via i18n) ──
+  // ── Tab definitions (dynamic via i18n and enabled sniffing rules) ──
   const tabDefs = useMemo(
     () =>
-      TAB_DEFS.map((tab) => {
+      TAB_DEFS.filter((tab) => enabledTabs.includes(tab.key)).map((tab) => {
         return { ...tab, label: t(tab.label) };
       }),
-    [t]
+    [t, enabledTabs]
   );
 
   const resolutionOptions = useMemo(
@@ -1316,159 +1785,200 @@ export default function Popup({
                 </button>
               ))}
             </div>
-            <div className={styles.searchRow}>
-              <input
-                className={styles.searchInput}
-                type="search"
-                placeholder={t('searchPlaceholder')}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <button
-                type="button"
-                className={`${styles.iconBtn} ${useRegex ? styles.iconBtnActive : ''}`}
-                onClick={() => setUseRegex(!useRegex)}
-                title={t('regexToggle')}
-              >
-                .*
-              </button>
-              {searchQuery && (
+            <div className={styles.actionToolbar}>
+              <div className={styles.actionToolbarLeft}>
                 <button
                   type="button"
                   className={styles.iconBtn}
-                  onClick={clearSearch}
-                  title={t('clearSearch')}
+                  onClick={toggleSelectAll}
+                  disabled={!visibleItemKeys.length}
+                  title={allVisibleSelected ? t('deselectAll') : t('selectAll')}
                 >
-                  ✕
+                  <SelectAllIconSvg checked={allVisibleSelected} />
                 </button>
-              )}
-            </div>
-            {!regexValid && searchError && (
-              <p className={styles.searchError}>{searchError}</p>
-            )}
-            <div className={styles.filterRow}>
-              {activeTab === 'video' && typeOptions.length > 1 && (
-                <select
-                  className={styles.select}
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value as never)}
-                >
-                  {typeOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {(activeTab === 'all' ||
-                activeTab === 'video' ||
-                activeTab === 'audio' ||
-                activeTab === 'doc') && (
-                <div className={styles.sizeFilter}>
-                  <input
-                    className={styles.sizeInput}
-                    type="number"
-                    min={0}
-                    placeholder={t('min')}
-                    value={sizeFilter.min || ''}
-                    onChange={(e) =>
-                      setSizeFilter({
-                        ...sizeFilter,
-                        min: Number(e.target.value) || 0,
-                      })
-                    }
-                  />
-                  <span className={styles.sizeUnit}>-</span>
-                  <input
-                    className={styles.sizeInput}
-                    type="number"
-                    min={0}
-                    placeholder={t('max')}
-                    value={sizeFilter.max || ''}
-                    onChange={(e) =>
-                      setSizeFilter({
-                        ...sizeFilter,
-                        max: Number(e.target.value) || 0,
-                      })
-                    }
-                  />
-                  <span className={styles.sizeUnit}>KB</span>
-                </div>
-              )}
-              {activeTab === 'image' && (
-                <div className={styles.sizeFilter}>
-                  <input
-                    className={styles.sizeInput}
-                    type="number"
-                    min={0}
-                    placeholder={t('width')}
-                    value={dimensionFilter.minWidth || ''}
-                    onChange={(e) =>
-                      setDimensionFilter({
-                        ...dimensionFilter,
-                        minWidth: Number(e.target.value) || 0,
-                      })
-                    }
-                  />
-                  <span className={styles.sizeUnit}>×</span>
-                  <input
-                    className={styles.sizeInput}
-                    type="number"
-                    min={0}
-                    placeholder={t('height')}
-                    value={dimensionFilter.minHeight || ''}
-                    onChange={(e) =>
-                      setDimensionFilter({
-                        ...dimensionFilter,
-                        minHeight: Number(e.target.value) || 0,
-                      })
-                    }
-                  />
-                  <span className={styles.sizeUnit}>px</span>
-                </div>
-              )}
-              {activeTab === 'video' && (
-                <select
-                  className={styles.select}
-                  value={resolutionFilter}
-                  onChange={(e) => setResolutionFilter(e.target.value)}
-                >
-                  <option value="any">{t('any')}</option>
-                  {resolutionOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <div className={styles.sortGroup}>
                 <button
                   type="button"
-                  className={`${styles.iconBtn} ${styles.sortBtn}`}
+                  className={styles.iconBtn}
+                  onClick={() => void handleDownloadBatch()}
+                  disabled={!selectedCount || actions.downloading}
+                  title={t('downloadSelected')}
+                >
+                  <DownloadIconSvg />
+                </button>
+                <span className={styles.toolbarDivider} />
+                <button
+                  type="button"
+                  className={styles.iconBtn}
                   onClick={() =>
                     setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')
                   }
                   title={t('sort')}
                 >
-                  {sortOrder === 'desc' ? '↓' : '↑'}
+                  <SortIconSvg desc={sortOrder === 'desc'} />
+                </button>
+                <button
+                  type="button"
+                  className={styles.iconBtn}
+                  onClick={() => void clearList()}
+                  title={t('clear')}
+                >
+                  <TrashIconSvg />
+                </button>
+                <button
+                  type="button"
+                  className={styles.iconBtn}
+                  onClick={() => void refreshPage()}
+                  title={t('refresh')}
+                >
+                  <RefreshIconSvg />
                 </button>
               </div>
+              <button
+                type="button"
+                className={`${styles.iconBtn} ${
+                  showFilters ? styles.filterToolbarBtnActive : ''
+                }`}
+                onClick={() => setShowFilters(!showFilters)}
+                title={t('filter')}
+              >
+                <FilterIconSvg active={showFilters} />
+              </button>
             </div>
-          </div>
 
-          <div className={styles.listHeader}>
-            <label className={styles.checkboxLabel}>
-              <input
-                type="checkbox"
-                checked={allVisibleSelected}
-                onChange={toggleSelectAll}
-                disabled={!visibleItemKeys.length}
-              />
-              {t('selectAll')}
-            </label>
-            <span className={styles.listSummary}>
-              {t('found')} {mediaCatalog.all.length} {t('item')}
-            </span>
+            <div
+              className={`${styles.searchFilter} ${
+                showFilters ? styles.searchFilterExpanded : ''
+              }`}
+            >
+              <div className={styles.searchRow}>
+                <input
+                  className={styles.searchInput}
+                  type="search"
+                  placeholder={t('searchPlaceholder')}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className={`${styles.iconBtn} ${useRegex ? styles.iconBtnActive : ''}`}
+                  onClick={() => setUseRegex(!useRegex)}
+                  title={t('regexToggle')}
+                >
+                  .*
+                </button>
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className={styles.iconBtn}
+                    onClick={clearSearch}
+                    title={t('clearSearch')}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              {!regexValid && searchError && (
+                <p className={styles.searchError}>{searchError}</p>
+              )}
+              {showFilters && (
+                <div className={styles.filterRow}>
+                  {activeTab === 'video' && typeOptions.length > 1 && (
+                    <select
+                      className={styles.select}
+                      value={typeFilter}
+                      onChange={(e) => setTypeFilter(e.target.value as never)}
+                    >
+                      {typeOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {(activeTab === 'all' ||
+                    activeTab === 'video' ||
+                    activeTab === 'audio' ||
+                    activeTab === 'doc') && (
+                    <div className={styles.sizeFilter}>
+                      <input
+                        className={styles.sizeInput}
+                        type="number"
+                        min={0}
+                        placeholder={t('min')}
+                        value={sizeFilter.min || ''}
+                        onChange={(e) =>
+                          setSizeFilter({
+                            ...sizeFilter,
+                            min: Number(e.target.value) || 0,
+                          })
+                        }
+                      />
+                      <span className={styles.sizeUnit}>-</span>
+                      <input
+                        className={styles.sizeInput}
+                        type="number"
+                        min={0}
+                        placeholder={t('max')}
+                        value={sizeFilter.max || ''}
+                        onChange={(e) =>
+                          setSizeFilter({
+                            ...sizeFilter,
+                            max: Number(e.target.value) || 0,
+                          })
+                        }
+                      />
+                      <span className={styles.sizeUnit}>KB</span>
+                    </div>
+                  )}
+                  {activeTab === 'image' && (
+                    <div className={styles.sizeFilter}>
+                      <input
+                        className={styles.sizeInput}
+                        type="number"
+                        min={0}
+                        placeholder={t('width')}
+                        value={dimensionFilter.minWidth || ''}
+                        onChange={(e) =>
+                          setDimensionFilter({
+                            ...dimensionFilter,
+                            minWidth: Number(e.target.value) || 0,
+                          })
+                        }
+                      />
+                      <span className={styles.sizeUnit}>×</span>
+                      <input
+                        className={styles.sizeInput}
+                        type="number"
+                        min={0}
+                        placeholder={t('height')}
+                        value={dimensionFilter.minHeight || ''}
+                        onChange={(e) =>
+                          setDimensionFilter({
+                            ...dimensionFilter,
+                            minHeight: Number(e.target.value) || 0,
+                          })
+                        }
+                      />
+                      <span className={styles.sizeUnit}>px</span>
+                    </div>
+                  )}
+                  {activeTab === 'video' && (
+                    <select
+                      className={styles.select}
+                      value={resolutionFilter}
+                      onChange={(e) => setResolutionFilter(e.target.value)}
+                    >
+                      <option value="any">{t('any')}</option>
+                      {resolutionOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {listBody}
@@ -1502,40 +2012,14 @@ export default function Popup({
                 </svg>
               </button>
             </div>
-            <div className={styles.footerActions}>
-              <button
-                type="button"
-                className={styles.footerBtn}
-                onClick={() => void handleDownloadBatch()}
-                disabled={!selectedCount || actions.downloading}
-              >
-                {actions.downloading ? '…' : t('downloadSelected')}
-              </button>
-              <button
-                type="button"
-                className={styles.footerBtn}
-                onClick={() => void clearList()}
-                title={t('clearList')}
-              >
-                {t('clear')}
-              </button>
-              <button
-                type="button"
-                className={styles.footerBtn}
-                onClick={() => void refreshPage()}
-                title={t('refresh')}
-              >
-                {t('refresh')}
-              </button>
-            </div>
             <div className={styles.footerRight}>
-              <span>
+              <span className={styles.listSummary}>
                 {t('found')} {mediaCatalog.all.length} {t('item')}
               </span>
               {selectedCount > 0 && (
-                <span>
-                  {'  '}
-                  {selectedCount} {t('selected')}
+                <span className={styles.listSummarySelected}>
+                  {' '}
+                  · {selectedCount} {t('selected')}
                 </span>
               )}
             </div>

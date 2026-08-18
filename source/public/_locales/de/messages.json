@@ -53,6 +53,9 @@
     "play":{
         "message": "Abspielen"
     },
+    "pause":{
+        "message": "Pause"
+    },
     "notFound":{
         "message": "Keine Medien erkannt"
     },

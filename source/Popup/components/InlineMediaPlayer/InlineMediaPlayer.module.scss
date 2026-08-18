@@ -1,0 +1,43 @@
+.player {
+  margin-top: 8px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.audioWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.spectrum {
+  width: 100%;
+  height: 72px;
+  display: block;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.audio,
+.video {
+  width: 100%;
+  border-radius: 6px;
+  outline: none;
+}
+
+.video {
+  max-height: 220px;
+  background: #000;
+}
+
+.error {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  color: #ff6b6b;
+  font-size: 12px;
+  background: rgba(255, 107, 107, 0.1);
+  border-radius: 6px;
+}

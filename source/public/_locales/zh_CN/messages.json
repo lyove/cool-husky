@@ -53,6 +53,9 @@
     "play":{
         "message": "播放"
     },
+    "pause":{
+        "message": "暂停"
+    },
     "notFound":{
         "message": "未检测到任何媒体资源"
     },

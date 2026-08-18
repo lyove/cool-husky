@@ -53,6 +53,9 @@
     "play":{
         "message": "Play"
     },
+    "pause":{
+        "message": "Pause"
+    },
     "notFound":{
         "message": "No media detected"
     },

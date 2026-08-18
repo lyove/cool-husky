@@ -53,6 +53,9 @@
     "play":{
         "message": "再生"
     },
+    "pause":{
+        "message": "一時停止"
+    },
     "notFound":{
         "message": "メディアリソースは検出されませんでした"
     },

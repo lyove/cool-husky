@@ -53,6 +53,9 @@
     "play":{
         "message": "재생"
     },
+    "pause":{
+        "message": "일시정지"
+    },
     "notFound":{
         "message": "미디어를 감지할 수 없습니다"
     },

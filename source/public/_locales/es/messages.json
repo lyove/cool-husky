@@ -53,6 +53,9 @@
     "play":{
         "message": "Reproducir"
     },
+    "pause":{
+        "message": "Pausa"
+    },
     "notFound":{
         "message": "No se detectaron medios"
     },

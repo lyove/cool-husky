@@ -28,17 +28,11 @@ const mediaInfoCache = new Map<
   string,
   { width?: number; height?: number; duration?: number }
 >();
-// Failure negative-cache: within the TTL, the same URL is not retried for analyzeData, avoiding repeated segment fetches (looks like "task keeps downloading") and error spam
 const mediaInfoFailCache = new Map<string, number>();
 const MEDIA_INFO_FAIL_TTL_MS = 60_000;
 const metadataBatchControllers = new Map<string, AbortController>();
 
 // ── Resource health tracking ──────────────────────────────────────────────────
-// NOTE: unlike the naive "fail → blacklist → drop sniffed item" approach, media
-// sniffing never deletes an item due to a metadata fetch failure. A URL may be
-// perfectly playable in-page while extension-side fetches are blocked by CORS /
-// hotlink protection (see Media-Extractor: sniff first, store, never remove).
-// Metadata (duration/size) is best-effort enrichment only; failure keeps the item.
 
 async function fetchMediaInfo(
   url: string,
@@ -60,8 +54,6 @@ async function fetchMediaInfo(
     });
 
     const getSize = async () => {
-      // HEAD may be rejected by the server or blocked by CORS; never let it
-      // throw and fail the whole analysis
       try {
         const headResp = await fetch(url, { method: 'HEAD', signal });
         const cl = headResp.headers.get('Content-Length');
@@ -73,7 +65,6 @@ async function fetchMediaInfo(
         /* fall through to the Range probe below */
       }
 
-      // HEAD unavailable: probe the total size with Range (many CDNs include the total in the 206 Content-Range)
       try {
         const probe = await fetch(url, {
           headers: { Range: 'bytes=0-0' },
@@ -94,16 +85,11 @@ async function fetchMediaInfo(
       return 0;
     };
 
-    // Whole-file cache: when the server does not support Range (returns 200 instead of 206),
-    // fetch the entire file on first request, then serve slices by offset; return empty at EOF,
-    // preventing mediainfo from repeatedly requesting past the end (a "background keeps fetching
-    // segments" loop) while also avoiding re-downloading the same file.
     let fullBodyCache: Uint8Array | null = null;
     const readChunk = async (
       chunkSize: number,
       offset: number
     ): Promise<Uint8Array> => {
-      // Whole file already cached (server ignored Range): slice by offset, return empty at EOF
       if (fullBodyCache) {
         if (offset >= fullBodyCache.length) return new Uint8Array(0);
         return fullBodyCache.subarray(offset, offset + chunkSize);
@@ -116,17 +102,12 @@ async function fetchMediaInfo(
       if (response.status === 416) {
         return new Uint8Array(0);
       }
-      // Server ignores Range and returns the whole file (common on some CDNs / stream segments):
-      // cache it, then slice by offset; return an empty array past EOF so mediainfo ends cleanly,
-      // avoiding infinite loops and duplicate downloads.
       if (response.status === 200) {
         const buf = new Uint8Array(await response.arrayBuffer());
         fullBodyCache = buf;
         if (offset >= buf.length) return new Uint8Array(0);
         return buf.subarray(offset, offset + chunkSize);
       }
-      // Unexpected status codes (403/401 etc.): throw so analyzeData rejects cleanly (outer layer
-      // falls back to null), instead of feeding an error response body to mediainfo as media data.
       if (!response.ok && response.status !== 206) {
         throw new Error(`readChunk HTTP ${response.status}`);
       }
@@ -293,8 +274,7 @@ async function mapWithConcurrency<T, R>(
   const sendHeadersExtraInfo = isFirefox
     ? ['requestHeaders']
     : ['requestHeaders', 'extraHeaders'];
-  // Requires sidePanel, setOptions and open (with open being a function), otherwise treat it as unsupported
-  // and keep the popup as a fallback, avoiding the dead state where some browsers can't reopen the sidePanel.
+
   const supportsChromeSidepanel =
     !isFirefox &&
     !isMobileBrowser &&
@@ -306,12 +286,6 @@ async function mapWithConcurrency<T, R>(
   // Track open sidepanel ports per tab: tabId → Port (declared here, shared by isUiListening etc.)
   const sidePanelPorts = new Map<number, any>();
 
-  // Tab-level sidePanel.setOptions({ tabId, ... }) takes precedence over the
-  // global (tabId-less) setting, and there is no API to "unset" a tab-level
-  // option. A tab previously marked enabled:true (or disabled while in 'popup'
-  // mode) would otherwise keep overriding the global mode. Push the desired
-  // state to every tab whenever the open mode changes so the toolbar always
-  // honors the user's choice.
   const setSidePanelForAllTabs = async (
     enabled: boolean,
     path?: string
@@ -335,10 +309,6 @@ async function mapWithConcurrency<T, R>(
     const canSetOptions =
       typeof chromeGlobal.sidePanel.setOptions === 'function';
 
-    // Apply the user-chosen open mode: 'popup' arms a floating popup (Chrome
-    // auto-shows it on click, so onClicked never fires), 'sidepanel' clears the
-    // popup so onClicked opens the docked side panel. Called at startup and on
-    // every settings change so the behavior survives SW restarts and page reloads.
     const applyOpenMode = (openMode: 'sidepanel' | 'popup') => {
       if (openMode === 'popup') {
         if (canSetOptions) {
@@ -365,8 +335,7 @@ async function mapWithConcurrency<T, R>(
         }
       }
     };
-    // Restore at startup (SW may have been recycled); default to sidepanel if
-    // settings haven't loaded yet — loadSettings() below will correct it.
+
     applyOpenMode('sidepanel');
     loadSettings().then((s) => applyOpenMode(s.openMode));
 
@@ -393,9 +362,6 @@ async function mapWithConcurrency<T, R>(
       });
 
       browser.action.onClicked.addListener(async (tab) => {
-        // 'popup' mode arms a popup via setPopup, so Chrome shows it directly
-        // and this listener never fires. If it does fire, we are in sidepanel
-        // mode (or the popup was cleared), so open the side panel as usual.
         if (tab.id !== undefined) {
           const existingPort = sidePanelPorts.get(tab.id);
           if (existingPort) {
@@ -406,10 +372,7 @@ async function mapWithConcurrency<T, R>(
           }
 
           sidebarClosedTabs.delete(tab.id);
-          // No tab-level setOptions here: a tab-scoped enabled:true would take
-          // precedence over the global state and linger, breaking 'popup' mode.
-          // The global side panel (side_panel.default_path / applyOpenMode)
-          // is already enabled in 'sidepanel' mode.
+
           try {
             const result = chromeGlobal.sidePanel.open({ tabId: tab.id });
             if (result && typeof result.then === 'function') {
@@ -476,11 +439,7 @@ async function mapWithConcurrency<T, R>(
   // browser.runtime.setUninstallURL('https://github.com/1337-ops/m3u8-downloader-ext')
 
   const tabMap = new Map<number, Map<string, MediaEntry>>();
-  // Bilibili DASH URLs are handled by a virtual task; generic request sniffing
-  // must not later turn its fMP4 tracks back into standalone cards.
   const bilibiliManagedUrls = new Map<number, Set<string>>();
-  // Provider adapters can replace noisy network-level entries with a curated
-  // set of variants without becoming coupled to the generic sniffer.
   const platformManagedUrls = new Map<number, Set<string>>();
   const platformTaskPriorities = new Map<number, Map<string, number>>();
   const douyinMediaMetadata = new Map<
@@ -488,7 +447,6 @@ async function mapWithConcurrency<T, R>(
     Map<string, { title?: string; coverUrl?: string; duration?: number }>
   >();
   // Native <video> preloads do not pass through the page's fetch/XHR hook.
-  // Keep their short-lived playback-token relation in the background too.
   const douyinNativeTracks = new Map<
     number,
     Map<string, Array<{ url: string; role: 'video' | 'audio'; at: number }>>
@@ -497,10 +455,6 @@ async function mapWithConcurrency<T, R>(
   // Track each tab's current page title (to record the "at-the-time" title during sniffing)
   const tabPageTitles = new Map<number, string>();
 
-  // Prefix index (bucketed by tab) for linking ts/.m4s segments to their master.
-  // Replaces the O(N) linear scan of the whole mediaMap in addMedia with an O(1) Map lookup.
-  // Structure: tabId → (prefix → masterUrl), where prefix = masterUrl truncated at its last '/'.
-  // Version-based invalidation: bump the version when mediaMap is rebuilt (e.g. cleared, tab closed) so the index is rebuilt.
   const masterPrefixIndex = new Map<
     number,
     { version: number; map: Map<string, string[]> }
@@ -539,8 +493,7 @@ async function mapWithConcurrency<T, R>(
     }
     return entry.map;
   }
-  // Given a segment url, find the longest-prefix-matching master in the index.
-  // Walk up from the segUrl's own directory level by level; the first hit is the longest prefix match (O(path depth) ≈ O(1))
+
   function findMasterBySegmentUrl(
     tabId: number,
     mediaMap: Map<string, MediaEntry>,
@@ -567,11 +520,6 @@ async function mapWithConcurrency<T, R>(
     sendResponse: (response?: any) => void;
   }> = [];
 
-  // Track which tabs have a UI (popup/sidepanel) listening. The popup sends no explicit close
-  // notification, so use the GET_LIST request timestamp: active if a request arrived within 90s.
-  // Sidepanel is tracked explicitly via sidePanelPorts. broadcastDebounced only serializes the
-  // full list when a UI is active, avoiding needless high-frequency serialization during background
-  // sniffing (when the popup is closed).
   const uiListeningTabs = new Map<number, number>();
   const UI_LISTENING_TTL = 90_000;
   function isUiListening(tabId: number): boolean {
@@ -620,12 +568,6 @@ async function mapWithConcurrency<T, R>(
     if (changes['ext_settings']) {
       loadSettings().then((s) => {
         currentSettings = s;
-        // Re-apply the toolbar open mode so switching takes effect immediately.
-        // In 'popup' mode we must globally disable the side panel (Chrome routes
-        // toolbar clicks to side_panel when it is enabled, ignoring setPopup);
-        // in 'sidepanel' mode we re-enable it and clear the popup. Tab-level
-        // options linger and override the global one, so push the state to
-        // every tab as well (see setSidePanelForAllTabs).
         if (supportsChromeSidepanel && chromeGlobal?.action?.setPopup) {
           if (s.openMode === 'popup') {
             if (typeof chromeGlobal.sidePanel?.setOptions === 'function') {
@@ -673,10 +615,6 @@ async function mapWithConcurrency<T, R>(
     }
   });
 
-  // Keep the MV3 service worker warm: page navigations (incl. SPA history
-  // updates) wake the SW and reset its idle timer, so the webRequest sniffers
-  // stay registered between user interactions (reference Media-Extractor).
-  // Chrome declares the webNavigation permission; Firefox keeps it optional.
   try {
     if (browser.webNavigation) {
       browser.webNavigation.onBeforeNavigate.addListener(() => {});
@@ -748,12 +686,13 @@ async function mapWithConcurrency<T, R>(
       setTimeout(() => {
         broadcastDebounceTimers.delete(tabId);
         const mediaMap = tabMap.get(tabId);
-        if (!mediaMap) return;
-        // Skip full serialization when no UI is listening: during background sniffing (popup closed)
-        // an HLS live stream may accumulate dozens of changes every 150ms, so rebuilding the full list
-        // + IPC serialization is pure waste. popup/sidepanel fetch the full list once via GET_LIST on
-        // open, after which broadcasting resumes.
-        if (!isUiListening(tabId)) return;
+        if (!mediaMap) {
+          return;
+        }
+
+        if (!isUiListening(tabId)) {
+          return;
+        }
         const list: Array<{
           url: string;
           format: string;
@@ -812,9 +751,6 @@ async function mapWithConcurrency<T, R>(
   const processedRequests = new Set<string>();
   const PROCESSED_REQUESTS_MAX = 10000;
 
-  // Cache the critical headers (cookie, authorization, etc.) sent with each request,
-  // keyed by requestId, merged into the media entry in onHeadersReceived,
-  // and replayed via DNR/webRequest at download time to pass token/cookie-based auth
   const pendingRequestHeaders = new Map<string, Record<string, string>>();
 
   // Header names to cache and replay (auth-related)
@@ -830,9 +766,6 @@ async function mapWithConcurrency<T, R>(
     'wbi-key',
   ]);
 
-  // The URL quick-check is only for `other` requests where response headers are unavailable;
-  // it covers all standalone formats supported by detect.ts.
-  // Media segments (e.g. .ts/.m4s) are still not collected as standalone resources, avoiding many unusable entries.
   const isPotentialMediaRequest = (url: string): boolean =>
     /\.(m3u8|m3u|mpd|mp4|m4v|webm|ogv|flv|mkv|mov|avi|3gp|3g2|mpeg|mpg|mp3|m4a|oga|weba|wav|flac|aac|gif|jpe?g|png|webp|svg|pdf|docx?|xlsx?|pptx?|epub|csv|rtf|srt|vtt|ass|ssa|ttml)(?:[?#]|$)|(?:subtitle|caption)/i.test(
       url
@@ -853,9 +786,6 @@ async function mapWithConcurrency<T, R>(
     }
   };
 
-  // These are player metadata/catalog APIs, not caption files. Some Bilibili
-  // responses advertise or are named as "subtitle", but their body is a
-  // protobuf document that must never be offered as a .vtt download.
   const isBilibiliSubtitleCatalogApi = (url: string): boolean => {
     try {
       const parsed = new URL(url);
@@ -884,9 +814,6 @@ async function mapWithConcurrency<T, R>(
         pendingRequestHeaders.set(details.requestId, authHeaders);
       }
     },
-    // Restrict to request types that can carry media auth headers: media, xhr, sub_frame, image, other;
-    // exclude high-frequency types such as stylesheet/script/font/image(cross-origin headers absent)/ping/beacon,
-    // reducing callback volume at the browser layer (instead of a full <all_urls> listener)
     {
       urls: ['<all_urls>'],
       types: [
@@ -930,7 +857,6 @@ async function mapWithConcurrency<T, R>(
   // Detect the media format when response headers arrive (prefer Content-Type)
   browser.webRequest.onHeadersReceived.addListener(
     (details) => {
-      // A request without a clear owning tab must not be attributed to the active tab, or it would leak into other tabs' lists.
       const effectiveTabId = details.tabId;
       if (effectiveTabId <= 0) return undefined;
       if (isMediaSegmentRequest(details.url)) {
@@ -953,13 +879,6 @@ async function mapWithConcurrency<T, R>(
         return undefined;
       }
 
-      // Perf optimization: cheap short-circuit before iterating response headers.
-      // Requests that are neither media/image nor URL-media-like (the vast majority of API/XHR/script/style)
-      // are almost never going to become downloadable media via Content-Type. Images must be kept for
-      // Content-Type detection to support extension-less CDN images. Early return avoids per-header
-      // iteration cost. The old Bilibili-specific short-circuit is superseded by this generic one.
-      // Note: detectDoc may rely on Content-Disposition, but attachment-download scenarios rarely
-      // appear in non-media/potential requests, so this trade-off is acceptable.
       if (details.type === 'other' && !isPotentialMediaRequest(details.url)) {
         pendingRequestHeaders.delete(details.requestId);
         return undefined;
@@ -969,7 +888,6 @@ async function mapWithConcurrency<T, R>(
       let contentLength: number | undefined = undefined;
       let contentDisposition: string | null = null;
       let hasContentRange = false;
-      let isRangeAcceptable = false;
       let rangeTotal: number | undefined = undefined;
 
       for (const header of details.responseHeaders ?? []) {
@@ -985,12 +903,8 @@ async function mapWithConcurrency<T, R>(
           hasContentRange = true;
           const m = header.value.match(/bytes\s+(\d+)-(\d+)\/(\d+|\*)/i);
           if (m && m[3] !== '*') {
-            const start = parseInt(m[1]!, 10);
-            const end = parseInt(m[2]!, 10);
             const total = parseInt(m[3]!, 10);
             rangeTotal = total;
-            isRangeAcceptable =
-              start === 0 && (end - start + 1) / total >= 0.85;
           }
         }
       }
@@ -1000,17 +914,10 @@ async function mapWithConcurrency<T, R>(
         contentLength = rangeTotal;
       }
 
-      // A 206 response is normally a player preview/byte-range chunk, not an
-      // independently downloadable file. Only accept it when the response
-      // starts at zero and covers almost the whole resource; otherwise drop it
-      // instead of turning every preview chunk into a media card.
-      if (hasContentRange && !isRangeAcceptable) {
-        pendingRequestHeaders.delete(details.requestId);
-        return undefined;
-      }
+      // A 206 Partial Content response still carries the full resource total in
+      // Content-Range (rangeTotal above). We keep the request so that the total
+      // size can be recorded; the actual segment size is ignored.
 
-      // type==="media": the browser marks requests triggered by <video>/<audio> as "media",
-      // the most reliable media signal — pass them through without Content-Type/extension filtering
       let detectedFormat: string;
       let category: MediaCategory = 'media';
 
@@ -1090,10 +997,6 @@ async function mapWithConcurrency<T, R>(
     ['responseHeaders']
   );
 
-  // Cache/conditional request header list: the browser auto-attaches If-None-Match /
-  // If-Modified-Since etc. to URLs served from the HTTP cache, and the server may return
-  // partial 206 responses, leaving the proxy with incomplete content. Strip them uniformly
-  // in the proxy (PROXY_FETCH) and webRequest / DNR layers, combined with cache:'no-store'.
   const CACHE_HEADER_NAMES = new Set([
     'cache-control',
     'pragma',
@@ -1105,7 +1008,6 @@ async function mapWithConcurrency<T, R>(
     'warning',
   ]);
 
-  // Proxy request: inject Referer and remove Origin to bypass CDN CORS/origin checks
   const proxyHeaderExtraInfoSpec = (
     isFirefox ? ['blocking', 'requestHeaders'] : ['requestHeaders']
   ) as any[];
@@ -1389,9 +1291,6 @@ async function mapWithConcurrency<T, R>(
     sender: any,
     sendResponse: (response?: any) => void
   ) {
-    // Sniffing messages must use the tab that owns the runtime sender. The tabId in the message body
-    // comes from the page and cannot be trusted, otherwise concurrent pages or forged messages could
-    // write resources into other tabs' lists.
     if (msg.type === 'MEDIA_FOUND') {
       const tabId = sender.tab?.id;
       const format = msg.format || 'm3u8';
@@ -1785,14 +1684,10 @@ async function mapWithConcurrency<T, R>(
           if (mediaMap) {
             for (const result of results) {
               const entry = mediaMap.get(result.url);
-              if (!entry) continue;
+              if (!entry) {
+                continue;
+              }
 
-              // Sniff-and-store (reference Media-Extractor): the min-size
-              // sniffing rule only gates NEW sniffs (isSizeAllowed in
-              // onHeadersReceived). It must never delete an item that was
-              // already sniffed — otherwise a short preview/trial audio
-              // (typically below the default 150 KB audio threshold) "appears
-              // then vanishes" once metadata probing returns its real size.
               const nextEntry = {
                 ...entry,
                 width:
@@ -1864,13 +1759,6 @@ async function mapWithConcurrency<T, R>(
       return true;
     }
 
-    // After the popup gets the real size, filter by sniffing rules: remove entries below the minimum size threshold
-    // (background passes them through when onHeadersReceived lacks content-length; this is the async fallback)
-    // Sniff-and-store (reference Media-Extractor): never remove an item that was
-    // already sniffed based on its size. The min-size sniffing rule only gates
-    // NEW sniffs (isSizeAllowed in onHeadersReceived). The async size probe in
-    // the popup must therefore never delete a small preview/trial audio either.
-    // Kept for backward compatibility — always reports removed:false.
     if (msg.type === 'REMOVE_MEDIA_IF_TOO_SMALL') {
       sendResponse({ ok: true, removed: false });
       return true;
@@ -1971,8 +1859,6 @@ async function mapWithConcurrency<T, R>(
       pendingProxyFetches.set(requestId, { controller, tabId });
       (async () => {
         try {
-          // Strip cache/conditional headers that may be present in options.headers (from any source),
-          // combined with cache:'no-store' so this fetch hits the network instead of the HTTP cache, avoiding partial 206 responses
           const headers: Record<string, string> = {};
           if (options?.headers) {
             for (const [k, v] of Object.entries(options.headers)) {
@@ -1981,17 +1867,11 @@ async function mapWithConcurrency<T, R>(
               }
             }
           }
-          // Merge authHeaders (cookie, authorization, etc.), preferring values explicitly provided in options
           if (options?.authHeaders) {
             for (const [k, v] of Object.entries(options.authHeaders)) {
               if (!headers[k]) headers[k] = v as string;
             }
           }
-          // Mark the request with X-CoolHusky-Proxy so onBeforeSendHeaders can, at the webRequest layer,
-          // strip Origin (bypassing cross-origin/source checks) and inject Referer (bypassing hotlink protection).
-          // Note: Referer is a forbidden fetch header — writing it directly into headers gets dropped by the
-          // browser, so it must go through the X-CoolHusky-Referer relay and be materialized by onBeforeSendHeaders.
-          // The marker is only omitted when proxyHeader:false is explicitly set (bare request).
           const useProxyHeader = options?.proxyHeader !== false;
           if (useProxyHeader) {
             headers['X-CoolHusky-Proxy'] = '1';
@@ -2032,10 +1912,6 @@ async function mapWithConcurrency<T, R>(
           response.headers.forEach((value, key) => {
             responseHeaders[key] = value;
           });
-          // Must send back base64: runtime messages (content ↔ background) are JSON-serialized
-          // and cannot carry ArrayBuffers (they'd be lost / fail serialization, breaking the port).
-          // base64 costs only +33% and is the only reliable way to pass binary through this channel;
-          // the final hop to the page uses a transferable zero-copy.
           sendResponse({
             ok: true,
             status: response.status,
@@ -2044,7 +1920,6 @@ async function mapWithConcurrency<T, R>(
           });
         } catch (e: any) {
           if (e?.name === 'AbortError') {
-            // Tab closed or page cancelled it: abort silently, no response (the page no longer exists)
             return;
           }
           sendResponse({ ok: false, error: e.message });
@@ -2066,7 +1941,7 @@ async function mapWithConcurrency<T, R>(
       return true;
     }
 
-    // Dispatch system notifications from the extension process (pages/web request relay, bypassing web-notification permission and popup-dismissal losses)
+    // Dispatch system notifications from the extension process
     if (msg.type === 'COOLHUSKY_NOTIFY') {
       const { title, body, tag, pageUrl } = msg;
       if (pageUrl) notifyPages.set(tag, pageUrl);
@@ -2102,26 +1977,23 @@ async function mapWithConcurrency<T, R>(
     contentType?: string,
     tabTitle?: string
   ) {
+    // Respect per-type sniffing switches: disabled types should not be stored or counted at all.
+    if (!isFormatAllowed(format, currentSettings)) {
+      return;
+    }
     const managedNow =
       bilibiliManagedUrls.get(tabId)?.has(url) ||
       platformManagedUrls.get(tabId)?.has(url);
-    // A playurl task marks candidate URLs as "managed", but a managed URL must
-    // not block re-capture once it is no longer in the list (e.g. cleared by
-    // the user or dropped during a playurl refresh): sniff-and-store requires
-    // that a replayed URL is added again instead of being ignored forever.
-    if (managedNow && tabMap.get(tabId)?.has(url)) return;
-    // Sniff-and-store: never drop a sniffed URL here (reference Media-Extractor).
-    // Playable in-page ≠ fetchable from the extension, so a URL that once failed
-    // a metadata probe must still be captured when it plays again.
+    if (managedNow && tabMap.get(tabId)?.has(url)) {
+      return;
+    }
     if (!tabMap.has(tabId)) {
       tabMap.set(tabId, new Map());
     }
     const mediaMap = tabMap.get(tabId)!;
-    // Page title at sniff time (prefer the passed tabTitle, otherwise fall back to the cached Map)
     const effectiveTabTitle = tabTitle ?? tabPageTitles.get(tabId);
 
     // Auto-associate ts/.m4s segments with the same tab's m3u8 master (longest URL path-prefix match)
-    // Uses masterPrefixIndex for an O(1) lookup, replacing the previous O(N) linear scan of the whole mediaMap
     if ((format === 'ts' || format === 'm4s') && !extra?.captureId) {
       const bestMaster = findMasterBySegmentUrl(tabId, mediaMap, url);
       if (bestMaster) {
@@ -2156,9 +2028,6 @@ async function mapWithConcurrency<T, R>(
 
     const existing = mediaMap.get(url);
     if (existing && format !== 'mse') {
-      // The page-side fetch/XHR hook may report the same URL before response headers arrive. Don't
-      // discard the auth info and media type from response headers; that's also the root cause of
-      // separated streams failing to pair.
       const upgradedContentType = existing.contentType ?? contentType;
       const upgradedHeaders = existing.requestHeaders ?? requestHeaders;
       const upgradedSize = existing.size ?? size;
@@ -2246,9 +2115,10 @@ async function mapWithConcurrency<T, R>(
     const countedGroups = new Set<string>();
     let count = 0;
     mediaMap?.forEach((entry, url) => {
-      // A grouped stream may contain one master plus multiple quality
-      // variants, audio tracks, and segments. The badge represents usable
-      // resources, so count that entire group only once.
+      // Skip disabled sniffing types so the toolbar badge matches the popup.
+      if (!isFormatAllowed(entry.format, currentSettings)) {
+        return;
+      }
       const groupKey = entry.groupId || entry.groupMasterId;
       if (groupKey) {
         if (countedGroups.has(groupKey)) return;
@@ -2258,8 +2128,6 @@ async function mapWithConcurrency<T, R>(
         entry.groupRole === 'audio' ||
         entry.groupRole === 'segment'
       ) {
-        // Keep malformed/legacy grouped entries visible instead of silently
-        // dropping them when the background data lacks a group identifier.
         countedGroups.add(`legacy:${url}`);
       }
       count++;
@@ -2333,21 +2201,12 @@ async function mapWithConcurrency<T, R>(
         ? Math.round((duration * bandwidth) / 8)
         : undefined;
     };
-    // Preserve metadata already obtained for stable CDN URLs when a refreshed
-    // playurl replaces the task. Otherwise every refresh clears the size and
-    // starts the metadata request over again.
     const previousVariantSizes = new Map<string, number>();
     for (const [url, entry] of mediaMap) {
       if (entry.groupMasterId === masterUrl && entry.size)
         previousVariantSizes.set(url, entry.size);
     }
 
-    // Playurl is refreshed while switching quality. Replace only this virtual
-    // task's variants; never expose stale CDN backup URLs as separate cards.
-    // Independently sniffed entries (webRequest captured a real response and
-    // stored its Content-Type) are kept: they are already visible in the list,
-    // and since their URL is about to be marked "managed", deleting them here
-    // would make them vanish with no way to re-add them later.
     for (const [url, entry] of mediaMap) {
       if (entry.groupMasterId === masterUrl && !entry.contentType)
         mediaMap.delete(url);
@@ -2356,19 +2215,8 @@ async function mapWithConcurrency<T, R>(
     const audioUrls = new Set(audios.map((a: any) => a.url));
     for (const stream of [...videos, ...audios]) {
       managed.add(stream.url);
-      // Sniff-and-store (reference Media-Extractor): never delete a URL that
-      // the webRequest sniffers already captured independently — otherwise the
-      // audio item "appears then vanishes" once the playurl group is built.
-      // Video URLs are overwritten below as grouped variants; an independently
-      // sniffed audio URL keeps its entry and is marked as this group's
-      // separated audio track so it stays visible in the list.
       const direct = mediaMap.get(stream.url);
       if (direct && audioUrls.has(stream.url)) {
-        // Keep an independently sniffed audio track — whether it is fresh or
-        // was marked by this task on a previous refresh (groupMasterId set).
-        // A playurl refresh must never delete it: audio candidates are not
-        // rebuilt below (unlike video variants), so a drop would make the
-        // audio "appear then vanish" on every quality switch.
         mediaMap.set(stream.url, {
           ...direct,
           groupId: masterUrl,
@@ -2425,8 +2273,7 @@ async function mapWithConcurrency<T, R>(
     broadcastDebounced(tabId);
   }
 
-  // ── Audio/video separated-stream grouping (Bilibili/YouTube etc.) ──
-  // Determine whether the Content-Type is a pure video track (no audio)
+  // ── Audio/video separated-stream grouping (Bilibili/YouTube etc.)
   const DOUYIN_PAGE_HOST = /(^|\.)(douyin\.com|iesdouyin\.com)$/i;
   const DOUYIN_MEDIA_HOST =
     /(^|\.)(douyinvod|douyincdn|bytecdn|bytego|byteimg|bytedance|amemv|iesdouyin|snssdk|pstatp|toutiaovod|ixigua)\.(com|cn|net)$/i;
@@ -2483,7 +2330,9 @@ async function mapWithConcurrency<T, R>(
     const priorities =
       platformTaskPriorities.get(tabId) || new Map<string, number>();
     const priority = Number(task.priority || 0);
-    if (priority < (priorities.get(masterUrl) || 0)) return;
+    if (priority < (priorities.get(masterUrl) || 0)) {
+      return;
+    }
     priorities.set(masterUrl, priority);
     platformTaskPriorities.set(tabId, priorities);
     const candidates = task.candidates
@@ -2501,11 +2350,10 @@ async function mapWithConcurrency<T, R>(
     const videoCandidates = candidates.filter(
       (candidate) => candidate.role !== 'audio'
     );
-    if (!videoCandidates.length) return;
+    if (!videoCandidates.length) {
+      return;
+    }
 
-    // Detail/feed responses know the identity and artwork of a video, while
-    // native preloads only expose CDN URLs. Retain this join information so a
-    // later preload-created card can still receive the correct metadata.
     if (task.provider === 'douyin') {
       const metadataByUrl =
         douyinMediaMetadata.get(tabId) ||
@@ -2532,9 +2380,6 @@ async function mapWithConcurrency<T, R>(
         metadataByUrl.set(candidate.url, metadata);
         metadataByUrl.set(getDouyinMediaResourceKey(candidate.url), metadata);
 
-        // The native preload may have built its paired card before the API
-        // response arrives. Patch that existing card in place instead of
-        // replacing it with an API-only card.
         const existingVariantUrl = mediaMap.has(candidate.url)
           ? candidate.url
           : Array.from(mediaMap.keys()).find(
@@ -2577,26 +2422,14 @@ async function mapWithConcurrency<T, R>(
 
     const previousMaster = mediaMap.get(masterUrl);
     const managed = platformManagedUrls.get(tabId) || new Set<string>();
-    // Same sniff-and-store rule as the Bilibili playurl task: keep entries the
-    // webRequest sniffers captured independently (they carry a real Content-Type).
-    // Only drop the group members this task previously created (no Content-Type).
     for (const [url, entry] of mediaMap) {
       if (entry.groupMasterId === masterUrl && !entry.contentType)
         mediaMap.delete(url);
     }
     for (const candidate of candidates) {
       managed.add(candidate.url);
-      // Sniff-and-store (reference Media-Extractor): never delete a URL that
-      // the webRequest sniffers already captured independently — otherwise the
-      // audio item "appears then vanishes" once the playurl group is built.
-      // Video candidates are overwritten below as grouped variants; an
-      // independently sniffed audio candidate keeps its entry and is marked as
-      // this group's separated audio track so it stays visible in the list.
       const direct = mediaMap.get(candidate.url);
       if (direct && candidate.role === 'audio') {
-        // Same rule as the Bilibili playurl task: never drop an independently
-        // sniffed audio track on a provider refresh — audio candidates are not
-        // rebuilt below, so a delete would make the audio vanish for good.
         mediaMap.set(candidate.url, {
           ...direct,
           groupId: masterUrl,
@@ -2661,8 +2494,6 @@ async function mapWithConcurrency<T, R>(
 
   /**
    * Catch native player preloads (including Douyin's next-card prefetch).
-   * These requests bypass page-world fetch/XHR patches but retain the same
-   * `l` token on their media-audio/media-video URLs.
    */
   function collectNativeDouyinTrack(tabId: number, value: string) {
     try {
@@ -2769,10 +2600,6 @@ async function mapWithConcurrency<T, R>(
       // Video-only codecs (avc1, hev1, hvc1, vp8, vp9, av01)
       if (/avc1|hev1|hvc1|vp[89]|av01/.test(codecs)) return true;
     }
-    // Without a codecs field: large files are usually muxed; small files or
-    // webm's video/webm tend to be video-only.
-    // Conservative strategy: without explicit codecs, do not classify as
-    // video-only (to avoid mis-grouping).
     return false;
   }
 
@@ -2799,9 +2626,6 @@ async function mapWithConcurrency<T, R>(
       const u = new URL(url);
       const host = u.host;
       const path = u.pathname;
-      // Douyin/ByteDance CDN: video and audio URLs differ in path hash and params
-      // Only use host + first path segment (usually /video or /audio) as the
-      // grouping basis
       if (
         /\.(douyinvod|douyinpic|douyincdn|amemv|iesdouyin|snssdk|bytecdn|byteimg|bytego|bytedns|byteoss|bytedance|pstatp|toutiaovod|ixigua)\.(?:com|cn|net)\b/i.test(
           host

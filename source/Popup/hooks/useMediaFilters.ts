@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Settings } from '../../utils/settings';
+import { isFormatAllowed, type Settings } from '../../utils/settings';
 import { FORMAT_GROUPS, getFormatLabel, getType } from '../utils/formats';
 import type { MediaType } from '../utils/formats';
 import type { MediaListItem } from './useMediaList';
@@ -57,6 +57,7 @@ export function useMediaFilters({
   searchError: string;
   clearSearch: () => void;
   tabCounts: Record<string, number>;
+  enabledTabs: ActiveTab[];
   typeOptions: TypeOption[];
   filteredMediaList: MediaListItem[];
   filteredImageList: MediaListItem[];
@@ -120,6 +121,26 @@ export function useMediaFilters({
   const isSegment = (item: MediaListItem): boolean =>
     item.groupRole === 'variant' || item.groupRole === 'segment';
 
+  const enabledTabs = useMemo<ActiveTab[]>(() => {
+    if (!settings) {
+      return ['all', 'stream', 'video', 'audio', 'image', 'doc'];
+    }
+    const tabs: ActiveTab[] = ['all'];
+    if (settings.sniffingRules.streaming.enabled) tabs.push('stream');
+    if (settings.sniffingRules.video.enabled) tabs.push('video');
+    if (settings.sniffingRules.audio.enabled) tabs.push('audio');
+    if (settings.sniffingRules.image.enabled) tabs.push('image');
+    if (settings.sniffingRules.document.enabled) tabs.push('doc');
+    return tabs;
+  }, [settings]);
+
+  // If the currently active tab becomes disabled, fall back to "all".
+  useEffect(() => {
+    if (activeTab !== 'all' && !enabledTabs.includes(activeTab)) {
+      setActiveTab('all');
+    }
+  }, [activeTab, enabledTabs]);
+
   const mediaCatalog = useMemo(() => {
     const all: MediaListItem[] = [];
     const byType: Record<MediaType, MediaListItem[]> = {
@@ -149,11 +170,9 @@ export function useMediaFilters({
 
     for (const item of mediaList) {
       if (settings?.hideStreamSegments && isSegment(item)) continue;
-      // Sniff-and-store (reference Media-Extractor): render every sniffed item.
-      // The min-size sniffing rule gates only NEW sniffs (isSizeAllowed in
-      // onHeadersReceived in the background). Filtering here makes a short
-      // preview/trial audio "appear then vanish" once the metadata batch writes
-      // its real (small) size into the entry.
+      // Respect per-type sniffing switches: disabled types should not appear
+      // in either the list or the toolbar counts.
+      if (settings && !isFormatAllowed(item.format, settings)) continue;
       const type = getType(item.format, item.category);
       all.push(item);
       byType[type].push(item);
@@ -407,6 +426,7 @@ export function useMediaFilters({
     searchError,
     clearSearch,
     tabCounts: mediaCatalog.counts,
+    enabledTabs,
     typeOptions,
     filteredMediaList,
     filteredImageList,

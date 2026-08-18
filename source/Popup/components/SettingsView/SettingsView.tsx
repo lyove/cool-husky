@@ -70,10 +70,7 @@ interface CardProps {
 const Card: FC<CardProps> = ({ color, title, children }) => (
   <section className={styles.card}>
     <div className={styles.cardHeader}>
-      <span
-        className={styles.cardBar}
-        style={{ backgroundColor: color }}
-      />
+      <span className={styles.cardBar} style={{ backgroundColor: color }} />
       <h3 className={styles.cardTitle}>{title}</h3>
     </div>
     <div className={styles.cardBody}>{children}</div>
@@ -144,7 +141,9 @@ const SettingsView: FC<SettingsViewProps> = ({
 
   const patchDraft = (patch: Partial<Settings>): void => {
     if (!draft) return;
-    setDraft({ ...draft, ...patch });
+    const next = { ...draft, ...patch };
+    draftRef.current = next;
+    setDraft(next);
     autoSave();
   };
 
@@ -153,13 +152,15 @@ const SettingsView: FC<SettingsViewProps> = ({
     rulePatch: Partial<{ enabled: boolean; minSizeKB: number }>
   ): void => {
     if (!draft) return;
-    setDraft({
+    const next = {
       ...draft,
       sniffingRules: {
         ...draft.sniffingRules,
         [key]: { ...draft.sniffingRules[key], ...rulePatch },
       },
-    });
+    };
+    draftRef.current = next;
+    setDraft(next);
     autoSave();
   };
 
@@ -203,7 +204,9 @@ const SettingsView: FC<SettingsViewProps> = ({
           </button>
           <h2 className={styles.title}>{t('settings')}</h2>
         </div>
-        <span className={`${styles.saveBadge} ${saved ? styles.saveBadgeShow : ''}`}>
+        <span
+          className={`${styles.saveBadge} ${saved ? styles.saveBadgeShow : ''}`}
+        >
           {saved ? t('saved') : ''}
         </span>
       </header>
