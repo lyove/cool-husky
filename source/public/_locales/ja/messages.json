@@ -287,6 +287,9 @@
     "clearList":{
         "message": "現在のページのメディアリストをクリア"
     },
+    "refresh":{
+        "message": "更新"
+    },
     "refreshPage":{
         "message": "現在のページを更新"
     },

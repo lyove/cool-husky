@@ -1,8 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-
-import '../styles/_theme.scss';
 import Popup from './Popup';
+import '../styles/_theme.scss';
 
 const container = document.getElementById('popup-root');
 

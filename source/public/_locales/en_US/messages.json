@@ -287,6 +287,9 @@
     "clearList":{
         "message": "Clear current page media list"
     },
+    "refresh":{
+        "message": "Refresh"
+    },
     "refreshPage":{
         "message": "Refresh current page"
     },

@@ -30,7 +30,7 @@ function Welcome(): ReactElement {
   return (
     <div className={styles.welcome}>
       <header className={styles.header}>
-        <img src="/icon/128.png" alt="CoolHusky" className={styles.logo} />
+        <img className={styles.logo} src="/icon/128.png" alt="CoolHusky" />
         <h1 className={styles.title}>CoolHusky</h1>
         <p className={styles.version}>v{version}</p>
         <p className={styles.subtitle}>{t('welcomeSubtitle')}</p>
@@ -46,10 +46,10 @@ function Welcome(): ReactElement {
           <p className={`${styles.text} ${styles.preline}`}>
             {t('changelogFeatures')}
           </p>
-          <h3 className={styles.subTitle}>{t('changelogFixesTitle')}</h3>
+          {/* <h3 className={styles.subTitle}>{t('changelogFixesTitle')}</h3>
           <p className={`${styles.text} ${styles.preline}`}>
             {t('changelogFixes')}
-          </p>
+          </p> */}
         </div>
       </section>
 
@@ -108,7 +108,7 @@ function Welcome(): ReactElement {
           <h3 className={styles.subTitle}>{t('needMoreHelp')}</h3>
           <p className={styles.text}>{t('needMoreHelpDesc')}</p>
           <a
-            href="https://github.com/ezwebtools/coolhusky/discussions"
+            href="https://github.com/lyove/cool-husky/"
             target="_blank"
             rel="noopener noreferrer"
             className={styles.githubBtn}

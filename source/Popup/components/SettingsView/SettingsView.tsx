@@ -29,6 +29,11 @@ const DENSITY_OPTIONS = [
   { value: 'comfortable', labelKey: 'densityComfortable' },
 ] as const;
 
+const OPEN_MODE_OPTIONS = [
+  { value: 'sidepanel', labelKey: 'openModeSidepanel' },
+  { value: 'popup', labelKey: 'openModePopup' },
+] as const;
+
 interface SwitchProps {
   checked: boolean;
   onChange: (next: boolean) => void;
@@ -206,6 +211,26 @@ const SettingsView: FC<SettingsViewProps> = ({
       <div className={styles.body}>
         {/* Appearance */}
         <Card color="#8b5cf6" title={t('appearance')}>
+          <div className={styles.field}>
+            <p className={styles.fieldLabel}>{t('openMode')}</p>
+            <div className={styles.segment}>
+              {OPEN_MODE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={`${styles.segmentBtn} ${
+                    draft.openMode === opt.value ? styles.segmentBtnActive : ''
+                  }`}
+                  onClick={() =>
+                    patchDraft({ openMode: opt.value as Settings['openMode'] })
+                  }
+                >
+                  {t(opt.labelKey)}
+                </button>
+              ))}
+            </div>
+            <p className={styles.desc}>{t('openModeDesc')}</p>
+          </div>
           <div className={styles.field}>
             <p className={styles.fieldLabel}>{t('theme')}</p>
             <div className={styles.segment}>

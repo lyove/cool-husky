@@ -287,6 +287,9 @@
     "clearList":{
         "message": "Aktuelle Seiten-Medienliste löschen"
     },
+    "refresh":{
+        "message": "Aktualisieren"
+    },
     "refreshPage":{
         "message": "Aktuelle Seite aktualisieren"
     },

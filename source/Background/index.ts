@@ -306,16 +306,71 @@ async function mapWithConcurrency<T, R>(
   // Track open sidepanel ports per tab: tabId → Port (declared here, shared by isUiListening etc.)
   const sidePanelPorts = new Map<number, any>();
 
+  // Tab-level sidePanel.setOptions({ tabId, ... }) takes precedence over the
+  // global (tabId-less) setting, and there is no API to "unset" a tab-level
+  // option. A tab previously marked enabled:true (or disabled while in 'popup'
+  // mode) would otherwise keep overriding the global mode. Push the desired
+  // state to every tab whenever the open mode changes so the toolbar always
+  // honors the user's choice.
+  const setSidePanelForAllTabs = async (
+    enabled: boolean,
+    path?: string
+  ): Promise<void> => {
+    if (typeof chromeGlobal?.sidePanel?.setOptions !== 'function') return;
+    const tabs = await browser.tabs.query({}).catch(() => []);
+    for (const tab of tabs) {
+      if (tab.id === undefined) continue;
+      const options: any = { tabId: tab.id, enabled };
+      if (path) options.path = path;
+      try {
+        await chromeGlobal.sidePanel.setOptions(options);
+      } catch {
+        /* ignore per-tab failures */
+      }
+    }
+  };
+
   if (supportsChromeSidepanel) {
     const canOpenSidepanel = typeof chromeGlobal.sidePanel.open === 'function';
     const canSetOptions =
       typeof chromeGlobal.sidePanel.setOptions === 'function';
 
-    if (canOpenSidepanel) {
-      // Always clear the popup so the toolbar icon consistently opens the
-      // sidepanel. Never restore it via fallback (see onClicked below).
-      chromeGlobal.action.setPopup({ popup: '' });
+    // Apply the user-chosen open mode: 'popup' arms a floating popup (Chrome
+    // auto-shows it on click, so onClicked never fires), 'sidepanel' clears the
+    // popup so onClicked opens the docked side panel. Called at startup and on
+    // every settings change so the behavior survives SW restarts and page reloads.
+    const applyOpenMode = (openMode: 'sidepanel' | 'popup') => {
+      if (openMode === 'popup') {
+        if (canSetOptions) {
+          try {
+            chromeGlobal.sidePanel
+              .setOptions({ enabled: false })
+              .catch(() => {});
+          } catch {}
+          void setSidePanelForAllTabs(false);
+        }
+        chromeGlobal.action.setPopup({ popup: 'Popup/popup.html' });
+      } else if (canOpenSidepanel) {
+        chromeGlobal.action.setPopup({ popup: '' });
+        if (canSetOptions) {
+          try {
+            chromeGlobal.sidePanel
+              .setOptions({
+                path: 'Sidepanel/sidepanel.html',
+                enabled: true,
+              })
+              .catch(() => {});
+          } catch {}
+          void setSidePanelForAllTabs(true, 'Sidepanel/sidepanel.html');
+        }
+      }
+    };
+    // Restore at startup (SW may have been recycled); default to sidepanel if
+    // settings haven't loaded yet — loadSettings() below will correct it.
+    applyOpenMode('sidepanel');
+    loadSettings().then((s) => applyOpenMode(s.openMode));
 
+    if (canOpenSidepanel) {
       browser.runtime.onConnect.addListener((port) => {
         if (port.name !== 'sidepanel') return;
         let registeredTabId: number | undefined;
@@ -337,7 +392,10 @@ async function mapWithConcurrency<T, R>(
         });
       });
 
-      browser.action.onClicked.addListener((tab) => {
+      browser.action.onClicked.addListener(async (tab) => {
+        // 'popup' mode arms a popup via setPopup, so Chrome shows it directly
+        // and this listener never fires. If it does fire, we are in sidepanel
+        // mode (or the popup was cleared), so open the side panel as usual.
         if (tab.id !== undefined) {
           const existingPort = sidePanelPorts.get(tab.id);
           if (existingPort) {
@@ -348,21 +406,10 @@ async function mapWithConcurrency<T, R>(
           }
 
           sidebarClosedTabs.delete(tab.id);
-          if (canSetOptions) {
-            try {
-              chromeGlobal.sidePanel
-                .setOptions({
-                  tabId: tab.id,
-                  path: 'Sidepanel/sidepanel.html',
-                  enabled: true,
-                })
-                .catch(() => {});
-            } catch {}
-          }
-
-          // Never fall back to the popup: the toolbar icon must always open the
-          // sidepanel. Once action.setPopup is set, Chrome stops firing
-          // action.onClicked and the popup would show forever until reload.
+          // No tab-level setOptions here: a tab-scoped enabled:true would take
+          // precedence over the global state and linger, breaking 'popup' mode.
+          // The global side panel (side_panel.default_path / applyOpenMode)
+          // is already enabled in 'sidepanel' mode.
           try {
             const result = chromeGlobal.sidePanel.open({ tabId: tab.id });
             if (result && typeof result.then === 'function') {
@@ -563,6 +610,7 @@ async function mapWithConcurrency<T, R>(
     hideStreamSegments: DEFAULT_SETTINGS.hideStreamSegments,
     captureDataImages: DEFAULT_SETTINGS.captureDataImages,
     dataImageMinSizeKB: DEFAULT_SETTINGS.dataImageMinSizeKB,
+    openMode: DEFAULT_SETTINGS.openMode,
   };
   loadSettings().then((s) => {
     currentSettings = s;
@@ -572,6 +620,38 @@ async function mapWithConcurrency<T, R>(
     if (changes['ext_settings']) {
       loadSettings().then((s) => {
         currentSettings = s;
+        // Re-apply the toolbar open mode so switching takes effect immediately.
+        // In 'popup' mode we must globally disable the side panel (Chrome routes
+        // toolbar clicks to side_panel when it is enabled, ignoring setPopup);
+        // in 'sidepanel' mode we re-enable it and clear the popup. Tab-level
+        // options linger and override the global one, so push the state to
+        // every tab as well (see setSidePanelForAllTabs).
+        if (supportsChromeSidepanel && chromeGlobal?.action?.setPopup) {
+          if (s.openMode === 'popup') {
+            if (typeof chromeGlobal.sidePanel?.setOptions === 'function') {
+              try {
+                chromeGlobal.sidePanel
+                  .setOptions({ enabled: false })
+                  .catch(() => {});
+              } catch {}
+              void setSidePanelForAllTabs(false);
+            }
+            chromeGlobal.action.setPopup({ popup: 'Popup/popup.html' });
+          } else {
+            chromeGlobal.action.setPopup({ popup: '' });
+            if (typeof chromeGlobal.sidePanel?.setOptions === 'function') {
+              try {
+                chromeGlobal.sidePanel
+                  .setOptions({
+                    path: 'Sidepanel/sidepanel.html',
+                    enabled: true,
+                  })
+                  .catch(() => {});
+              } catch {}
+              void setSidePanelForAllTabs(true, 'Sidepanel/sidepanel.html');
+            }
+          }
+        }
         browser.tabs
           .query({})
           .then((tabs) => {
@@ -936,10 +1016,9 @@ async function mapWithConcurrency<T, R>(
 
       if (details.type === 'media') {
         // Refine the format via Content-Type, falling back to mp4 when unrecognized
-        detectedFormat =
-          (contentType
-            ? (detectMedia(details.url, contentType, contentLength) ?? null)
-            : null) ?? 'mp4';
+        detectedFormat = contentType
+          ? (detectMedia(details.url, contentType, contentLength) ?? 'mp4')
+          : 'mp4';
         const settings = currentSettings;
         const pageUrl = tabPageUrls.get(effectiveTabId);
         if (settings && pageUrl && isDomainExcluded(pageUrl, settings))

@@ -1,7 +1,7 @@
 @use '../styles/_variables.scss' as variables;
 
 .popup {
-  width: 380px;
+  width: 460px;
   max-height: 560px;
   display: flex;
   flex-direction: column;
@@ -305,6 +305,7 @@
 }
 
 .empty {
+  flex: 1;
   text-align: center;
   color: var(--fp-muted);
   font-size: 13px;
@@ -408,14 +409,14 @@
 }
 
 .footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
   padding: 8px 16px;
   border-top: 1px solid var(--fp-border);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
 
-.summaryRow {
+.footerLeft {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -431,6 +432,7 @@
 .footerActions {
   display: flex;
   gap: 6px;
+  flex: 1;
 }
 
 .footerBtn {
@@ -452,6 +454,12 @@
     opacity: 0.4;
     cursor: not-allowed;
   }
+}
+
+.footerRight {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
 /* ── toast ── */

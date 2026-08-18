@@ -287,6 +287,9 @@
     "clearList":{
         "message": "清理當前頁面媒體列表"
     },
+    "refresh":{
+        "message": "重新整理"
+    },
     "refreshPage":{
         "message": "重新整理當前頁面"
     },

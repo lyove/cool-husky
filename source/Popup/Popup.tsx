@@ -73,6 +73,7 @@ interface VirtualListProps<T> {
   renderItem: (item: T, index: number) => ReactNode;
   className?: string;
   overscan?: number;
+  gap?: number;
 }
 
 function VirtualList<T>({
@@ -82,6 +83,7 @@ function VirtualList<T>({
   renderItem,
   className,
   overscan = 10,
+  gap = 0,
 }: VirtualListProps<T>): ReactNode {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -89,7 +91,9 @@ function VirtualList<T>({
 
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el) {
+      return;
+    }
     const ro = new ResizeObserver(() => setViewportHeight(el.clientHeight));
     ro.observe(el);
     setViewportHeight(el.clientHeight);
@@ -100,12 +104,12 @@ function VirtualList<T>({
     const arr = new Array<number>(items.length + 1);
     arr[0] = 0;
     for (let i = 0; i < items.length; i++) {
-      arr[i + 1] = (arr[i] ?? 0) + estimateHeight(items[i]!, i);
+      arr[i + 1] = (arr[i] ?? 0) + estimateHeight(items[i]!, i) + gap;
     }
     return arr;
-  }, [items, estimateHeight]);
+  }, [items, estimateHeight, gap]);
 
-  const total = offsets[items.length] ?? 0;
+  const total = (offsets[items.length] ?? 0) - gap;
 
   let start = 0;
   while (start < items.length && (offsets[start + 1] ?? 0) <= scrollTop)
@@ -116,9 +120,9 @@ function VirtualList<T>({
   start = Math.max(0, start - overscan);
   end = Math.min(items.length, end + overscan);
 
-  const visible: ReactNode[] = [];
+  const vItem: ReactNode[] = [];
   for (let i = start; i < end; i++) {
-    visible.push(
+    vItem.push(
       <div
         key={getKey(items[i]!, i)}
         style={{
@@ -126,6 +130,7 @@ function VirtualList<T>({
           top: offsets[i],
           left: 0,
           right: 0,
+          paddingBottom: gap,
         }}
       >
         {renderItem(items[i]!, i)}
@@ -140,7 +145,7 @@ function VirtualList<T>({
       onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
       style={{ overflowY: 'auto' }}
     >
-      <div style={{ height: total, position: 'relative' }}>{visible}</div>
+      <div style={{ position: 'relative', height: total }}>{vItem}</div>
     </div>
   );
 }
@@ -755,10 +760,16 @@ export default function Popup({
     (entry: StreamFlatItem): number => {
       if (entry.kind === 'group') {
         const group = entry.group;
-        const base = 52;
-        if (!expandedGroups.has(group.id)) return base;
+        const base = density === 'comfortable' ? 60 : 52;
+        if (!expandedGroups.has(group.id)) {
+          return base;
+        }
+        const rowH = density === 'comfortable' ? 38 : 34;
         return (
-          base + group.variants.length * 34 + group.audioItems.length * 34 + 8
+          base +
+          group.variants.length * rowH +
+          group.audioItems.length * rowH +
+          8
         );
       }
       return density === 'comfortable' ? 104 : 92;
@@ -1226,6 +1237,7 @@ export default function Popup({
         }
         estimateHeight={estimateFlatHeight}
         renderItem={renderFlatItem}
+        gap={density === 'comfortable' ? 10 : 6}
       />
     ) : (
       <div className={styles.empty}>
@@ -1242,6 +1254,7 @@ export default function Popup({
         getKey={(item) => getMediaKey(item)}
         estimateHeight={estimateItemHeight}
         renderItem={(item) => renderItemCard(item)}
+        gap={density === 'comfortable' ? 10 : 6}
       />
     ) : (
       <div className={styles.empty}>
@@ -1461,7 +1474,7 @@ export default function Popup({
           {listBody}
 
           <footer className={styles.footer}>
-            <div className={styles.summaryRow}>
+            <div className={styles.footerLeft}>
               <button
                 type="button"
                 className={styles.settingsBtn}
@@ -1488,14 +1501,6 @@ export default function Popup({
                   />
                 </svg>
               </button>
-              <span>
-                {t('found')} {mediaCatalog.all.length} {t('item')}
-              </span>
-              {selectedCount > 0 && (
-                <span>
-                  {selectedCount} {t('selected')}
-                </span>
-              )}
             </div>
             <div className={styles.footerActions}>
               <button
@@ -1522,6 +1527,17 @@ export default function Popup({
               >
                 {t('refresh')}
               </button>
+            </div>
+            <div className={styles.footerRight}>
+              <span>
+                {t('found')} {mediaCatalog.all.length} {t('item')}
+              </span>
+              {selectedCount > 0 && (
+                <span>
+                  {'  '}
+                  {selectedCount} {t('selected')}
+                </span>
+              )}
             </div>
           </footer>
         </>

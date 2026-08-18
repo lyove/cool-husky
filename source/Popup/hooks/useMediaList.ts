@@ -269,8 +269,12 @@ export function useMediaList(options?: UseMediaListOptions): {
       tabId: number,
       changeInfo: { title?: string }
     ): void => {
-      if (tabId !== tabIdRef.current) return;
-      if (changeInfo.title) setCurrentTabTitle(changeInfo.title);
+      if (tabId !== tabIdRef.current) {
+        return;
+      }
+      if (changeInfo.title) {
+        setCurrentTabTitle(changeInfo.title);
+      }
     };
     const onTabActivated = (info: { tabId: number }): void => {
       if (!followActiveTabRef.current) return;

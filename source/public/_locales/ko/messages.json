@@ -287,6 +287,9 @@
     "clearList":{
         "message": "현재 페이지 미디어 목록 지우기"
     },
+    "refresh":{
+        "message": "새로고침"
+    },
     "refreshPage":{
         "message": "현재 페이지 새로고침"
     },

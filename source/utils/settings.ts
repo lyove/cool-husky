@@ -15,6 +15,8 @@ export interface SniffingRule {
 
 export type SniffingRules = Record<SniffingGroup, SniffingRule>;
 
+export type OpenMode = 'sidepanel' | 'popup';
+
 export interface Settings {
   sniffingRules: SniffingRules;
   excludeDomains: string[];
@@ -26,6 +28,8 @@ export interface Settings {
   captureDataImages: boolean;
   /** Minimum byte threshold (KB) for data: images, filtering out tiny 1x1 pixel trackers. */
   dataImageMinSizeKB: number;
+  /** How the toolbar icon opens the UI: 'sidepanel' (right dock) or 'popup' (floating). */
+  openMode: OpenMode;
 }
 
 export const DEFAULT_MAX_ITEMS = 1000;
@@ -54,6 +58,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hideStreamSegments: true,
   captureDataImages: false,
   dataImageMinSizeKB: 50,
+  openMode: 'sidepanel',
 };
 
 const SETTINGS_KEY = 'ext_settings';
@@ -105,6 +110,7 @@ export async function loadSettings(): Promise<Settings> {
       hideStreamSegments: DEFAULT_SETTINGS.hideStreamSegments,
       captureDataImages: DEFAULT_SETTINGS.captureDataImages,
       dataImageMinSizeKB: DEFAULT_SETTINGS.dataImageMinSizeKB,
+      openMode: DEFAULT_SETTINGS.openMode,
     };
   }
   const rawMax = stored.maxItems;
@@ -134,6 +140,10 @@ export async function loadSettings(): Promise<Settings> {
       typeof stored.dataImageMinSizeKB === 'number'
         ? stored.dataImageMinSizeKB
         : 50,
+    openMode:
+      stored.openMode === 'popup' || stored.openMode === 'sidepanel'
+        ? stored.openMode
+        : DEFAULT_SETTINGS.openMode,
   };
 }
 
@@ -147,6 +157,7 @@ export async function saveSettings(settings: Settings): Promise<void> {
       hideStreamSegments: settings.hideStreamSegments,
       captureDataImages: settings.captureDataImages,
       dataImageMinSizeKB: settings.dataImageMinSizeKB,
+      openMode: settings.openMode,
     },
   });
 }
