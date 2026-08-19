@@ -668,7 +668,6 @@ const HoverPreview: FC<HoverPreviewProps> = ({ state }) => {
 
 interface PopupProps {
   embedded?: boolean;
-  /** Reload the media list when the active tab changes. */
   followActiveTab?: boolean;
 }
 
@@ -692,7 +691,7 @@ export default function Popup({
   embedded,
   followActiveTab,
 }: PopupProps): ReactNode {
-  const { t, density } = useI18n();
+  const { t, locale, density } = useI18n();
   const { settings, saveSettings } = useSettings();
   const {
     isFailed: isVideoThumbFailed,
@@ -1744,11 +1743,6 @@ export default function Popup({
               </span>
             )}
             <span className={styles.itemSize}>{formatFileSize(totalSize)}</span>
-            {/* Group cards with children keep the header clean: operations live
-                on the expanded variant/audio rows (copy url / play / download).
-                Only a group with NO children (a lone stream master, e.g. a plain
-                m3u8 without variants) keeps header actions, otherwise it would
-                have no way to play/download at all. */}
             {masterSource && !hasChildren && (
               <div className={styles.groupHeaderActions}>
                 <button
@@ -1852,7 +1846,8 @@ export default function Popup({
       TAB_DEFS.filter((tab) => enabledTabs.includes(tab.key)).map((tab) => {
         return { ...tab, label: t(tab.label) };
       }),
-    [t, enabledTabs]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [t, locale, enabledTabs]
   );
 
   const resolutionOptions = useMemo(
