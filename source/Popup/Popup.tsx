@@ -1850,6 +1850,15 @@ export default function Popup({
     [t, locale, enabledTabs]
   );
 
+  // Close all playback/preview and collapse expanded groups when switching tabs
+  useEffect(() => {
+    setPreviewItem(null);
+    setPlayingItem(null);
+    setHoverPreview(null);
+    setLightboxIndex(-1);
+    setExpandedGroups(new Set());
+  }, [activeTab]);
+
   const resolutionOptions = useMemo(
     () =>
       RESOLUTION_OPTIONS.map((r) => {
