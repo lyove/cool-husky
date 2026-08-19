@@ -15,7 +15,7 @@
   height: 100vh;
 }
 
-/* 设置页视图：父级有确定高度，内部 .body 才能滚动 */
+/* Settings view: the parent has a fixed height so the inner .body can scroll. */
 .popupSettings {
   height: 560px;
 }
@@ -25,21 +25,21 @@
 }
 
 .densityComfortable {
-  /* 普通列表 */
+  /* Regular list */
   .list {
     gap: 10px;
   }
   .item {
     padding: 13px 12px;
   }
-  /* 直播分组卡片 */
+  /* Live stream group card */
   .groupHeader {
     padding: 12px 12px;
   }
   .variantRow {
     padding: 9px 12px;
   }
-  /* 图片瀑布流 */
+  /* Image masonry */
   .masonry,
   .masonryCol {
     gap: 10px;
@@ -251,14 +251,15 @@
   font-size: 14px;
   border: 1px solid var(--fp-border);
   border-radius: 6px;
-  background: transparent;
+  background-color: transparent;
   color: var(--fp-text);
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 
   &:hover {
     border-color: var(--fp-muted);
-    background: color-mix(in srgb, var(--fp-text) 6%, transparent);
+    background-color: var(--fp-tag-bg);
+    color: var(--fp-accent);
   }
 
   &:disabled {
@@ -267,21 +268,22 @@
   }
 }
 
-.iconBtnActive {
+.iconBtn.iconBtnActive {
   border-color: var(--fp-muted);
   color: var(--fp-muted);
+  background-color: transparent;
 }
 
-.selectAllActive {
+.iconBtn.selectAllActive {
   border-color: var(--fp-accent);
   color: var(--fp-accent);
-  background: var(--fp-accent-soft);
+  background-color: var(--fp-accent-soft);
 }
 
-.filterToolbarBtnActive {
+.iconBtn.filterToolbarBtnActive {
   border-color: var(--fp-accent);
   color: var(--fp-accent);
-  background: var(--fp-accent-soft);
+  background-color: var(--fp-accent-soft);
 }
 
 .searchError {
@@ -674,8 +676,8 @@
 }
 
 .actionBtnCopy {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border: none;
   border-radius: 8px;
   background: transparent;

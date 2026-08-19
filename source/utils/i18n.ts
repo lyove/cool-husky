@@ -1,7 +1,15 @@
 import browser from 'webextension-polyfill';
 
 export type LocaleCode =
-  'system' | 'en' | 'zh_CN' | 'zh_TW' | 'de' | 'es' | 'ja' | 'ko' | 'ru';
+  | 'system'
+  | 'en'
+  | 'zh_CN'
+  | 'zh_TW'
+  | 'de'
+  | 'es'
+  | 'ja'
+  | 'ko'
+  | 'ru';
 
 export interface LocaleOption {
   code: LocaleCode;
@@ -1260,7 +1268,8 @@ export function getResolvedLocale(): string {
   return currentLocale === 'system' ? detectSystemLocale() : currentLocale;
 }
 
-// 用户手动设置版本：loadAppearance 的异步恢复不会覆盖用户刚做的修改
+// Version counter for manual changes: loadAppearance's async restore
+// will not overwrite modifications the user has just made.
 let manualChangeVersion = 0;
 
 export function setLocale(locale: LocaleCode): void {
@@ -1285,7 +1294,8 @@ export function setDensity(density: DensityMode): void {
 export async function loadAppearance(): Promise<void> {
   const versionAtStart = manualChangeVersion;
   const result = await browser.storage.local.get(APPEARANCE_KEY);
-  // 等待 storage 期间用户已手动修改过外观：丢弃过期的恢复，避免覆盖
+  // The user modified the appearance while storage was loading:
+  // discard the stale restore to avoid overwriting their changes.
   if (versionAtStart !== manualChangeVersion) return;
 
   const stored = result[APPEARANCE_KEY] as Record<string, unknown> | undefined;
@@ -1325,7 +1335,8 @@ export function applyTheme(theme: ThemeMode): void {
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const isDark = theme === 'dark' || (theme === 'system' && prefersDark);
   root.classList.toggle('dark', isDark);
-  // 内联强制 color-scheme，防止深色系统下浏览器对画布/控件自动深色化
+  // Force color-scheme inline to prevent the browser from auto-darkening
+  // canvas and controls under a dark system theme.
   root.style.colorScheme = isDark ? 'dark' : 'light';
 }
 

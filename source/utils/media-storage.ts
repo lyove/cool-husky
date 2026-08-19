@@ -123,6 +123,34 @@ export async function saveTabList(
   await setSessionData({ [tabKey(tabId)]: obj });
 }
 
+/** Restore a single tab's snapshot from session storage. */
+export async function loadTabList(
+  tabId: number
+): Promise<Map<string, MediaEntry>> {
+  const all = await getSessionData();
+  const value = all[tabKey(tabId)];
+  const mediaMap = new Map<string, MediaEntry>();
+  if (Array.isArray(value)) {
+    value.forEach((url: string) => {
+      mediaMap.set(url, { format: 'm3u8' });
+    });
+  } else if (typeof value === 'object' && value !== null) {
+    Object.entries(value).forEach(([url, entry]) => {
+      if (typeof entry === 'string') {
+        mediaMap.set(url, { format: entry });
+      } else if (entry && typeof entry === 'object') {
+        const e = entry as any;
+        mediaMap.set(url, {
+          ...e,
+          format: e.format || 'm3u8',
+          size: typeof e.size === 'number' ? e.size : undefined,
+        });
+      }
+    });
+  }
+  return mediaMap;
+}
+
 export async function deleteTabList(tabId: number) {
   await removeSessionData(tabKey(tabId));
 }

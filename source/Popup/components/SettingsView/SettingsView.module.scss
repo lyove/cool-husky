@@ -87,7 +87,8 @@
   border-radius: 16px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   overflow: hidden;
-  /* 不被 flex 容器压缩：内容超高时由 .body 滚动，而不是裁掉卡片 */
+  /* Not compressed by the flex container: when content overflows,
+     the .body scrolls instead of clipping the card. */
   flex-shrink: 0;
 }
 

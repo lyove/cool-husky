@@ -554,18 +554,22 @@
   window.addEventListener('message', (event) => {
     if (event.source !== window || !event.data) return;
     if (event.data.type === 'COOLHUSKY_MSE_ENABLE') {
-      installMseProxy();
+      if (event.data.enabled !== false) {
+        installMseProxy();
+      }
     }
     if (event.data.type === 'COOLHUSKY_DATA_IMAGES_ENABLE') {
-      dataImagesEnabled = true;
-      dataImageMinBytes = Math.max(0, (event.data.minSizeKB ?? 50) * 1024);
-      scanExistingDataImages();
+      if (event.data.enabled === false) {
+        dataImagesEnabled = false;
+      } else {
+        dataImagesEnabled = true;
+        dataImageMinBytes = Math.max(0, (event.data.minSizeKB ?? 50) * 1024);
+        scanExistingDataImages();
+      }
     }
   });
 
   // Handle download requests in the page via postMessage
-  // When content.ts receives the user's click on "download MSE stream", it sends MSE_DOWNLOAD_REQUEST to injected,
-  // which returns the in-memory ArrayBuffer through a transferable MessageChannel.
   window.addEventListener('message', (event) => {
     if (event.source !== window || !event.data) return;
     if (event.data.type !== 'MSE_DOWNLOAD_REQUEST') return;
@@ -600,11 +604,7 @@
   });
 
   // ── Bilibili-specific parsing ────────────────────────────────────────────────────
-  // A page can request several playurl payloads at once: the current video,
-  // episode switches and hover-card previews.  Some payloads omit `data.cid`,
-  // so using location.pathname as their identity makes a preview overwrite the
-  // current video's virtual DASH group.  Preserve the request URL and derive a
-  // stable identity from its request data in that case.
+
   function getBilibiliTaskKey(data: any, sourceUrl?: string): string {
     const responseCid = data?.cid;
     if (

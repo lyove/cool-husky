@@ -37,10 +37,10 @@ export const DEFAULT_MAX_ITEMS = 1000;
 export const DEFAULT_SNIFFING_RULES: SniffingRules = {
   streaming: { enabled: true, minSizeKB: 0 },
   video: { enabled: true, minSizeKB: 100 },
-  audio: { enabled: true, minSizeKB: 150 },
-  image: { enabled: true, minSizeKB: 100 },
-  document: { enabled: true, minSizeKB: 0 },
-  subtitle: { enabled: true, minSizeKB: 0 },
+  audio: { enabled: true, minSizeKB: 1 },
+  image: { enabled: false, minSizeKB: 10 },
+  document: { enabled: false, minSizeKB: 0 },
+  subtitle: { enabled: false, minSizeKB: 0 },
 };
 
 export const DEFAULT_SETTINGS: Settings = {

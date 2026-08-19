@@ -270,25 +270,15 @@ const DownloadIconSvg = (): ReactNode => (
 
 /** Merge audio icon: two streams converging into one (concatenation). */
 const MergeIconSvg = (): ReactNode => (
-  <svg
-    viewBox="0 0 24 24"
-    width="16"
-    height="16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={1.5}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    {/* Two input streams (top) converging into a single output (bottom) */}
-    <path d="M5 4v3a4 4 0 004 4h6a4 4 0 004-4V4" />
-    {/* Merged output line + arrowhead pointing down (towards download) */}
-    <path d="M12 15v5" />
-    <path d="M9 17.5l3 3 3-3" />
+  <svg viewBox="0 0 1024 1024" width="1em" height="1em">
+    <path
+      d="M960 768 64 768c-35.36 0-64-28.64-64-64L0 160c0-35.328 28.672-64 64-64l416.384 0L480.384 31.712C480.384 14.176 494.56 0 512 0c17.44 0 31.616 14.208 31.616 31.744L543.616 96 960 96c35.36 0 64 28.64 64 64l0 544C1024 739.328 995.328 768 960 768zM960 224c0-35.328-28.64-64-64-64L544 160l0 30.528-0.416 0 0 335.904 167.776-168.448c12.256-12.32 32.128-12.32 44.384 0 12.256 12.288 12.256 32.256 0 44.576l-219.904 220.736c-0.544 0.64-0.704 1.408-1.312 2.016-0.96 0.96-2.368 0.992-3.392 1.792-3.328 2.688-6.944 4.608-10.848 5.76-1.504 0.384-2.848 0.672-4.384 0.864-9.408 1.28-19.2-1.152-26.432-8.416-0.64-0.64-0.832-1.44-1.408-2.08L268.256 402.56C256 390.24 256 370.272 268.256 357.984c12.256-12.32 32.128-12.32 44.384 0l167.776 168.448L480.416 190.528 480 190.528 480 160 128 160C92.64 160 64 188.64 64 224l0 416c0 35.328 28.64 64 64 64l768 0c35.328 0 64-28.672 64-64L960 224zM96 832l832 0c8.672 0 32 8.544 32 17.248l0 32C960 889.92 936.672 896 928 896L96 896c-8.704 0-32-6.08-32-14.752l0-32C64 840.544 87.296 832 96 832zM160 960l704 0c8.672 0 32 7.552 32 16.256l0 32C896 1016.928 872.672 1024 864 1024L160 1024c-8.672 0-32-7.04-32-15.744l0-32C128 967.552 151.296 960 160 960z"
+      fill="#272636"
+    />
   </svg>
 );
 
-/** 根据格式返回 badge 颜色类，与 flowpick 风格对齐 */
+/** Returns the badge color class based on the format, aligned with the flowpick style. */
 function getFormatBadgeClass(fmt: string, streamLabel?: boolean): string {
   const f = fmt.toLowerCase();
   if (streamLabel) return styles.formatBadgeStream ?? '';
@@ -330,8 +320,9 @@ function VirtualList<T>({
   const [viewportHeight, setViewportHeight] = useState(0);
   const [measureTick, setMeasureTick] = useState(0);
 
-  // 已测量的条目内容高度（不含 gap），未测量前回退到 estimateHeight。
-  // 保证条目按真实高度摆放，估算偏低时也不会重叠。
+  // Measured content height of an item (excluding gap); falls back to
+  // estimateHeight until measured. Items are laid out by their real height
+  // so they never overlap even when estimates are too low.
   const measuredHeightsRef = useRef(new Map<number, number>());
 
   useEffect(() => {
@@ -345,7 +336,7 @@ function VirtualList<T>({
     return (): void => ro.disconnect();
   }, []);
 
-  /** 实测条目高度；只有高度真正变化（>0.5px）才触发重排，避免渲染抖动 */
+  /** Measured item height; only triggers re-layout when the height truly changes (>0.5px) to avoid render jitter. */
   const measureItem = useCallback(
     (el: HTMLDivElement, index: number): void => {
       const measured = el.getBoundingClientRect().height - gap;
@@ -363,7 +354,7 @@ function VirtualList<T>({
   );
 
   const offsets = useMemo(() => {
-    // measureTick 仅作为“测量值已更新”的重算触发信号
+    // measureTick only serves as a recompute trigger when measured values change.
     void measureTick;
     const arr = new Array<number>(items.length + 1);
     arr[0] = 0;
@@ -1142,7 +1133,8 @@ export default function Popup({
         const rect = target.getBoundingClientRect();
         const spaceBelow = window.innerHeight - rect.bottom - 6;
         const above = spaceBelow < PREVIEW_HEIGHT;
-        // 弹框水平居中于卡片（无缩略图时视觉更自然），并限制在视口内
+        // Center the popover horizontally on the card (looks more natural
+        // when there is no thumbnail) and keep it within the viewport.
         const left = Math.min(
           Math.max(8, rect.left + rect.width / 2 - PREVIEW_WIDTH / 2),
           window.innerWidth - PREVIEW_WIDTH - 8

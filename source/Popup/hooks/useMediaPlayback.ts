@@ -72,6 +72,13 @@ export function useMediaPlayback(
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const spectrumCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const separatedAudioRef = useRef<HTMLAudioElement | null>(null);
+  const separatedAudioHandlersRef = useRef<{
+    syncPlay: () => void;
+    syncPause: () => void;
+    syncTime: () => void;
+    syncRate: () => void;
+    onAudioError: () => void;
+  } | null>(null);
   const hlsInstance = useRef<HlsInstance | null>(null);
   const dashInstance = useRef<DashPlayer | null>(null);
   const flvInstance = useRef<mpegts.Player | null>(null);
@@ -199,21 +206,34 @@ export function useMediaPlayback(
     video.addEventListener('ratechange', syncRate);
     audioEl.addEventListener('error', onAudioError);
     separatedAudioRef.current = audioEl;
+    separatedAudioHandlersRef.current = {
+      syncPlay,
+      syncPause,
+      syncTime,
+      syncRate,
+      onAudioError,
+    };
     if (!video.paused) syncPlay();
   }, [item, currentTabId]);
 
   const disposeSeparatedAudio = useCallback((): void => {
     const audioEl = separatedAudioRef.current;
-    if (!audioEl) return;
+    const handlers = separatedAudioHandlersRef.current;
     const video = videoRef.current;
-    if (video) {
-      video.removeEventListener('play', audioEl.play);
-      video.removeEventListener('pause', audioEl.pause);
+    // removeEventListener requires the exact same handler references that were registered.
+    if (video && handlers) {
+      video.removeEventListener('play', handlers.syncPlay);
+      video.removeEventListener('pause', handlers.syncPause);
+      video.removeEventListener('seeking', handlers.syncTime);
+      video.removeEventListener('timeupdate', handlers.syncTime);
+      video.removeEventListener('ratechange', handlers.syncRate);
+      audioEl?.removeEventListener('error', handlers.onAudioError);
     }
-    audioEl.pause();
-    audioEl.removeAttribute('src');
-    audioEl.load();
+    audioEl?.pause();
+    audioEl?.removeAttribute('src');
+    audioEl?.load();
     separatedAudioRef.current = null;
+    separatedAudioHandlersRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -225,7 +245,90 @@ export function useMediaPlayback(
     let analyser: AnalyserNode | null = null;
     let source: MediaElementAudioSourceNode | null = null;
     let raf = 0;
-    const start = (): void => {
+    // The AudioContext graph must be wired up only once per element
+    // (createMediaElementSource throws on an already-connected element).
+    let started = false;
+    // drawing stays true only while the audio is actually playing.
+    let drawing = false;
+    let g: CanvasRenderingContext2D | null = null;
+    let data = new Uint8Array(0);
+    // "Peak" layout: the center bar is the tallest and tracks the audio loudness;
+    // bars fall off towards both edges with a cosine envelope and jitter randomly,
+    // but no edge bar ever exceeds the center height. The whole shape rises/falls
+    // with the audio level — loud → center high & edges high, quiet → all low.
+    const BAR_COUNT = 40;
+    const center = (BAR_COUNT - 1) / 2;
+    // Per-bar distance-from-center factor (1 at center → ~0.3 at edges).
+    const envelope = new Float32Array(BAR_COUNT);
+    for (let k = 0; k < BAR_COUNT; k++) {
+      const d = Math.abs(k - center) / center; // 0 at center, 1 at edges
+      envelope[k] = 0.3 + 0.7 * Math.cos(d * Math.PI * 0.5);
+    }
+    let frame = 0;
+    const draw = (): void => {
+      if (!drawing) return;
+      raf = requestAnimationFrame(draw);
+      if (!analyser || !g) return;
+      analyser.getByteFrequencyData(data);
+      // Overall loudness drives the peak (center) height — the whole shape follows it.
+      let total = 0;
+      for (let j = 0; j < data.length; j++) total += data[j] ?? 0;
+      const loudness = total / data.length / 255; // 0..1
+      // Peak height: loudness lifted so the whole shape is tall enough — center should
+      // routinely exceed half the canvas height and reach the top on loud peaks.
+      const peak = Math.max(0.2, Math.min(1, 0.35 + loudness * 1.8));
+      // Sync the canvas backing store to the element's displayed size (DPR-aware)
+      // so bars fill the full container width with no right-side gap.
+      const cssW = canvas.clientWidth || canvas.width;
+      const cssH = canvas.clientHeight || canvas.height;
+      const dpr = window.devicePixelRatio || 1;
+      const targetW = Math.round(cssW * dpr);
+      const targetH = Math.round(cssH * dpr);
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      }
+      const w = canvas.width;
+      const h = canvas.height;
+      g.clearRect(0, 0, w, h);
+      // Equal-width bars evenly spaced across the full width. Use a float stride so the
+      // rounding remainder is distributed across all gaps (not dumped on the last bar,
+      // which made it visibly wider). Each bar has the exact same width.
+      const gap = Math.round(4 * dpr);
+      const barWidth = Math.max(
+        1,
+        Math.floor((w - (BAR_COUNT - 1) * gap) / BAR_COUNT)
+      );
+      // stride = (total width - bars) / (gaps), float → spreads remainder evenly.
+      const stride = (w - barWidth) / (BAR_COUNT - 1);
+      const gradient = g.createLinearGradient(0, h, 0, 0);
+      gradient.addColorStop(0, '#2a5fff');
+      gradient.addColorStop(1, '#8fb3ff');
+      g.fillStyle = gradient;
+      frame++;
+      for (let i = 0; i < BAR_COUNT; i++) {
+        // Jitter so edges move randomly but stay within the envelope (≤ peak).
+        const jit =
+          Math.sin(frame * 0.22 + i * 1.9) * 0.5 +
+          Math.sin(frame * 0.13 + i * 0.7) * 0.5; // -1..1
+        const jitter01 = jit * 0.5 + 0.5; // 0..1
+        const env = envelope[i]!;
+        // Edge bars: envelope × (random jitter), clamped to the envelope so they
+        // never exceed the center. Center bar uses the full peak.
+        const v = Math.max(
+          0.04,
+          Math.min(peak, peak * (env * 0.6 + env * 0.4 * jitter01))
+        );
+        const barHeight = h * v;
+        const x = i * stride;
+        const y = h - barHeight;
+        g.beginPath();
+        g.roundRect(x, y, barWidth, barHeight, Math.min(barWidth / 2, 3 * dpr));
+        g.fill();
+      }
+    };
+    const setup = (): void => {
+      if (started) return;
       const AudioCtx =
         window.AudioContext ||
         (window as unknown as { webkitAudioContext?: typeof AudioContext })
@@ -238,97 +341,37 @@ export function useMediaPlayback(
         source = ctx.createMediaElementSource(audio);
         source.connect(analyser);
         analyser.connect(ctx.destination);
-        const data = new Uint8Array(analyser.frequencyBinCount);
-        const g = canvas.getContext('2d');
-        // "Peak" layout: the center bar is the tallest and tracks the audio loudness;
-        // bars fall off towards both edges with a cosine envelope and jitter randomly,
-        // but no edge bar ever exceeds the center height. The whole shape rises/falls
-        // with the audio level — loud → center high & edges high, quiet → all low.
-        const BAR_COUNT = 40;
-        const center = (BAR_COUNT - 1) / 2;
-        // Per-bar distance-from-center factor (1 at center → ~0.3 at edges).
-        const envelope = new Float32Array(BAR_COUNT);
-        for (let k = 0; k < BAR_COUNT; k++) {
-          const d = Math.abs(k - center) / center; // 0 at center, 1 at edges
-          envelope[k] = 0.3 + 0.7 * Math.cos(d * Math.PI * 0.5);
-        }
-        let frame = 0;
-        const draw = (): void => {
-          raf = requestAnimationFrame(draw);
-          if (!analyser || !g) return;
-          analyser.getByteFrequencyData(data);
-          // Overall loudness drives the peak (center) height — the whole shape follows it.
-          let total = 0;
-          for (let j = 0; j < data.length; j++) total += data[j] ?? 0;
-          const loudness = total / data.length / 255; // 0..1
-          // Peak height: loudness lifted so the whole shape is tall enough — center should
-          // routinely exceed half the canvas height and reach the top on loud peaks.
-          const peak = Math.max(0.2, Math.min(1, 0.35 + loudness * 1.8));
-          // Sync the canvas backing store to the element's displayed size (DPR-aware)
-          // so bars fill the full container width with no right-side gap.
-          const cssW = canvas.clientWidth || canvas.width;
-          const cssH = canvas.clientHeight || canvas.height;
-          const dpr = window.devicePixelRatio || 1;
-          const targetW = Math.round(cssW * dpr);
-          const targetH = Math.round(cssH * dpr);
-          if (canvas.width !== targetW || canvas.height !== targetH) {
-            canvas.width = targetW;
-            canvas.height = targetH;
-          }
-          const w = canvas.width;
-          const h = canvas.height;
-          g.clearRect(0, 0, w, h);
-          // Equal-width bars evenly spaced across the full width. Use a float stride so the
-          // rounding remainder is distributed across all gaps (not dumped on the last bar,
-          // which made it visibly wider). Each bar has the exact same width.
-          const gap = Math.round(4 * dpr);
-          const barWidth = Math.max(
-            1,
-            Math.floor((w - (BAR_COUNT - 1) * gap) / BAR_COUNT)
-          );
-          // stride = (total width - bars) / (gaps), float → spreads remainder evenly.
-          const stride = (w - barWidth) / (BAR_COUNT - 1);
-          const gradient = g.createLinearGradient(0, h, 0, 0);
-          gradient.addColorStop(0, '#2a5fff');
-          gradient.addColorStop(1, '#8fb3ff');
-          g.fillStyle = gradient;
-          frame++;
-          for (let i = 0; i < BAR_COUNT; i++) {
-            // Jitter so edges move randomly but stay within the envelope (≤ peak).
-            const jit =
-              Math.sin(frame * 0.22 + i * 1.9) * 0.5 +
-              Math.sin(frame * 0.13 + i * 0.7) * 0.5; // -1..1
-            const jitter01 = jit * 0.5 + 0.5; // 0..1
-            const env = envelope[i]!;
-            // Edge bars: envelope × (random jitter), clamped to the envelope so they
-            // never exceed the center. Center bar uses the full peak.
-            const v = Math.max(
-              0.04,
-              Math.min(peak, peak * (env * 0.6 + env * 0.4 * jitter01))
-            );
-            const barHeight = h * v;
-            const x = i * stride;
-            const y = h - barHeight;
-            g.beginPath();
-            g.roundRect(
-              x,
-              y,
-              barWidth,
-              barHeight,
-              Math.min(barWidth / 2, 3 * dpr)
-            );
-            g.fill();
-          }
-        };
-        draw();
+        data = new Uint8Array(analyser.frequencyBinCount);
+        g = canvas.getContext('2d');
+        started = true;
       } catch {
         // AudioContext unavailable: silently degrade
       }
     };
-    audio.addEventListener('play', start, { once: true });
-    if (!audio.paused) start();
+    const startDrawing = (): void => {
+      if (!started || drawing) return;
+      drawing = true;
+      draw();
+    };
+    const stopDrawing = (): void => {
+      drawing = false;
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      // Clear the canvas so the bars do not linger after playback stops/ends.
+      if (g) g.clearRect(0, 0, canvas.width, canvas.height);
+    };
+    const onPlay = (): void => {
+      setup();
+      startDrawing();
+    };
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', stopDrawing);
+    audio.addEventListener('ended', stopDrawing);
+    if (!audio.paused) onPlay();
     return (): void => {
-      audio.removeEventListener('play', start);
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', stopDrawing);
+      audio.removeEventListener('ended', stopDrawing);
       if (raf) cancelAnimationFrame(raf);
       if (source) source.disconnect();
       if (analyser) analyser.disconnect();

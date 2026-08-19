@@ -7,6 +7,11 @@ import {
 } from './image-extractor';
 
 {
+  // Cached capture switches so disabling a setting takes effect immediately.
+  // (The injected MSE proxy / data-image sniffer may stay installed but is bypassed.)
+  let mseCaptureEnabled = false;
+  let dataImagesEnabled = false;
+
   if (!document.querySelector('script[data-m3u8-injected]')) {
     const script = document.createElement('script');
     script.src = browser.runtime.getURL('assets/js/injected.bundle.js');
@@ -17,18 +22,20 @@ import {
   browser.runtime
     .sendMessage({ type: 'GET_SETTINGS' })
     .then((s: any) => {
-      if (s?.enableMseCapture) {
-        window.postMessage({ type: 'COOLHUSKY_MSE_ENABLE' }, '*');
-      }
-      if (s?.captureDataImages) {
-        window.postMessage(
-          {
-            type: 'COOLHUSKY_DATA_IMAGES_ENABLE',
-            minSizeKB: s.dataImageMinSizeKB ?? 50,
-          },
-          '*'
-        );
-      }
+      mseCaptureEnabled = !!s?.enableMseCapture;
+      dataImagesEnabled = !!s?.captureDataImages;
+      window.postMessage(
+        { type: 'COOLHUSKY_MSE_ENABLE', enabled: mseCaptureEnabled },
+        '*'
+      );
+      window.postMessage(
+        {
+          type: 'COOLHUSKY_DATA_IMAGES_ENABLE',
+          enabled: dataImagesEnabled,
+          minSizeKB: s?.dataImageMinSizeKB ?? 50,
+        },
+        '*'
+      );
     })
     .catch(() => {});
 
@@ -100,18 +107,20 @@ import {
       ]);
     }
     if (msg.type === 'COOLHUSKY_SETTINGS_CHANGED') {
-      if (msg.enableMseCapture) {
-        window.postMessage({ type: 'COOLHUSKY_MSE_ENABLE' }, '*');
-      }
-      if (msg.captureDataImages) {
-        window.postMessage(
-          {
-            type: 'COOLHUSKY_DATA_IMAGES_ENABLE',
-            minSizeKB: msg.dataImageMinSizeKB ?? 50,
-          },
-          '*'
-        );
-      }
+      mseCaptureEnabled = !!msg.enableMseCapture;
+      dataImagesEnabled = !!msg.captureDataImages;
+      window.postMessage(
+        { type: 'COOLHUSKY_MSE_ENABLE', enabled: mseCaptureEnabled },
+        '*'
+      );
+      window.postMessage(
+        {
+          type: 'COOLHUSKY_DATA_IMAGES_ENABLE',
+          enabled: dataImagesEnabled,
+          minSizeKB: msg.dataImageMinSizeKB ?? 50,
+        },
+        '*'
+      );
     }
   });
 
@@ -265,18 +274,20 @@ import {
       browser.runtime
         .sendMessage({ type: 'GET_SETTINGS' })
         .then((s: any) => {
-          if (s?.enableMseCapture) {
-            window.postMessage({ type: 'COOLHUSKY_MSE_ENABLE' }, '*');
-          }
-          if (s?.captureDataImages) {
-            window.postMessage(
-              {
-                type: 'COOLHUSKY_DATA_IMAGES_ENABLE',
-                minSizeKB: s.dataImageMinSizeKB ?? 50,
-              },
-              '*'
-            );
-          }
+          mseCaptureEnabled = !!s?.enableMseCapture;
+          dataImagesEnabled = !!s?.captureDataImages;
+          window.postMessage(
+            { type: 'COOLHUSKY_MSE_ENABLE', enabled: mseCaptureEnabled },
+            '*'
+          );
+          window.postMessage(
+            {
+              type: 'COOLHUSKY_DATA_IMAGES_ENABLE',
+              enabled: dataImagesEnabled,
+              minSizeKB: s?.dataImageMinSizeKB ?? 50,
+            },
+            '*'
+          );
         })
         .catch(() => {});
     }
@@ -322,6 +333,7 @@ import {
     }
 
     if (event.data?.type === 'MSE_STREAM_UPDATE') {
+      if (!mseCaptureEnabled) return;
       if (!currentTabId) {
         const tab = await browser.runtime.sendMessage({
           type: 'GET_CURRENT_TAB',

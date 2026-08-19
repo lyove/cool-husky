@@ -4,10 +4,12 @@ import {
   detectMediaFromUrl,
   detectDoc,
   detectFormatFromUrl,
+  isKnownMediaCdn,
   type MediaCategory,
 } from '../utils/detect';
 import {
   loadAllTabData,
+  loadTabList,
   saveTabList,
   deleteTabList,
   type MediaEntry,
@@ -673,22 +675,32 @@ async function mapWithConcurrency<T, R>(
     }
   });
 
-  loadAllTabData().then((data) => {
-    data.forEach((mediaMap, tabId) => {
-      tabMap.set(tabId, mediaMap);
+  loadAllTabData()
+    .then((data) => {
+      data.forEach((mediaMap, tabId) => {
+        tabMap.set(tabId, mediaMap);
+        // Refresh the badge for every restored tab (not just the active one),
+        // so stale in-memory counts never linger on other tabs after a restart.
+        try {
+          updateBadge(tabId);
+        } catch {}
+      });
+      isDataLoaded = true;
+      pendingMessages.forEach(({ msg, sender, sendResponse }) => {
+        handleMessage(msg, sender, sendResponse);
+      });
+      pendingMessages.length = 0;
+    })
+    .catch((error) => {
+      // A restore failure must never wedge message handling: flush the queue so
+      // GET_LIST etc. still resolve (possibly empty) instead of hanging forever.
+      console.warn('[CoolHusky] Failed to restore sniffed media:', error);
+      isDataLoaded = true;
+      pendingMessages.forEach(({ msg, sender, sendResponse }) => {
+        handleMessage(msg, sender, sendResponse);
+      });
+      pendingMessages.length = 0;
     });
-    isDataLoaded = true;
-    browser.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
-      if (tabs[0]?.id) {
-        updateBadge(tabs[0].id);
-      }
-    });
-
-    pendingMessages.forEach(({ msg, sender, sendResponse }) => {
-      handleMessage(msg, sender, sendResponse);
-    });
-    pendingMessages.length = 0;
-  });
 
   // Currently active tab ID, used as a fallback for tabId=-1
   let currentActiveTabId = -1;
@@ -961,26 +973,37 @@ async function mapWithConcurrency<T, R>(
       let category: MediaCategory = 'media';
 
       if (details.type === 'media') {
-        // Refine the format via Content-Type, falling back to URL detection,
-        // then to mp4 when unrecognized (media CDNs often serve extension-less URLs)
-        detectedFormat = contentType
-          ? (detectMedia(details.url, contentType, contentLength) ??
+        // Refine the format via Content-Type, falling back to URL detection.
+        // Media-element requests (<audio>/<video> src) are confirmed playback
+        // of a real media resource, so extension-less octet-stream responses
+        // are media regardless of the CDN domain — never mislabel them as
+        // unknown, and never drop short preview clips via the size threshold.
+        const isOctetStream =
+          contentType?.toLowerCase().startsWith('application/octet-stream') ??
+          false;
+        const mediaFallback =
+          isKnownMediaCdn(details.url) || isOctetStream ? 'mp4' : undefined;
+        const detectedMediaFormat = contentType
+          ? (detectMedia(
+              details.url,
+              contentType,
+              contentLength,
+              contentDisposition
+            ) ??
             detectMediaFromUrl(details.url) ??
-            'mp4')
-          : 'mp4';
+            mediaFallback)
+          : (detectMediaFromUrl(details.url) ?? mediaFallback);
+        if (!detectedMediaFormat) return undefined;
+        detectedFormat = detectedMediaFormat;
         const settings = currentSettings;
         const pageUrl = tabPageUrls.get(effectiveTabId);
         if (settings && pageUrl && isDomainExcluded(pageUrl, settings))
           return undefined;
         if (settings && !isFormatAllowed(detectedFormat, settings))
           return undefined;
-        if (
-          settings &&
-          detectedFormat !== 'm3u8' &&
-          detectedFormat !== 'mpd' &&
-          !isSizeAllowed(detectedFormat, contentLength, settings)
-        )
-          return undefined;
+        // Skip the min-size filter here: the browser itself already confirmed
+        // this is media, so short clips (AI previews, sound effects, ringtones)
+        // must not be dropped below the per-group minSizeKB threshold.
         addMedia(
           details.url,
           effectiveTabId,
@@ -996,7 +1019,12 @@ async function mapWithConcurrency<T, R>(
         return undefined;
       }
 
-      const mediaFmt = detectMedia(details.url, contentType, contentLength);
+      const mediaFmt = detectMedia(
+        details.url,
+        contentType,
+        contentLength,
+        contentDisposition
+      );
       if (mediaFmt) {
         detectedFormat = mediaFmt;
       } else {
@@ -1012,8 +1040,15 @@ async function mapWithConcurrency<T, R>(
         return undefined;
       if (settings && !isFormatAllowed(detectedFormat, settings))
         return undefined;
+      // An explicit audio/* or video/* Content-Type already confirms media, so
+      // the size threshold only guards ambiguous types (octet-stream etc.).
+      // Otherwise short clips played via fetch + Web Audio would be dropped.
+      const isExplicitMediaType = contentType
+        ? /^(audio|video)\//i.test(contentType.trim())
+        : false;
       if (
         settings &&
+        !isExplicitMediaType &&
         detectedFormat !== 'm3u8' &&
         detectedFormat !== 'mpd' &&
         !isSizeAllowed(detectedFormat, contentLength, settings)
@@ -1335,8 +1370,9 @@ async function mapWithConcurrency<T, R>(
         pendingMessages.push({ msg, sender, sendResponse });
         return true;
       }
-      handleMessage(msg, sender, sendResponse);
-      return true;
+      // handleMessage is async (returns a Promise); webextension-polyfill awaits it,
+      // so returning the promise keeps the response channel open until it settles.
+      return handleMessage(msg, sender, sendResponse) as unknown as true;
     }
   );
 
@@ -1571,33 +1607,32 @@ async function mapWithConcurrency<T, R>(
     if (msg.type === 'GET_LIST') {
       const tabId = msg.tabId as number;
       uiListeningTabs.set(tabId, Date.now());
-      const mediaMap = tabMap.get(tabId);
-      const list: Array<{
-        url: string;
-        format: string;
-        size?: number;
-        width?: number;
-        height?: number;
-        detectedAt?: number;
-        category?: MediaCategory;
-        requestHeaders?: Record<string, string>;
-        captureId?: string;
-        trackCount?: number;
-        mseComplete?: boolean;
-        groupId?: string;
-        groupRole?: string;
-        groupLabel?: string;
-        groupMasterId?: string;
-        variantBandwidth?: number;
-        audioUrl?: string;
-        audioOptions?: Array<{ url: string; label: string }>;
-        duration?: number;
-        coverUrl?: string;
-        tabTitle?: string;
-        isLiveStream?: boolean;
-      }> = [];
-      if (mediaMap) {
-        mediaMap.forEach((entry, url) => {
+      const sendList = (mediaMap: Map<string, MediaEntry> | undefined) => {
+        const list: Array<{
+          url: string;
+          format: string;
+          size?: number;
+          width?: number;
+          height?: number;
+          detectedAt?: number;
+          category?: MediaCategory;
+          requestHeaders?: Record<string, string>;
+          captureId?: string;
+          trackCount?: number;
+          mseComplete?: boolean;
+          groupId?: string;
+          groupRole?: string;
+          groupLabel?: string;
+          groupMasterId?: string;
+          variantBandwidth?: number;
+          audioUrl?: string;
+          audioOptions?: Array<{ url: string; label: string }>;
+          duration?: number;
+          coverUrl?: string;
+          tabTitle?: string;
+          isLiveStream?: boolean;
+        }> = [];
+        mediaMap?.forEach((entry, url) => {
           list.push({
             url,
             format: entry.format,
@@ -1623,8 +1658,32 @@ async function mapWithConcurrency<T, R>(
             isLiveStream: entry.isLiveStream,
           });
         });
+        sendResponse(list);
+      };
+      const mediaMap = tabMap.get(tabId);
+      if (mediaMap && mediaMap.size > 0) {
+        sendList(mediaMap);
+        return true;
       }
-      sendResponse(list);
+      // In-memory map is empty: the service worker may have restarted and the
+      // async restore either raced with this message or failed. Read the
+      // persisted snapshot directly so the popup never shows an empty list
+      // while the toolbar badge still counts entries.
+      loadTabList(tabId)
+        .then((saved) => {
+          if (saved.size > 0) {
+            tabMap.set(tabId, saved);
+            try {
+              updateBadge(tabId);
+            } catch {}
+            sendList(saved);
+          } else {
+            sendList(undefined);
+          }
+        })
+        .catch(() => {
+          sendList(undefined);
+        });
       return true;
     }
 
@@ -1994,7 +2053,7 @@ async function mapWithConcurrency<T, R>(
       try {
         await browser.notifications.create(String(tag), {
           type: 'basic',
-          iconUrl: browser.runtime.getURL('/icon/128.png'),
+          iconUrl: browser.runtime.getURL('/assets/icons/favicon-128.png'),
           title: title || 'CoolHusky',
           message: body || '',
         });
@@ -2035,9 +2094,15 @@ async function mapWithConcurrency<T, R>(
     }
     // Respect per-type minSizeKB thresholds. Formats whose size is not meaningful
     // (HLS/DASH playlists, segments, synthetic MSE streams) are exempt: their size
-    // does not reflect the final media size.
+    // does not reflect the final media size. An explicit audio/* or video/*
+    // Content-Type likewise confirms the browser actually received media, so
+    // short preview clips (e.g. Ximalaya AIGC ~96KB mp3 samples) are kept.
+    const isExplicitMediaType = contentType
+      ? /^(audio|video)\//i.test(contentType.trim())
+      : false;
     if (
       size !== undefined &&
+      !isExplicitMediaType &&
       format !== 'm3u8' &&
       format !== 'mpd' &&
       format !== 'mse' &&

@@ -30,7 +30,11 @@ function Welcome(): ReactElement {
   return (
     <div className={styles.welcome}>
       <header className={styles.header}>
-        <img className={styles.logo} src="/icon/128.png" alt="CoolHusky" />
+        <img
+          className={styles.logo}
+          src="/assets/icons/favicon-128.png"
+          alt="CoolHusky"
+        />
         <h1 className={styles.title}>CoolHusky</h1>
         <p className={styles.version}>v{version}</p>
         <p className={styles.subtitle}>{t('welcomeSubtitle')}</p>

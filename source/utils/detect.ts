@@ -35,12 +35,21 @@ const MEDIA_FORMATS = {
   'audio/flac': 'flac',
   'audio/aac': 'aac',
   'audio/x-aac': 'aac',
+  // Some servers report MP3 as audio/mp3 or audio/x-mpeg instead of audio/mpeg
+  'audio/mp3': 'mp3',
+  'audio/x-mpeg': 'mp3',
+  'audio/mpeg3': 'mp3',
+  // OGG audio is occasionally served as application/ogg
+  'application/ogg': 'oga',
 
   // Streaming formats
   'application/x-mpegurl': 'm3u8',
   'application/vnd.apple.mpegurl': 'm3u8',
   'application/dash+xml': 'mpd',
   'application/x-mpegURL': 'm3u8',
+  // HLS audio playlists sometimes use audio/* MIME types
+  'audio/mpegurl': 'm3u8',
+  'audio/x-mpegurl': 'm3u8',
 
   // Images
   'image/gif': 'gif',
@@ -173,13 +182,33 @@ const MEDIA_CDN_PATTERNS: RegExp[] = [
   /\.(xmcdn|ximalaya)\.(?:com|net|cn|org)\b/i,
 ];
 
-function isKnownMediaCdn(url: string): boolean {
+export function isKnownMediaCdn(url: string): boolean {
   if (!url) return false;
   try {
     const hostname = new URL(url).hostname;
     return MEDIA_CDN_PATTERNS.some((re) => re.test(hostname));
   } catch {
     return MEDIA_CDN_PATTERNS.some((re) => re.test(url));
+  }
+}
+
+// Known AUDIO-only CDN signatures (e.g. Ximalaya's xmcdn, Tencent Cloud COS).
+// Extension-less audio URLs served as application/octet-stream must be
+// classified as audio, not video. Tencent COS buckets (*.myqcloud.com) are
+// commonly used by Ximalaya AIGC tools (aigc.ximalaya.com) to host audio
+// previews, whose URLs often carry no file extension.
+const AUDIO_CDN_PATTERNS: RegExp[] = [
+  /\.(xmcdn|ximalaya)\.(?:com|net|cn|org)\b/i,
+  /\.(myqcloud)\.(?:com|cn)\b/i,
+];
+
+export function isKnownAudioCdn(url: string): boolean {
+  if (!url) return false;
+  try {
+    const hostname = new URL(url).hostname;
+    return AUDIO_CDN_PATTERNS.some((re) => re.test(hostname));
+  } catch {
+    return AUDIO_CDN_PATTERNS.some((re) => re.test(url));
   }
 }
 
@@ -193,7 +222,72 @@ export function detectMediaFromContentType(contentType: string): string | null {
   if (!contentType) return null;
 
   const normalizedType = contentType.toLowerCase().split(';')[0]!.trim();
-  return (MEDIA_FORMATS as Record<string, string>)[normalizedType] || null;
+  const exact = (MEDIA_FORMATS as Record<string, string>)[normalizedType];
+  if (exact) return exact;
+
+  // Wildcard fallback: audio/* and video/* variants not listed in the exact
+  // map (e.g. audio/x-wav variants, video/x-ms-wmv) are still media content.
+  // Prefer a neutral container so the file remains downloadable even when the
+  // precise codec is unknown. (Inspired by Media-Extractor's type rules.)
+  if (normalizedType.startsWith('audio/')) return 'aac';
+  if (normalizedType.startsWith('video/')) return 'mp4';
+  return null;
+}
+
+// Parse the filename out of a Content-Disposition header.
+// Supports both filename="foo.mp4" and filename*=UTF-8''foo.mp4 forms.
+// Returns null when the header is missing, has no attachment/inline directive,
+// or carries no parseable filename.
+function parseContentDispositionFilename(
+  contentDisposition: string
+): string | null {
+  if (!contentDisposition) return null;
+  const lower = contentDisposition.toLowerCase();
+  if (!lower.includes('attachment') && !lower.includes('inline')) return null;
+
+  // Prefer matching filename*=UTF-8''xxx or filename*=xxx
+  let filename: string | null = null;
+  const rfc5987 = contentDisposition.match(
+    /filename\*\s*=\s*(?:[^']*'[^']*')?([^;"\s]+)/i
+  );
+  if (rfc5987?.[1]) {
+    try {
+      filename = decodeURIComponent(rfc5987[1]);
+    } catch {
+      filename = rfc5987[1];
+    }
+  }
+
+  // Fall back to filename="xxx" or filename=xxx
+  if (!filename) {
+    const plain =
+      contentDisposition.match(/filename\s*=\s*"([^"]+)"/i) ??
+      contentDisposition.match(/filename\s*=\s*([^;"\s]+)/i);
+    if (plain?.[1]) {
+      try {
+        filename = decodeURIComponent(plain[1]);
+      } catch {
+        filename = plain[1];
+      }
+    }
+  }
+
+  return filename;
+}
+
+// Detect media format from Content-Disposition filename. Many CDNs serve
+// extension-less URLs as application/octet-stream but expose the real file
+// name (e.g. attachment; filename="song.mp4") in this header — reading it
+// lets us capture media that URL/type detection would otherwise drop.
+// (Inspired by Media-Extractor's response-header sniffing.)
+export function detectMediaFromContentDisposition(
+  contentDisposition: string
+): string | null {
+  const filename = parseContentDispositionFilename(contentDisposition);
+  if (!filename) return null;
+
+  const ext = ('.' + filename.split('.').pop()!.toLowerCase()) as string;
+  return EXTENSION_MAP[ext] ?? null;
 }
 
 // data: URL embedded image detection
@@ -366,7 +460,7 @@ export function isAudioFormat(value: unknown): boolean {
   if (!url) return false;
 
   const format = detectMediaFromUrl(url);
-  const audioFormats = ['mp3', 'oga', 'weba', 'wav', 'flac', 'aac'];
+  const audioFormats = ['mp3', 'm4a', 'oga', 'weba', 'wav', 'flac', 'aac'];
   return format !== null && audioFormats.includes(format);
 }
 
@@ -404,10 +498,14 @@ export function isM3U8(value: unknown): boolean {
 
 // Combined detection: prefer content-type, fall back to URL detection
 // contentLength: file size in bytes, used for application/octet-stream size filtering
+// contentDisposition: Content-Disposition header value; when the URL has no
+// usable extension and the type is generic, the attachment filename is the
+// most reliable remaining signal (inspired by Media-Extractor).
 export function detectMedia(
   url: string,
   contentType?: string | null,
-  contentLength?: number
+  contentLength?: number,
+  contentDisposition?: string | null
 ): string | null {
   // 0. Exclude DASH/HLS segments first
   if (url) {
@@ -423,17 +521,29 @@ export function detectMedia(
   if (contentType) {
     const normalized = contentType.toLowerCase().split(';')[0]!.trim();
 
-    // application/octet-stream: generic binary stream, re-check via file size + URL extension
+    // application/octet-stream: generic binary stream with no type info.
+    // The URL extension is the most reliable signal, so check it FIRST regardless
+    // of size — small audio files (ringtones, sound effects, preview clips) would
+    // otherwise be dropped below the size threshold.
     if (normalized === 'application/octet-stream') {
+      const urlFmt = detectMediaFromUrl(url);
+      if (urlFmt) return urlFmt;
+
+      // Extension-less URLs: the Content-Disposition attachment filename is the
+      // next most reliable signal (e.g. attachment; filename="song.mp4").
+      if (contentDisposition) {
+        const cdFmt = detectMediaFromContentDisposition(contentDisposition);
+        if (cdFmt) return cdFmt;
+      }
+
+      // Extension-less URLs from known CDNs: audio CDNs (e.g. Ximalaya xmcdn)
+      // default to m4a regardless of size; generic media CDNs (Douyin/ByteDance/
+      // Kuaishou etc.) are treated as video and still require a meaningful size
+      // to avoid false positives.
+      if (isKnownAudioCdn(url)) return 'm4a';
       const sizeOk =
         contentLength === undefined || contentLength >= MIN_OCTET_STREAM_SIZE;
-      if (sizeOk) {
-        const urlFmt = detectMediaFromUrl(url);
-        if (urlFmt) return urlFmt;
-        // Extension-less URL from a known media CDN (Douyin/ByteDance/Kuaishou etc.): fall back to mp4
-        // These CDNs often serve extension-less video URLs with octet-stream content-type
-        if (isKnownMediaCdn(url)) return 'mp4';
-      }
+      if (sizeOk && isKnownMediaCdn(url)) return 'mp4';
       return null;
     }
 
@@ -441,8 +551,12 @@ export function detectMedia(
     if (contentTypeFormat) return contentTypeFormat;
   }
 
-  // 2. Fallback: URL detection
-  return detectMediaFromUrl(url);
+  // 2. Fallback: URL detection, then Content-Disposition filename
+  const urlFmt = detectMediaFromUrl(url);
+  if (urlFmt) return urlFmt;
+  if (contentDisposition)
+    return detectMediaFromContentDisposition(contentDisposition);
+  return null;
 }
 
 // ============ Document / Subtitle format detection ============
@@ -530,37 +644,7 @@ export function detectDocFromUrl(url: string): string | null {
 export function detectDocFromContentDisposition(
   contentDisposition: string
 ): string | null {
-  if (!contentDisposition) return null;
-  const lower = contentDisposition.toLowerCase();
-  if (!lower.includes('attachment') && !lower.includes('inline')) return null;
-
-  // Prefer matching filename*=UTF-8''xxx or filename*=xxx
-  let filename: string | null = null;
-  const rfc5987 = contentDisposition.match(
-    /filename\*\s*=\s*(?:[^']*'[^']*')?([^;"\s]+)/i
-  );
-  if (rfc5987?.[1]) {
-    try {
-      filename = decodeURIComponent(rfc5987[1]);
-    } catch {
-      filename = rfc5987[1];
-    }
-  }
-
-  // Fall back to filename="xxx" or filename=xxx
-  if (!filename) {
-    const plain =
-      contentDisposition.match(/filename\s*=\s*"([^"]+)"/i) ??
-      contentDisposition.match(/filename\s*=\s*([^;"\s]+)/i);
-    if (plain?.[1]) {
-      try {
-        filename = decodeURIComponent(plain[1]);
-      } catch {
-        filename = plain[1];
-      }
-    }
-  }
-
+  const filename = parseContentDispositionFilename(contentDisposition);
   if (!filename) return null;
 
   // Extract extension and look up document/subtitle mapping
