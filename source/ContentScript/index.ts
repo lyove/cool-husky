@@ -88,23 +88,25 @@ import {
         '*'
       );
     }
-    if (msg.type === 'PROXY_FETCH_RESPONSE') {
+    if (msg.type === 'COOLHUSKY_PROXY_FETCH_RESPONSE') {
       window.postMessage(msg, '*');
     }
     if (msg.type === 'COOLHUSKY_NOTIFY_CLICK') {
       window.postMessage({ type: 'COOLHUSKY_NOTIFY_CLICK', tag: msg.tag }, '*');
     }
-    if (msg.type === 'MSE_DOWNLOAD_TRIGGER') {
+    if (msg.type === 'COOLHUSKY_MSE_DOWNLOAD_TRIGGER') {
       const { captureId } = msg as { captureId: string };
       const channel = new MessageChannel();
       channel.port1.onmessage = (e) => {
-        if (e.data?.type === 'MSE_DOWNLOAD_DATA') {
+        if (e.data?.type === 'COOLHUSKY_MSE_DOWNLOAD_DATA') {
           handleMseDownload(e.data);
         }
       };
-      window.postMessage({ type: 'MSE_DOWNLOAD_REQUEST', captureId }, '*', [
-        channel.port2,
-      ]);
+      window.postMessage(
+        { type: 'COOLHUSKY_MSE_DOWNLOAD_REQUEST', captureId },
+        '*',
+        [channel.port2]
+      );
     }
     if (msg.type === 'COOLHUSKY_SETTINGS_CHANGED') {
       mseCaptureEnabled = !!msg.enableMseCapture;
@@ -124,7 +126,7 @@ import {
     }
   });
 
-  window.dispatchEvent(new CustomEvent('m3u8ext:ready'));
+  window.dispatchEvent(new CustomEvent('coolhusky:ready'));
 
   let currentTabId: number | undefined;
   const coolhuskyFetchControllers = new Map<string, AbortController>();
@@ -293,7 +295,7 @@ import {
     }
 
     if (
-      event.data?.type === 'M3U8_DETECTED' &&
+      event.data?.type === 'COOLHUSKY_M3U8_DETECTED' &&
       typeof event.data.url === 'string'
     ) {
       collectDouyinPlayerTrack(event.data.url);
@@ -308,7 +310,10 @@ import {
       return;
     }
 
-    if (event.data?.type === 'BILIBILI_DASH_DETECTED' && event.data.task) {
+    if (
+      event.data?.type === 'COOLHUSKY_BILIBILI_DASH_DETECTED' &&
+      event.data.task
+    ) {
       if (!currentTabId) {
         const tab = await browser.runtime.sendMessage({
           type: 'GET_CURRENT_TAB',
@@ -325,14 +330,17 @@ import {
       return;
     }
 
-    if (event.data?.type === 'PLATFORM_MEDIA_DETECTED' && event.data.task) {
+    if (
+      event.data?.type === 'COOLHUSKY_PLATFORM_MEDIA_DETECTED' &&
+      event.data.task
+    ) {
       browser.runtime
         .sendMessage({ type: 'PLATFORM_MEDIA_FOUND', task: event.data.task })
         .catch(() => {});
       return;
     }
 
-    if (event.data?.type === 'MSE_STREAM_UPDATE') {
+    if (event.data?.type === 'COOLHUSKY_MSE_STREAM_UPDATE') {
       if (!mseCaptureEnabled) return;
       if (!currentTabId) {
         const tab = await browser.runtime.sendMessage({

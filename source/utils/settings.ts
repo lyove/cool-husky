@@ -61,7 +61,7 @@ export const DEFAULT_SETTINGS: Settings = {
   openMode: 'sidepanel',
 };
 
-const SETTINGS_KEY = 'ext_settings';
+const SETTINGS_KEY = 'coolhusky_settings';
 
 function toStringArray(val: any): string[] {
   if (Array.isArray(val)) return val.filter((v) => typeof v === 'string');
@@ -230,6 +230,39 @@ export function isFormatAllowed(format: string, settings: Settings): boolean {
   return settings.sniffingRules[group].enabled;
 }
 
+/**
+ * Whether an already-captured item should be shown / counted.
+ * Unlike `isFormatAllowed`, this also respects the UI display type:
+ * entries with `category: 'stream'` (e.g. grouped Douyin/Bilibili tasks)
+ * are shown under the Stream tab and must therefore obey the streaming
+ * switch, even though their underlying format is a plain mp4/webm.
+ */
+export function isMediaAllowed(
+  format: string,
+  settings: Settings,
+  category?: string,
+  _groupRole?: string
+): boolean {
+  const f = format.toLowerCase();
+
+  // UI-type gate: items displayed as streams must obey the streaming switch.
+  // Must mirror getType(): flv is grouped under the Stream tab as well, even
+  // though it also lives in the video format list.
+  const isStreamUi =
+    category === 'stream' ||
+    f === 'mse' ||
+    f === 'flv' ||
+    STREAMING_FORMATS.includes(f);
+  if (isStreamUi && !settings.sniffingRules.streaming.enabled) {
+    return false;
+  }
+
+  // Underlying format gate: mp4 still needs video switch, m4a needs audio, etc.
+  const group = getFormatGroup(f);
+  if (!group) return false;
+  return settings.sniffingRules[group].enabled;
+}
+
 export function isSizeAllowed(
   format: string,
   contentLength: number | undefined,
@@ -245,17 +278,25 @@ export function isSizeAllowed(
 
 const _HIDDEN_EXCLUDED_DOMAINS = ['youtube.com'];
 
+function matchesExcludedDomain(hostname: string, domain: string): boolean {
+  const d = domain.trim().toLowerCase().replace(/^www\./, '');
+  if (!d) return false;
+  const host = hostname.toLowerCase().replace(/^www\./, '');
+  // Match the registrable domain itself (youtube.com) or any of its subdomains
+  // (www. / m. / music.youtube.com). A plain equality check would miss
+  // www.youtube.com, making the exclusion silently ineffective.
+  return host === d || host.endsWith(`.${d}`);
+}
+
 export function isDomainExcluded(url: string, settings: Settings): boolean {
   try {
     const hostname = new URL(url).hostname;
-    const userExcluded = settings.excludeDomains.some((domain) => {
-      const d = domain.trim().toLowerCase();
-      if (!d) return false;
-      return hostname === d;
-    });
+    const userExcluded = settings.excludeDomains.some((domain) =>
+      matchesExcludedDomain(hostname, domain)
+    );
     if (userExcluded) return true;
-    return _HIDDEN_EXCLUDED_DOMAINS.some(
-      (domain) => hostname === domain.toLowerCase()
+    return _HIDDEN_EXCLUDED_DOMAINS.some((domain) =>
+      matchesExcludedDomain(hostname, domain)
     );
   } catch {
     return false;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { isFormatAllowed, type Settings } from '../../utils/settings';
+import { isMediaAllowed, type Settings } from '../../utils/settings';
 import { FORMAT_GROUPS, getFormatLabel, getType } from '../utils/formats';
 import type { MediaType } from '../utils/formats';
 import type { MediaListItem } from './useMediaList';
@@ -114,12 +114,14 @@ export function useMediaFilters({
     []
   );
 
-  // Separated audio tracks (standalone DASH audio of Bilibili/Douyin/YouTube
-  // etc.) are NOT stream segments: treating them as segments makes a freshly
-  // sniffed audio item "appear then vanish" once it is grouped, because
-  // hideStreamSegments is on by default. They stay visible as audio entries.
+  // Only byte-stream segments (.ts/.m4s chunk files that belong to a master
+  // playlist) count as "segments" here. Variants (alternative renditions of an
+  // HLS/DASH stream, e.g. 1080p vs 720p) are full media streams: hiding them
+  // makes grouped video items "appear then vanish" once paired into a group
+  // (Bilibili/Douyin separated tracks), so they must stay visible inside their
+  // stream-group card.
   const isSegment = (item: MediaListItem): boolean =>
-    item.groupRole === 'variant' || item.groupRole === 'segment';
+    item.groupRole === 'segment';
 
   const enabledTabs = useMemo<ActiveTab[]>(() => {
     if (!settings) {
@@ -170,13 +172,23 @@ export function useMediaFilters({
 
     for (const item of mediaList) {
       if (settings?.hideStreamSegments && isSegment(item)) continue;
-      // Respect per-type sniffing switches: disabled types should not appear
-      // in either the list or the toolbar counts.
-      if (settings && !isFormatAllowed(item.format, settings)) continue;
-      const type = getType(item.format, item.category);
+      if (
+        settings &&
+        !isMediaAllowed(
+          item.format,
+          settings,
+          item.category,
+          item.groupRole
+        )
+      )
+        continue;
+      const type = getType(item.format, item.category, item.groupRole);
       all.push(item);
       byType[type].push(item);
-      const isGroupChild = isSegment(item);
+      const isGroupChild =
+        isSegment(item) ||
+        item.groupRole === 'audio' ||
+        item.groupRole === 'variant';
       if (!isGroupChild) counts.all++;
       if (type === 'stream') {
         if (!isGroupChild) counts.stream++;
@@ -309,7 +321,12 @@ export function useMediaFilters({
    * Ungrouped streams (no groupId/groupRole) are grouped by their own url.
    */
   const groupedStreamList = useMemo<StreamGroup[]>(() => {
-    const streamItems = mediaCatalog.byType.stream;
+    // Also collect standalone DASH audio tracks (groupRole 'audio', now typed
+    // as audio) so they attach to their stream group or form an audio-only group.
+    const streamItems = [
+      ...mediaCatalog.byType.stream,
+      ...mediaCatalog.byType.audio.filter((i) => i.groupRole === 'audio'),
+    ];
     const groups: StreamGroup[] = [];
     const groupMap = new Map<string, StreamGroup>();
     const pendingAudio: MediaListItem[] = [];
@@ -388,7 +405,18 @@ export function useMediaFilters({
       }
     }
     for (const item of mediaCatalog.all) {
-      if (getType(item.format, item.category) === 'stream') continue;
+      if (getType(item.format, item.category, item.groupRole) === 'stream')
+        continue;
+      // Group audio tracks are shown inside their stream group card. Skip them
+      // only when that card actually rendered them; if no card exists for an
+      // audio track (e.g. its video master got filtered out), fall back to an
+      // independent entry so audio never silently disappears from the list.
+      if (item.groupRole === 'audio') {
+        const inRenderedGroup = groupedStreamList.some((g) =>
+          g.audioItems.some((a) => a.url === item.url)
+        );
+        if (inRenderedGroup) continue;
+      }
       entries.push({ kind: 'item', item });
     }
     const direction = sortOrder === 'asc' ? 1 : -1;

@@ -297,7 +297,7 @@ export function useMediaActions(onToast?: (message: string) => void): {
           tabId,
           'image'
         );
-      } else if (isAudioFormat(format)) {
+      } else if (isAudioFormat(format) || item.groupRole === 'audio') {
         await downloadProtectedResource(
           url,
           format,

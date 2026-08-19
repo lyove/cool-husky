@@ -348,7 +348,7 @@
         sentUrls.delete(v.value);
       }
     }
-    window.postMessage({ type: 'M3U8_DETECTED', url, format }, '*');
+    window.postMessage({ type: 'COOLHUSKY_M3U8_DETECTED', url, format }, '*');
   }
 
   function tryDetect(url: unknown) {
@@ -388,7 +388,7 @@
           }
         }
         window.postMessage(
-          { type: 'M3U8_DETECTED', url: urlStr, format: fmt },
+          { type: 'COOLHUSKY_M3U8_DETECTED', url: urlStr, format: fmt },
           '*'
         );
         return;
@@ -448,7 +448,7 @@
   function notifyMseUpdate(capture: MseCapture) {
     window.postMessage(
       {
-        type: 'MSE_STREAM_UPDATE',
+        type: 'COOLHUSKY_MSE_STREAM_UPDATE',
         captureId: capture.captureId,
         title: capture.title,
         totalBytes: capture.totalBytes,
@@ -517,7 +517,7 @@
                 if (capture.totalBytes >= MSE_SEGMENT_SIZE) {
                   window.postMessage(
                     {
-                      type: 'MSE_STREAM_SEGMENT',
+                      type: 'COOLHUSKY_MSE_STREAM_SEGMENT',
                       captureId,
                       title: capture.title,
                       totalBytes: capture.totalBytes,
@@ -572,7 +572,7 @@
   // Handle download requests in the page via postMessage
   window.addEventListener('message', (event) => {
     if (event.source !== window || !event.data) return;
-    if (event.data.type !== 'MSE_DOWNLOAD_REQUEST') return;
+    if (event.data.type !== 'COOLHUSKY_MSE_DOWNLOAD_REQUEST') return;
     const { captureId } = event.data as { captureId: string };
     const port = event.ports?.[0];
     const capture = mseCaptures.get(captureId);
@@ -591,12 +591,17 @@
         for (const b of t.buffers) transferList.push(b);
       }
       port.postMessage(
-        { type: 'MSE_DOWNLOAD_DATA', captureId, title: capture.title, tracks },
+        {
+          type: 'COOLHUSKY_MSE_DOWNLOAD_DATA',
+          captureId,
+          title: capture.title,
+          tracks,
+        },
         transferList
       );
     } catch (e) {
       port.postMessage({
-        type: 'MSE_DOWNLOAD_ERROR',
+        type: 'COOLHUSKY_MSE_DOWNLOAD_ERROR',
         captureId,
         error: String(e),
       });
@@ -672,17 +677,29 @@
               127: '8K',
             }) as Record<number, string>
           )[id] || `${id}P`;
-        const audioStreams = [
+        // Standard tracks first, sorted by bandwidth desc: the preferred audio
+        // (audioOptions[0] in the background) must be a track the browser can
+        // actually decode and should match the video quality. Dolby (E-AC-3)
+        // and Hi-Res (FLAC) stay in the list as selectable alternatives but
+        // must never be picked first - Chrome <audio> cannot decode E-AC-3.
+        const standardAudios = audios
+          .map((s: any) => {
+            return { ...s, _label: `标准音质 ${s.id || ''}`.trim() };
+          })
+          .filter((s: any) => !!toUrl(s))
+          .sort(
+            (a: any, b: any) =>
+              Number(b.bandwidth || 0) - Number(a.bandwidth || 0)
+          );
+        const specialAudios = [
           ...(Array.isArray(dolby)
             ? dolby.map((s: any) => {
                 return { ...s, _label: '杜比全景声' };
               })
             : []),
           ...(flac ? [{ ...flac, _label: 'Hi-Res / FLAC' }] : []),
-          ...audios.map((s: any) => {
-            return { ...s, _label: `标准音质 ${s.id || ''}`.trim() };
-          }),
         ].filter((s: any) => !!toUrl(s));
+        const audioStreams = [...standardAudios, ...specialAudios];
         const codecName = (codecs: unknown): string => {
           const codec = String(codecs || '').toLowerCase();
           if (codec.startsWith('avc')) return 'H.264';
@@ -784,7 +801,7 @@
         if (sentBilibiliTasks.size > 100) sentBilibiliTasks.clear();
         window.postMessage(
           {
-            type: 'BILIBILI_DASH_DETECTED',
+            type: 'COOLHUSKY_BILIBILI_DASH_DETECTED',
             task: {
               key: taskKey,
               referer: location.href,
@@ -977,7 +994,7 @@
       if (sentPlatformTasks.size > 100) sentPlatformTasks.clear();
       window.postMessage(
         {
-          type: 'PLATFORM_MEDIA_DETECTED',
+          type: 'COOLHUSKY_PLATFORM_MEDIA_DETECTED',
           task: {
             provider: 'douyin',
             key,
@@ -1018,18 +1035,19 @@
     url: string | URL,
     ...rest: any[]
   ) {
-    (this as any)._fpUrl = typeof url === 'string' ? url : url.toString();
+    (this as any)._coolHuskyUrl =
+      typeof url === 'string' ? url : url.toString();
     // Save the route at request creation, rather than looking at location when
     // the async response arrives.
-    (this as any)._fpBilibiliRouteKey = getBilibiliRouteKey();
+    (this as any)._coolHuskyBilibiliRouteKey = getBilibiliRouteKey();
     tryDetect(url);
     return originalXHROpen.apply(this, [method, url, ...rest] as any);
   };
 
   XMLHttpRequest.prototype.send = function (...args: any[]) {
-    const fpUrl: string = (this as any)._fpUrl || '';
+    const fpUrl: string = (this as any)._coolHuskyUrl || '';
     const fpBilibiliRouteKey: string =
-      (this as any)._fpBilibiliRouteKey || getBilibiliRouteKey();
+      (this as any)._coolHuskyBilibiliRouteKey || getBilibiliRouteKey();
     this.addEventListener('load', function (this: XMLHttpRequest) {
       try {
         if (this.status < 200 || this.status >= 300) return;

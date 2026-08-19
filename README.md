@@ -72,12 +72,12 @@ source/
 ├── Background/        # Service worker (Chrome MV3) / Background script (Firefox)
 ├── ContentScript/     # Content scripts (injected into web pages)
 ├── Popup/             # Extension popup UI
-├── Options/           # Options page UI
-├── components/        # Shared React components
+├── Sidepanel/         # Extension sidepanel UI
+├── Welcome/           # Post-install welcome page
 ├── styles/            # Global styles and variables
-├── types/             # TypeScript type definitions
+├── types/             # TypeScript type definitions (ambient .d.ts)
 ├── utils/             # Utility functions
-├── public/            # Static assets (icons, etc.)
+├── public/            # Static assets (icons, locales, MediaInfo WASM)
 └── manifest.json      # Extension manifest template
 ```
 

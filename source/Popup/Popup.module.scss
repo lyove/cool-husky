@@ -5,6 +5,7 @@
   max-height: 560px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   background: var(--fp-bg);
   color: var(--fp-text);
 }
@@ -348,11 +349,19 @@
 
 .list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 0 16px 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+
+  /* Never shrink the cards: when the container is height-constrained the
+     overflow must scroll, otherwise flex compresses the cards themselves
+     and expanded group children get clipped (looks "covered"). */
+  > * {
+    flex-shrink: 0;
+  }
 }
 
 .empty {
@@ -418,7 +427,7 @@
     background: transparent;
     transition: border-color 0.15s ease, background-color 0.15s ease;
 
-    &:hover {
+    &:hover:not(:checked) {
       border-color: var(--fp-text);
     }
 
@@ -429,6 +438,10 @@
       background-size: 12px 12px;
       background-position: center;
       background-repeat: no-repeat;
+    }
+
+    &:checked:hover {
+      background-color: color-mix(in srgb, var(--fp-accent) 85%, #000);
     }
   }
 }
@@ -454,7 +467,7 @@
     background: transparent;
     transition: border-color 0.15s ease, background-color 0.15s ease;
 
-    &:hover {
+    &:hover:not(:checked) {
       border-color: var(--fp-text);
     }
 
@@ -465,6 +478,10 @@
       background-size: 12px 12px;
       background-position: center;
       background-repeat: no-repeat;
+    }
+
+    &:checked:hover {
+      background-color: color-mix(in srgb, var(--fp-accent) 85%, #000);
     }
   }
 }
@@ -947,6 +964,8 @@
 /* ── Virtual list container ── */
 .listVirtual {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 0 16px 8px;
 }
 
@@ -980,9 +999,13 @@
   cursor: pointer;
   transition: color 0.15s ease, background 0.15s ease;
 
-  &:hover {
+  &:hover:not(.groupSelectActive) {
     color: var(--fp-text);
     background: var(--fp-tag-bg);
+  }
+
+  &.groupSelectActive:hover {
+    background: color-mix(in srgb, var(--fp-accent) 12%, transparent);
   }
 }
 
@@ -1017,6 +1040,9 @@
   background: transparent;
   color: var(--fp-text);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 11px;
 
   &:hover {
@@ -1064,6 +1090,7 @@
 /* ── Image masonry ── */
 .masonry {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 0 16px 8px;
   display: flex;
@@ -1076,6 +1103,10 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+
+  > * {
+    flex-shrink: 0;
+  }
 }
 
 .masonryItem {

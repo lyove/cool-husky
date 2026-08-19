@@ -157,7 +157,6 @@ export default defineConfig(({ mode }) => {
 					// For UI pages, use the HTML file as the entry.
 					// Vite will find the <script> tag inside and bundle it.
 					popup: path.resolve(sourcePath, 'Popup/popup.html'),
-					options: path.resolve(sourcePath, 'Options/options.html'),
 					sidepanel: path.resolve(sourcePath, 'Sidepanel/sidepanel.html'),
 					welcome: path.resolve(sourcePath, 'Welcome/welcome.html'),
 					// Background script (service worker in Chrome, background script in Firefox)

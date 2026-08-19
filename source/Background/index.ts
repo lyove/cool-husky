@@ -12,12 +12,16 @@ import {
   loadTabList,
   saveTabList,
   deleteTabList,
+  saveTabPageUrl,
+  loadTabPageUrls,
+  deleteTabPageUrl,
   type MediaEntry,
 } from '../utils/media-storage';
 import {
   loadSettings,
   saveSettings,
   isFormatAllowed,
+  isMediaAllowed,
   isSizeAllowed,
   isDomainExcluded,
   type Settings,
@@ -359,6 +363,29 @@ async function mapWithConcurrency<T, R>(
           ) {
             registeredTabId = msg.tabId;
             sidePanelPorts.set(msg.tabId, port);
+            // Push the tab's current list straight to the freshly opened panel
+            // so it never sits empty when media was captured before the panel
+            // opened (a later broadcast may never come). Targeted to this port
+            // only — no cross-window side effects.
+            const pushList = (mm?: Map<string, MediaEntry>) => {
+              if (mm && mm.size > 0) {
+                try {
+                  port.postMessage({
+                    type: 'LIST_UPDATED',
+                    tabId: msg.tabId,
+                    list: serializeTabMediaList(mm),
+                  });
+                } catch {}
+              }
+            };
+            const mediaMap = tabMap.get(msg.tabId);
+            if (mediaMap && mediaMap.size > 0) {
+              pushList(mediaMap);
+            } else {
+              loadTabList(msg.tabId)
+                .then(pushList)
+                .catch(() => {});
+            }
           }
         });
 
@@ -462,6 +489,12 @@ async function mapWithConcurrency<T, R>(
   const tabPageUrls = new Map<number, string>();
   // Track each tab's current page title (to record the "at-the-time" title during sniffing)
   const tabPageTitles = new Map<number, string>();
+  // In-flight same-site navigations whose outcome (F5 reload vs in-page
+  // navigation) can only be decided once the destination URL is known. The
+  // 'loading' event's URL is unreliable (changeInfo.url may be missing and
+  // tab.url may still hold the previous URL), so the decision is deferred to
+  // the 'complete' event.
+  const pendingNavigationCheck = new Map<number, { prevUrl: string }>();
 
   const masterPrefixIndex = new Map<
     number,
@@ -573,7 +606,7 @@ async function mapWithConcurrency<T, R>(
   });
 
   browser.storage.local.onChanged.addListener((changes) => {
-    if (changes['ext_settings']) {
+    if (changes['coolhusky_settings']) {
       loadSettings().then((s) => {
         currentSettings = s;
         if (supportsChromeSidepanel && chromeGlobal?.action?.setPopup) {
@@ -619,6 +652,34 @@ async function mapWithConcurrency<T, R>(
             }
           })
           .catch(() => {});
+        // Re-count toolbar badges so the red-dot number follows the newly
+        // enabled/disabled sniffing switches (images/docs/…). updateBadge
+        // already mirrors the popup by skipping disabled formats.
+        //
+        // The in-memory tabMap may be empty after an MV3 service-worker
+        // restart even though the snapshots are persisted (session storage).
+        // Restore them first, otherwise toggling a switch back on could never
+        // bring the numbers up again - the recount would simply see nothing.
+        void (async () => {
+          try {
+            const restored = await loadAllTabData();
+            restored.forEach((mediaMap, tabId) => {
+              const existing = tabMap.get(tabId);
+              if (!existing || existing.size === 0) {
+                tabMap.set(tabId, mediaMap);
+              }
+            });
+          } catch {
+            /* ignore restore errors */
+          }
+          tabMap.forEach((_entries, tabId) => {
+            try {
+              updateBadge(tabId);
+            } catch {
+              /* tab may be closed - ignore */
+            }
+          });
+        })();
       });
     }
   });
@@ -642,6 +703,26 @@ async function mapWithConcurrency<T, R>(
     }
   }
 
+  // Whether two page URLs belong to the same site. Same-site navigation (e.g.
+  // Douyin feed → a video page, or an in-place F5 reload) must keep previously
+  // sniffed media: wiping the list there makes the popup suddenly look empty or
+  // "reduced" the moment a video starts playing. Only cross-site navigation
+  // invalidates the old media (the old page's resources no longer apply).
+  function isSameSite(a: string, b: string): boolean {
+    try {
+      const hostA = new URL(a).hostname.toLowerCase().replace(/^www\./, '');
+      const hostB = new URL(b).hostname.toLowerCase().replace(/^www\./, '');
+      if (hostA === hostB) return true;
+      // Approximate registrable domain (last two labels), so subdomains like
+      // www.douyin.com / v.douyin.com still count as the same site.
+      const regA = hostA.split('.').slice(-2).join('.');
+      const regB = hostB.split('.').slice(-2).join('.');
+      return regA === regB && regA.includes('.');
+    } catch {
+      return false;
+    }
+  }
+
   try {
     if (browser.webNavigation) {
       browser.webNavigation.onBeforeNavigate.addListener(() => {});
@@ -653,18 +734,59 @@ async function mapWithConcurrency<T, R>(
 
   browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'loading') {
-      // Page is reloading or navigating to a new document: stale media from the
-      // previous load no longer applies. New requests are sniffed into a fresh list.
-      clearTabMediaData(tabId);
-      try {
-        updateBadge(tabId);
-      } catch {}
-      // broadcastDebounced skips tabs without data; send an explicit empty
-      // list so an open popup/sidepanel clears its UI immediately.
-      broadcast(tabId, []);
+      // A new document is loading. Decide what happens to the previously
+      // sniffed media:
+      //   - cross-site navigation        → wipe (old page's media is gone)
+      //   - F5 / Ctrl+R reload, URL kept → wipe and re-sniff the fresh page
+      //   - same-site navigation (e.g. Douyin feed → video modal) → keep +
+      //     append
+      // The loading event's URL is unreliable (changeInfo.url may be missing
+      // and tab.url may still hold the previous URL), so same-site cases are
+      // deferred to the 'complete' event where the real destination URL is
+      // known and F5 (URL unchanged) can be told apart from an in-page
+      // navigation (URL changed).
+      const nextUrl = changeInfo.url || tab?.url || '';
+      const prevUrl = tabPageUrls.get(tabId) || '';
+      if (prevUrl && nextUrl && !isSameSite(prevUrl, nextUrl)) {
+        clearTabMediaData(tabId);
+        try {
+          updateBadge(tabId);
+        } catch {}
+        // broadcastDebounced skips tabs without data; send an explicit empty
+        // list so an open popup/sidepanel clears its UI immediately.
+        broadcast(tabId, []);
+      } else if (prevUrl && nextUrl) {
+        pendingNavigationCheck.set(tabId, { prevUrl });
+      }
+    }
+    if (changeInfo.status === 'complete') {
+      const pending = pendingNavigationCheck.get(tabId);
+      if (pending) {
+        pendingNavigationCheck.delete(tabId);
+        const finalUrl = tab?.url || changeInfo.url || '';
+        const prevUrl = pending.prevUrl;
+        if (prevUrl && finalUrl) {
+          // URL unchanged → this was an F5/reload, the document is brand new;
+          // cross-site → the tab left the old page. In both cases the
+          // previously sniffed media no longer matches, so clear and re-sniff.
+          // Same-site with a changed URL (Douyin modal open/close) keeps the
+          // list so existing items are not wiped on a plain in-page view
+          // switch.
+          if (finalUrl === prevUrl || !isSameSite(prevUrl, finalUrl)) {
+            clearTabMediaData(tabId);
+            try {
+              updateBadge(tabId);
+            } catch {}
+            broadcast(tabId, []);
+          }
+        }
+      }
     }
     if (changeInfo.url) {
       tabPageUrls.set(tabId, changeInfo.url);
+      // Persist the page URL so a service-worker restart can restore it and
+      // keep same-site navigations from being misread as cross-site.
+      saveTabPageUrl(tabId, changeInfo.url).catch(() => {});
     } else if (tab.url) {
       tabPageUrls.set(tabId, tab.url);
     }
@@ -677,8 +799,31 @@ async function mapWithConcurrency<T, R>(
 
   loadAllTabData()
     .then((data) => {
+      // Restore persisted page URLs so the same-site detection keeps working
+      // right after a service-worker restart (see saveTabPageUrl).
+      loadTabPageUrls()
+        .then((urls) => {
+          urls.forEach((url, tabId) => {
+            if (!tabPageUrls.has(tabId)) {
+              tabPageUrls.set(tabId, url);
+            }
+          });
+        })
+        .catch(() => {});
       data.forEach((mediaMap, tabId) => {
-        tabMap.set(tabId, mediaMap);
+        // Merge instead of replacing: media sniffed during the async restore
+        // (before it finished) must not be wiped out by the older snapshot.
+        const existing = tabMap.get(tabId);
+        if (existing && existing.size > 0) {
+          for (const [url, entry] of mediaMap) {
+            if (!existing.has(url)) {
+              existing.set(url, entry);
+            }
+          }
+          tabMap.set(tabId, existing);
+        } else {
+          tabMap.set(tabId, mediaMap);
+        }
         // Refresh the badge for every restored tab (not just the active one),
         // so stale in-memory counts never linger on other tabs after a restart.
         try {
@@ -711,6 +856,12 @@ async function mapWithConcurrency<T, R>(
     try {
       updateBadge(tabId);
     } catch {}
+    // Push the newly activated tab's list to every UI page. A sidepanel /
+    // popup may have missed its own tabs.onActivated event (hidden by another
+    // window, re-shown after the switch), so this guarantees the list follows
+    // the active tab exactly like the badge does. UI pages ignore broadcasts
+    // for tabs they are not currently tracking.
+    broadcast(tabId, serializeTabMediaList(tabMap.get(tabId)));
   });
   browser.tabs
     .query({ active: true, currentWindow: true })
@@ -766,6 +917,10 @@ async function mapWithConcurrency<T, R>(
           isLiveStream?: boolean;
         }> = [];
         mediaMap.forEach((entry, url) => {
+          // Virtual group masters carry no real fetchable URL (their key is a
+          // synthetic group id); they only exist to group variants/audio, so
+          // they must not be exposed as downloadable list entries.
+          if (entry.contentType === 'virtual/group') return;
           list.push({
             url,
             format: entry.format,
@@ -801,9 +956,8 @@ async function mapWithConcurrency<T, R>(
 
   const pendingRequestHeaders = new Map<string, Record<string, string>>();
 
-  // Header names to cache and replay (auth-related). `referer` is kept too:
-  // many media CDNs (TikTok/Douyin and friends) reject playback without the
-  // original page as Referer, so it must travel with the captured media entry.
+  const urlSniffPending = new Map<string, string>();
+
   const AUTH_HEADER_NAMES = new Set([
     'cookie',
     'authorization',
@@ -822,10 +976,52 @@ async function mapWithConcurrency<T, R>(
       url
     );
 
-  // Transport fragments are implementation details of HLS/DASH downloads,
-  // not user-downloadable media entries. Never place them in the sniff list.
   const isMediaSegmentRequest = (url: string): boolean =>
     /\.(m4s|m4f|m4i|cmfv|cmfa|cmft|ts)(?:[?#]|$)/i.test(url);
+
+  const sniffMediaFromUrl = (details: {
+    requestId: string;
+    tabId: number;
+    url: string;
+    type: string;
+  }): void => {
+    if (
+      details.type === 'main_frame' ||
+      details.type === 'sub_frame' ||
+      details.type === 'script' ||
+      details.type === 'stylesheet' ||
+      details.type === 'font' ||
+      details.type === 'image' ||
+      details.type === 'ping' ||
+      details.type === 'csp_report'
+    )
+      return;
+    if (!isPotentialMediaRequest(details.url)) return;
+    if (isMediaSegmentRequest(details.url)) return;
+    let effectiveTabId = details.tabId;
+    if (effectiveTabId <= 0) {
+      if (currentActiveTabId > 0) effectiveTabId = currentActiveTabId;
+      else return;
+    }
+    const requestKey = `${effectiveTabId}:${details.url}`;
+    if (processedRequests.has(requestKey)) return;
+    if (urlSniffPending.has(details.requestId)) return;
+    const format = detectMediaFromUrl(details.url);
+    if (!format) return;
+
+    urlSniffPending.set(details.requestId, requestKey);
+    addMedia(
+      details.url,
+      effectiveTabId,
+      format,
+      undefined,
+      'media',
+      undefined,
+      undefined,
+      undefined,
+      tabPageTitles.get(effectiveTabId)
+    );
+  };
 
   const isBilibiliTab = (tabId: number): boolean => {
     try {
@@ -851,7 +1047,8 @@ async function mapWithConcurrency<T, R>(
 
   browser.webRequest.onSendHeaders.addListener(
     (details) => {
-      if (details.tabId <= 0 || !details.requestHeaders?.length) return;
+      if (!details.requestHeaders?.length) return;
+      if (details.tabId <= 0 && !isPotentialMediaRequest(details.url)) return;
       if (details.type === 'other' && !isPotentialMediaRequest(details.url))
         return;
       const authHeaders: Record<string, string> = {};
@@ -864,36 +1061,38 @@ async function mapWithConcurrency<T, R>(
       if (Object.keys(authHeaders).length > 0) {
         pendingRequestHeaders.set(details.requestId, authHeaders);
       }
+      sniffMediaFromUrl(details);
     },
     {
       urls: ['<all_urls>'],
-      types: [
-        'main_frame',
-        'media',
-        'xmlhttprequest',
-        'sub_frame',
-        'image',
-        'other',
-      ],
     },
-    // Chromium needs extraHeaders to expose Cookie headers; Firefox does not support this option here.
     sendHeadersExtraInfo as any[]
   );
 
   browser.webRequest.onErrorOccurred.addListener(
     (details) => {
       pendingRequestHeaders.delete(details.requestId);
+      const sniffKey = urlSniffPending.get(details.requestId);
+      if (sniffKey) {
+        urlSniffPending.delete(details.requestId);
+        const sep = sniffKey.indexOf(':');
+        const tabId = Number(sniffKey.slice(0, sep));
+        const url = sniffKey.slice(sep + 1);
+        const entry = tabMap.get(tabId)?.get(url);
+        if (entry && entry.size === undefined && !entry.contentType) {
+          tabMap.get(tabId)?.delete(url);
+          saveTabList(tabId, tabMap.get(tabId) ?? new Map()).catch(() => {});
+          try {
+            updateBadge(tabId);
+          } catch {
+            /* badge may not exist for this tab yet */
+          }
+          broadcastDebounced(tabId);
+        }
+      }
     },
     {
       urls: ['<all_urls>'],
-      types: [
-        'main_frame',
-        'media',
-        'xmlhttprequest',
-        'sub_frame',
-        'image',
-        'other',
-      ],
     }
   );
 
@@ -908,8 +1107,13 @@ async function mapWithConcurrency<T, R>(
   // Detect the media format when response headers arrive (prefer Content-Type)
   browser.webRequest.onHeadersReceived.addListener(
     (details) => {
-      const effectiveTabId = details.tabId;
-      if (effectiveTabId <= 0) return undefined;
+      let effectiveTabId = details.tabId;
+      if (effectiveTabId <= 0) {
+        if (details.type !== 'media' && !isPotentialMediaRequest(details.url))
+          return undefined;
+        if (currentActiveTabId > 0) effectiveTabId = currentActiveTabId;
+        else return undefined;
+      }
       if (isMediaSegmentRequest(details.url)) {
         pendingRequestHeaders.delete(details.requestId);
         return undefined;
@@ -927,6 +1131,7 @@ async function mapWithConcurrency<T, R>(
 
       if (details.statusCode === 416) {
         addProcessedRequest(requestKey);
+        urlSniffPending.delete(details.requestId);
         return undefined;
       }
 
@@ -965,19 +1170,10 @@ async function mapWithConcurrency<T, R>(
         contentLength = rangeTotal;
       }
 
-      // A 206 Partial Content response still carries the full resource total in
-      // Content-Range (rangeTotal above). We keep the request so that the total
-      // size can be recorded; the actual segment size is ignored.
-
       let detectedFormat: string;
       let category: MediaCategory = 'media';
 
       if (details.type === 'media') {
-        // Refine the format via Content-Type, falling back to URL detection.
-        // Media-element requests (<audio>/<video> src) are confirmed playback
-        // of a real media resource, so extension-less octet-stream responses
-        // are media regardless of the CDN domain — never mislabel them as
-        // unknown, and never drop short preview clips via the size threshold.
         const isOctetStream =
           contentType?.toLowerCase().startsWith('application/octet-stream') ??
           false;
@@ -1001,9 +1197,6 @@ async function mapWithConcurrency<T, R>(
           return undefined;
         if (settings && !isFormatAllowed(detectedFormat, settings))
           return undefined;
-        // Skip the min-size filter here: the browser itself already confirmed
-        // this is media, so short clips (AI previews, sound effects, ringtones)
-        // must not be dropped below the per-group minSizeKB threshold.
         addMedia(
           details.url,
           effectiveTabId,
@@ -1016,6 +1209,7 @@ async function mapWithConcurrency<T, R>(
         );
         addProcessedRequest(requestKey);
         pendingRequestHeaders.delete(details.requestId);
+        urlSniffPending.delete(details.requestId);
         return undefined;
       }
 
@@ -1070,18 +1264,11 @@ async function mapWithConcurrency<T, R>(
       );
       addProcessedRequest(requestKey);
       pendingRequestHeaders.delete(details.requestId);
+      urlSniffPending.delete(details.requestId);
       return undefined;
     },
     {
       urls: ['<all_urls>'],
-      types: [
-        'main_frame',
-        'media',
-        'xmlhttprequest',
-        'sub_frame',
-        'image',
-        'other',
-      ],
     },
     ['responseHeaders']
   );
@@ -1296,11 +1483,13 @@ async function mapWithConcurrency<T, R>(
     douyinNativeTracks.delete(tabId);
     tabPageUrls.delete(tabId);
     tabPageTitles.delete(tabId);
+    pendingNavigationCheck.delete(tabId);
     sidebarClosedTabs.delete(tabId);
     masterPrefixIndex.delete(tabId);
     tabMediaVersion.delete(tabId);
     uiListeningTabs.delete(tabId);
     deleteTabList(tabId);
+    deleteTabPageUrl(tabId).catch(() => {});
   });
 
   const notifyPages = new Map<string, string>();
@@ -1370,9 +1559,17 @@ async function mapWithConcurrency<T, R>(
         pendingMessages.push({ msg, sender, sendResponse });
         return true;
       }
-      // handleMessage is async (returns a Promise); webextension-polyfill awaits it,
-      // so returning the promise keeps the response channel open until it settles.
-      return handleMessage(msg, sender, sendResponse) as unknown as true;
+      // CRITICAL: never return the async `handleMessage` promise to the
+      // polyfill. Every branch of handleMessage calls `sendResponse` itself,
+      // but if we returned the promise the polyfill would ALSO call
+      // `sendResponse` with the promise's resolve value (`true`) — and since
+      // Chrome only honors the FIRST sendResponse on a channel, a
+      // fast-resolving branch (e.g. GET_LIST) would get its real
+      // `{ tabId, list }` payload overwritten by `true`, leaving the
+      // sidepanel/popup with an empty list until some later broadcast
+      // happened to re-deliver the data.
+      handleMessage(msg, sender, sendResponse);
+      return true;
     }
   );
 
@@ -1496,7 +1693,7 @@ async function mapWithConcurrency<T, R>(
       }
       browser.tabs
         .sendMessage(tabId, {
-          type: 'MSE_DOWNLOAD_TRIGGER',
+          type: 'COOLHUSKY_MSE_DOWNLOAD_TRIGGER',
           captureId: msg.captureId,
           title: msg.title,
         })
@@ -1605,85 +1802,99 @@ async function mapWithConcurrency<T, R>(
     }
 
     if (msg.type === 'GET_LIST') {
-      const tabId = msg.tabId as number;
-      uiListeningTabs.set(tabId, Date.now());
-      const sendList = (mediaMap: Map<string, MediaEntry> | undefined) => {
-        const list: Array<{
-          url: string;
-          format: string;
-          size?: number;
-          width?: number;
-          height?: number;
-          detectedAt?: number;
-          category?: MediaCategory;
-          requestHeaders?: Record<string, string>;
-          captureId?: string;
-          trackCount?: number;
-          mseComplete?: boolean;
-          groupId?: string;
-          groupRole?: string;
-          groupLabel?: string;
-          groupMasterId?: string;
-          variantBandwidth?: number;
-          audioUrl?: string;
-          audioOptions?: Array<{ url: string; label: string }>;
-          duration?: number;
-          coverUrl?: string;
-          tabTitle?: string;
-          isLiveStream?: boolean;
-        }> = [];
-        mediaMap?.forEach((entry, url) => {
-          list.push({
-            url,
-            format: entry.format,
-            size: entry.size,
-            width: entry.width,
-            height: entry.height,
-            detectedAt: entry.detectedAt,
-            category: entry.category,
-            requestHeaders: entry.requestHeaders,
-            captureId: entry.captureId,
-            trackCount: entry.trackCount,
-            mseComplete: entry.mseComplete,
-            groupId: entry.groupId,
-            groupRole: entry.groupRole,
-            groupLabel: entry.groupLabel,
-            groupMasterId: entry.groupMasterId,
-            variantBandwidth: entry.variantBandwidth,
-            audioUrl: entry.audioUrl,
-            audioOptions: entry.audioOptions,
-            duration: entry.duration,
-            coverUrl: entry.coverUrl,
-            tabTitle: entry.tabTitle,
-            isLiveStream: entry.isLiveStream,
+      // Resolve the tab here in the background: embedded pages (sidepanel /
+      // popup) must not derive the active tab from `tabs.query` themselves —
+      // from that context it can return a stale/other window, which left the
+      // list empty when media had been captured before the panel opened.
+      // Callers that already know the exact tabId (tab switch, broadcast
+      // follow-up) pass it explicitly; otherwise the real active tab is used.
+      (async () => {
+        let tabId =
+          typeof msg.tabId === 'number' && msg.tabId >= 0
+            ? msg.tabId
+            : currentActiveTabId >= 0
+              ? currentActiveTabId
+              : undefined;
+        let title = '';
+        if (tabId === undefined) {
+          try {
+            const tabs = await browser.tabs.query({
+              active: true,
+              currentWindow: true,
+            });
+            tabId = tabs[0]?.id;
+            title = tabs[0]?.title || '';
+          } catch {}
+        } else {
+          try {
+            title = (await browser.tabs.get(tabId))?.title || '';
+          } catch {}
+        }
+        if (tabId === undefined) {
+          sendResponse({ tabId: undefined, title: '', list: [] });
+          return;
+        }
+        uiListeningTabs.set(tabId, Date.now());
+        const sendList = (mediaMap: Map<string, MediaEntry> | undefined) => {
+          sendResponse({
+            tabId,
+            title,
+            list: serializeTabMediaList(mediaMap),
           });
-        });
-        sendResponse(list);
-      };
-      const mediaMap = tabMap.get(tabId);
-      if (mediaMap && mediaMap.size > 0) {
-        sendList(mediaMap);
-        return true;
-      }
-      // In-memory map is empty: the service worker may have restarted and the
-      // async restore either raced with this message or failed. Read the
-      // persisted snapshot directly so the popup never shows an empty list
-      // while the toolbar badge still counts entries.
-      loadTabList(tabId)
-        .then((saved) => {
-          if (saved.size > 0) {
-            tabMap.set(tabId, saved);
-            try {
-              updateBadge(tabId);
-            } catch {}
-            sendList(saved);
-          } else {
+        };
+        const mediaMap = tabMap.get(tabId);
+        if (mediaMap && mediaMap.size > 0) {
+          sendList(mediaMap);
+          return;
+        }
+        // In-memory map is empty: the service worker may have restarted and the
+        // async restore either raced with this message or failed. Read the
+        // persisted snapshot directly so the popup never shows an empty list
+        // while the toolbar badge still counts entries.
+        loadTabList(tabId)
+          .then((saved) => {
+            if (saved.size > 0) {
+              tabMap.set(tabId, saved);
+              try {
+                updateBadge(tabId);
+              } catch {}
+              sendList(saved);
+            } else {
+              sendList(undefined);
+            }
+          })
+          .catch(() => {
             sendList(undefined);
-          }
-        })
-        .catch(() => {
-          sendList(undefined);
-        });
+          });
+      })();
+      return true;
+    }
+
+    if (msg.type === 'GET_ACTIVE_TAB') {
+      // Embedded pages (sidepanel/popup) must not resolve the active tab via
+      // `tabs.query` themselves — from that context it can return a stale /
+      // other window (e.g. the list staying empty when media was captured
+      // before the panel opened). The background tracks the real active tab,
+      // so resolve it here and also return its title.
+      (async () => {
+        let tabId = currentActiveTabId >= 0 ? currentActiveTabId : undefined;
+        let title = '';
+        if (tabId === undefined) {
+          try {
+            const tabs = await browser.tabs.query({
+              active: true,
+              currentWindow: true,
+            });
+            tabId = tabs[0]?.id;
+            title = tabs[0]?.title || '';
+          } catch {}
+        } else {
+          try {
+            title = (await browser.tabs.get(tabId))?.title || '';
+          } catch {}
+        }
+        sendResponse({ tabId, title });
+      })();
       return true;
     }
 
@@ -2068,6 +2279,13 @@ async function mapWithConcurrency<T, R>(
       fetchContentLength(msg.url, msg.requestHeaders).then(sendResponse);
       return true;
     }
+    // Unknown message type. The onMessage wrapper always returns `true`
+    // (it must not hand the async handleMessage promise to the polyfill), so
+    // any branch that skips sendResponse would keep the response channel
+    // hanging until the browser times it out. Fire-and-forget messages such
+    // as SIDEPANEL_OPENED / SIDEPANEL_CLOSED fall through to here — respond
+    // so the channel closes immediately instead of lingering.
+    sendResponse(false);
     return false;
   }
 
@@ -2247,10 +2465,30 @@ async function mapWithConcurrency<T, R>(
     let count = 0;
     mediaMap?.forEach((entry, url) => {
       // Skip disabled sniffing types so the toolbar badge matches the popup.
-      if (!isFormatAllowed(entry.format, currentSettings)) {
+      if (
+        !isMediaAllowed(
+          entry.format,
+          currentSettings,
+          entry.category,
+          entry.groupRole
+        )
+      ) {
         return;
       }
-      const groupKey = entry.groupId || entry.groupMasterId;
+      // Mirror the popup list: with hideStreamSegments on, HLS/DASH variants
+      // and segments are hidden, so they must not inflate the badge.
+      if (
+        currentSettings?.hideStreamSegments &&
+        (entry.groupRole === 'variant' || entry.groupRole === 'segment')
+      ) {
+        return;
+      }
+      const groupKey =
+        entry.groupId ||
+        entry.groupMasterId ||
+        // A master without a groupId shares its url with the variants' groupId,
+        // so dedupe by url to avoid counting the same group twice.
+        (entry.groupRole === 'master' ? url : undefined);
       if (groupKey) {
         if (countedGroups.has(groupKey)) return;
         countedGroups.add(groupKey);
@@ -2312,30 +2550,71 @@ async function mapWithConcurrency<T, R>(
     return removedTotal;
   }
 
-  function broadcast(
-    tabId: number,
-    list: Array<{
-      url: string;
-      format: string;
-      size?: number;
-      detectedAt?: number;
-      category?: MediaCategory;
-      requestHeaders?: Record<string, string>;
-      captureId?: string;
-      trackCount?: number;
-      mseComplete?: boolean;
-      groupId?: string;
-      groupRole?: string;
-      groupLabel?: string;
-      groupMasterId?: string;
-      variantBandwidth?: number;
-      audioUrl?: string;
-      audioOptions?: Array<{ url: string; label: string }>;
-      duration?: number;
-      coverUrl?: string;
-      tabTitle?: string;
-    }>
-  ) {
+  /** Shared shape of a serialized list entry sent to the UI. */
+  type ListEntry = {
+    url: string;
+    format: string;
+    size?: number;
+    width?: number;
+    height?: number;
+    detectedAt?: number;
+    category?: MediaCategory;
+    requestHeaders?: Record<string, string>;
+    captureId?: string;
+    trackCount?: number;
+    mseComplete?: boolean;
+    groupId?: string;
+    groupRole?: string;
+    groupLabel?: string;
+    groupMasterId?: string;
+    variantBandwidth?: number;
+    audioUrl?: string;
+    audioOptions?: Array<{ url: string; label: string }>;
+    duration?: number;
+    coverUrl?: string;
+    tabTitle?: string;
+    isLiveStream?: boolean;
+  };
+
+  /** Build the serializable list payload for a tab's media map (shared by
+   *  GET_LIST responses and active-tab broadcasts). Virtual group masters are
+   *  synthetic grouping entries without a real URL and are never exposed as
+   *  downloadable items. */
+  function serializeTabMediaList(
+    mediaMap?: Map<string, MediaEntry>
+  ): ListEntry[] {
+    const list: ListEntry[] = [];
+    mediaMap?.forEach((entry, url) => {
+      if (entry.contentType === 'virtual/group') return;
+      list.push({
+        url,
+        format: entry.format,
+        size: entry.size,
+        width: entry.width,
+        height: entry.height,
+        detectedAt: entry.detectedAt,
+        category: entry.category,
+        requestHeaders: entry.requestHeaders,
+        captureId: entry.captureId,
+        trackCount: entry.trackCount,
+        mseComplete: entry.mseComplete,
+        groupId: entry.groupId,
+        groupRole: entry.groupRole,
+        groupLabel: entry.groupLabel,
+        groupMasterId: entry.groupMasterId,
+        variantBandwidth: entry.variantBandwidth,
+        audioUrl: entry.audioUrl,
+        audioOptions: entry.audioOptions,
+        duration: entry.duration,
+        coverUrl: entry.coverUrl,
+        tabTitle: entry.tabTitle,
+        isLiveStream: entry.isLiveStream,
+      });
+    });
+    return list;
+  }
+
+  function broadcast(tabId: number, list: ListEntry[]) {
     browser.runtime
       .sendMessage({ type: 'LIST_UPDATED', tabId, list })
       .catch(() => {});

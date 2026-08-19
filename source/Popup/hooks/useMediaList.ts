@@ -218,6 +218,43 @@ export function useMediaList(options?: UseMediaListOptions): {
     onCommittedRef.current?.();
   }, []);
 
+  const loadMediaList = useCallback(
+    async (targetTabId?: number): Promise<void> => {
+      const session = ++sessionRef.current;
+      try {
+        // Resolve the active tab AND fetch the list in ONE background round
+        // trip. Resolving via `tabs.query` from an embedded page (sidepanel)
+        // can return a stale/other window, which left the list empty when
+        // media had been captured before the panel opened.
+        const resp = (await browser.runtime.sendMessage({
+          type: 'GET_LIST',
+          tabId: targetTabId,
+        })) as
+          | {
+              tabId?: number;
+              title?: string;
+              list?: RawMediaEntry[];
+            }
+          | undefined;
+        if (session !== sessionRef.current) return;
+        const resolvedTabId = resp?.tabId;
+        if (resolvedTabId === undefined || resolvedTabId < 0) {
+          setListLoaded(true);
+          return;
+        }
+        tabIdRef.current = resolvedTabId;
+        setCurrentTabId(resolvedTabId);
+        if (resp?.title) setCurrentTabTitle(resp.title);
+        replace(resp?.list ?? []);
+      } catch {
+        // background not ready yet — keep current state
+      } finally {
+        if (session === sessionRef.current) setListLoaded(true);
+      }
+    },
+    [replace]
+  );
+
   const handleListUpdate = useCallback(
     (msg: unknown): void => {
       const m = msg as {
@@ -226,41 +263,26 @@ export function useMediaList(options?: UseMediaListOptions): {
         list?: RawMediaEntry[];
       };
       if (m?.type !== 'LIST_UPDATED') return;
-      if (m.tabId !== tabIdRef.current) return;
       if (!Array.isArray(m.list)) return;
+      if (m.tabId === undefined || m.tabId < 0) return;
+      if (m.tabId !== tabIdRef.current) {
+        if (
+          followActiveTabRef.current &&
+          document.visibilityState === 'visible'
+        ) {
+          tabIdRef.current = m.tabId;
+          setCurrentTabId(m.tabId);
+          void loadMediaList(m.tabId);
+        }
+        return;
+      }
       pendingRef.current = m.list;
       if (flushTimerRef.current === null) {
         flushTimerRef.current = setTimeout(flush, coalesceMsRef.current);
       }
     },
-    [flush]
+    [flush, loadMediaList]
   );
-
-  const loadMediaList = useCallback(async (): Promise<void> => {
-    const tabs = await browser.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-    const newTabId = tabs[0]?.id;
-    const newTabTitle = tabs[0]?.title || '';
-    if (newTabId === undefined) return;
-    const session = ++sessionRef.current;
-    tabIdRef.current = newTabId;
-    setCurrentTabId(newTabId);
-    setCurrentTabTitle(newTabTitle);
-    try {
-      const list = (await browser.runtime.sendMessage({
-        type: 'GET_LIST',
-        tabId: newTabId,
-      })) as RawMediaEntry[] | undefined;
-      if (session !== sessionRef.current) return;
-      replace(list ?? []);
-    } catch {
-      // background not ready
-    } finally {
-      if (session === sessionRef.current) setListLoaded(true);
-    }
-  }, [replace]);
 
   useEffect(() => {
     void loadMediaList();
@@ -278,15 +300,32 @@ export function useMediaList(options?: UseMediaListOptions): {
     };
     const onTabActivated = (info: { tabId: number }): void => {
       if (!followActiveTabRef.current) return;
-      if (info.tabId !== tabIdRef.current) void loadMediaList();
+      if (info.tabId !== tabIdRef.current) void loadMediaList(info.tabId);
     };
+    // active tab changed there).
+    const onVisibilityChange = (): void => {
+      if (!followActiveTabRef.current) return;
+      if (document.visibilityState === 'visible') void loadMediaList();
+    };
+    // The sidepanel bridges the background's port push (SIDEPANEL_TAB_ID →
+    // LIST_UPDATED) through this custom event. Replay any push that arrived
+    // before React mounted.
+    const onPanelList = (e: Event): void => {
+      handleListUpdate((e as CustomEvent).detail);
+    };
+    window.addEventListener('coolhusky:panel-list', onPanelList);
+    const pendingPanelList = (window as any).__coolhuskyPanelList;
+    if (pendingPanelList) handleListUpdate(pendingPanelList);
     browser.runtime.onMessage.addListener(onMessage);
     browser.tabs.onUpdated.addListener(onTabUpdated);
     browser.tabs.onActivated.addListener(onTabActivated);
+    document.addEventListener('visibilitychange', onVisibilityChange);
     return (): void => {
+      window.removeEventListener('coolhusky:panel-list', onPanelList);
       browser.runtime.onMessage.removeListener(onMessage);
       browser.tabs.onUpdated.removeListener(onTabUpdated);
       browser.tabs.onActivated.removeListener(onTabActivated);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
       flushTimerRef.current = null;
       pendingRef.current = null;

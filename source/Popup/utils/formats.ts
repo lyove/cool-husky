@@ -113,8 +113,20 @@ export function isDocFormat(f: string): boolean {
   return DOC_FORMATS.includes(f.toLowerCase());
 }
 
-export function getType(format: string, category?: string): MediaType {
+export function getType(
+  format: string,
+  category?: string,
+  groupRole?: string
+): MediaType {
   const f = format.toLowerCase();
+  if (groupRole === 'audio') return 'audio';
+  // Platform-managed entries (e.g. Douyin grouped tracks) are marked
+  // `category: 'stream'` even when the format is a plain mp4/webm. That flag
+  // must win over the format-based guess, otherwise these entries are
+  // miscounted as regular videos AND their master/variants get flattened into
+  // the list as standalone items (duplicating what the group card already
+  // shows).
+  if (category === 'stream') return 'stream';
   if (f === 'mse') return 'stream';
   if (isStreamFormat(f)) return 'stream';
   if (isVideoFormat(f)) return 'video';

@@ -51,9 +51,105 @@
   min-height: 32px;
 }
 
-.video {
+.videoWrap {
+  position: relative;
+  width: 100%;
+  min-height: 140px;
   max-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.video {
+  width: 100%;
+  height: 100%;
+  max-height: 220px;
+  min-height: 140px;
   background: #000;
+  object-fit: contain;
+}
+
+.customControls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  background: rgba(0, 0, 0, 0.72);
+  border-radius: 0 0 10px 10px;
+  color: #fff;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.controlBtn {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+.time {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.progressWrap {
+  flex: 1;
+  min-width: 0;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.progressTrack {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 2px;
+  background: #3b82f6;
+  pointer-events: none;
+}
+
+.volumeSlider {
+  width: 52px;
+  height: 4px;
+  cursor: pointer;
+  accent-color: #3b82f6;
 }
 
 .error {

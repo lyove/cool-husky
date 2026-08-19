@@ -453,6 +453,9 @@ const messagesMap: Record<string, Messages> = {
     themeDark: '深色',
     language: '語言',
     languageSystem: '跟隨系統',
+    density: '列表密度',
+    densityCompact: '緊湊',
+    densityComfortable: '舒適',
     openMode: '開啟方式',
     openModeSidepanel: '側邊欄',
     openModePopup: '彈出框',
@@ -462,6 +465,9 @@ const messagesMap: Record<string, Messages> = {
     enableMseCapture: '啟用 MSE 串流擷取',
     enableMseCaptureDesc:
       '攔截 MediaSource 串流資料，可擷取無直連 URL 的影片（如部分網頁播放器）。會佔用較多記憶體，建議按需啟用。',
+    hideStreamSegments: '隱藏串流分片',
+    hideStreamSegmentsDesc:
+      '隱藏 HLS/DASH 的分片（如 .ts/.m4s），只顯示其播放清單入口（m3u8/mpd）。關閉後可單獨查看/下載分片。',
     captureDataImages: '擷取 data: URL 圖片',
     captureDataImagesDesc:
       '偵測 <img src="data:image/..."> 形式內嵌的 base64 圖片。不掃描 CSS background-image。依下方最小大小過濾。',
@@ -606,6 +612,9 @@ const messagesMap: Record<string, Messages> = {
     themeDark: 'Dunkel',
     language: 'Sprache',
     languageSystem: 'System',
+    density: 'Listendichte',
+    densityCompact: 'Kompakt',
+    densityComfortable: 'Komfortabel',
     openMode: 'Öffnungsmodus',
     openModeSidepanel: 'Seitenleiste',
     openModePopup: 'Popup',
@@ -614,7 +623,10 @@ const messagesMap: Record<string, Messages> = {
     capture: 'Erfassung',
     enableMseCapture: 'MSE-Stream-Erfassung aktivieren',
     enableMseCaptureDesc:
-      'Onderschept MediaSource-Streams om Videos ohne direkte URL zu erfassen (z.B. einige Web-Player). Verbraucht mehr Arbeitsspeicher – nur bei Bedarf aktivieren.',
+      'Fängt MediaSource-Streams ab, um Videos ohne direkte URL zu erfassen (z.B. einige Web-Player). Verbraucht mehr Arbeitsspeicher – nur bei Bedarf aktivieren.',
+    hideStreamSegments: 'Stream-Segmente ausblenden',
+    hideStreamSegmentsDesc:
+      'Blendet HLS/DASH-Segmente (z.B. .ts/.m4s) aus und zeigt nur die übergeordnete Wiedergabeliste (m3u8/mpd). Deaktivieren, um Segmente einzeln anzuzeigen/herunterzuladen.',
     captureDataImages: 'data: URL-Bilder erfassen',
     captureDataImagesDesc:
       'Erkennt inline base64-Bilder als <img src="data:image/...">. Kein Scannen von CSS background-image. Nach Mindestgröße gefiltert.',
@@ -762,6 +774,9 @@ const messagesMap: Record<string, Messages> = {
     themeDark: 'Oscuro',
     language: 'Idioma',
     languageSystem: 'Sistema',
+    density: 'Densidad de lista',
+    densityCompact: 'Compacta',
+    densityComfortable: 'Cómoda',
     openMode: 'Modo de apertura',
     openModeSidepanel: 'Panel lateral',
     openModePopup: 'Ventana emergente',
@@ -771,6 +786,9 @@ const messagesMap: Record<string, Messages> = {
     enableMseCapture: 'Habilitar captura de stream MSE',
     enableMseCaptureDesc:
       'Intercepta streams MediaSource para capturar videos sin URL directa (p.ej. algunos reproductores web). Usa más memoria — activa solo cuando sea necesario.',
+    hideStreamSegments: 'Ocultar segmentos de stream',
+    hideStreamSegmentsDesc:
+      'Oculta segmentos HLS/DASH (p. ej. .ts/.m4s) y muestra solo la lista de reproducción principal (m3u8/mpd). Desactiva para ver/descargar segmentos por separado.',
     captureDataImages: 'Capturar imágenes data: URL',
     captureDataImagesDesc:
       'Detecta imágenes base64 inline como <img src="data:image/...">. No escanea background-image de CSS. Filtrado por tamaño mínimo.',
@@ -858,6 +876,9 @@ const messagesMap: Record<string, Messages> = {
     subtitleGroup: '字幕',
     docDownloadStarted: 'ドキュメントのダウンロードを開始しました',
     docDownloadFailed: 'ドキュメントのダウンロードに失敗しました',
+    searchPlaceholder: 'URL を検索…',
+    searchRegexTitle: '正規表現マッチ切り替え',
+    searchClear: '検索をクリア',
     timeJustNow: 'たった今',
     timeSecondsAgo: '$1秒前',
     timeMinutesAgo: '$1分前',
@@ -910,6 +931,9 @@ const messagesMap: Record<string, Messages> = {
     themeDark: 'ダーク',
     language: '言語',
     languageSystem: 'システム',
+    density: 'リスト密度',
+    densityCompact: 'コンパクト',
+    densityComfortable: 'ゆったり',
     openMode: '開き方',
     openModeSidepanel: 'サイドパネル',
     openModePopup: 'ポップアップ',
@@ -919,6 +943,9 @@ const messagesMap: Record<string, Messages> = {
     enableMseCapture: 'MSEストリームキャプチャを有効化',
     enableMseCaptureDesc:
       'MediaSourceストリームを傍受して、直接URLのない動画をキャプチャします（一部のWebプレーヤーなど）。メモリ使用量が増えるため、必要なときだけ有効にしてください。',
+    hideStreamSegments: 'ストリームセグメントを隠す',
+    hideStreamSegmentsDesc:
+      'HLS/DASH のセグメント（.ts/.m4s など）を隠し、親プレイリスト（m3u8/mpd）のみ表示します。オフにするとセグメントを個別に表示・ダウンロードできます。',
     captureDataImages: 'data: URL 画像をキャプチャ',
     captureDataImagesDesc:
       '<img src="data:image/..."> 形式のインライン base64 画像を検出します。CSS background-image はスキャンしません。最小サイズでフィルタリングします。',
@@ -1059,6 +1086,9 @@ const messagesMap: Record<string, Messages> = {
     themeDark: '어둡게',
     language: '언어',
     languageSystem: '시스템',
+    density: '목록 밀도',
+    densityCompact: '간결하게',
+    densityComfortable: '편안하게',
     openMode: '여는 방식',
     openModeSidepanel: '사이드 패널',
     openModePopup: '팝업',
@@ -1068,6 +1098,9 @@ const messagesMap: Record<string, Messages> = {
     enableMseCapture: 'MSE 스트림 캡처 활성화',
     enableMseCaptureDesc:
       'MediaSource 스트림을 가로채어 직접 URL이 없는 동영상을 캡처합니다（일부 웹 플레이어 등）. 메모리 사용량이 늘어나므로 필요할 때만 활성화하세요.',
+    hideStreamSegments: '스트림 세그먼트 숨기기',
+    hideStreamSegmentsDesc:
+      'HLS/DASH 세그먼트(.ts/.m4s 등)를 숨기고 상위 재생 목록(m3u8/mpd)만 표시합니다. 끄면 세그먼트를 개별적으로 보고 다운로드할 수 있습니다.',
     captureDataImages: 'data: URL 이미지 캡처',
     captureDataImagesDesc:
       '<img src="data:image/..."> 형태의 인라인 base64 이미지를 감지합니다. CSS background-image는 스캔하지 않습니다. 최소 크기로 필터링됩니다.',
@@ -1275,7 +1308,7 @@ function detectSystemLocale(): string {
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type DensityMode = 'compact' | 'comfortable';
 
-const APPEARANCE_KEY = 'ext_appearance';
+const APPEARANCE_KEY = 'coolhusky_appearance';
 
 /** Module-level appearance state (subscribed via React's useSyncExternalStore) */
 let currentLocale: LocaleCode = 'system';

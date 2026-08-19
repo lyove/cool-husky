@@ -86,6 +86,10 @@ export function useMediaPlayback(
   const [error, setError] = useState<string>('');
   const [drm, setDrm] = useState(false);
   const [recordingSec, setRecordingSec] = useState(0);
+  // Mirrors `recording.current` as real state: stopping a sub-second recording
+  // used to leave setRecordingSec(0) unchanged, so React never re-rendered and
+  // the button stayed stuck in "stop recording" mode.
+  const [recordingActive, setRecordingActive] = useState(false);
   const [imgSrc, setImgSrc] = useState<string>('');
 
   const format = item.format.toLowerCase();
@@ -544,6 +548,7 @@ export function useMediaPlayback(
       if (recording.current) {
         recording.current.controller.abort();
         recording.current = null;
+        setRecordingActive(false);
       }
     };
   }, [
@@ -573,7 +578,7 @@ export function useMediaPlayback(
     return (): void => clearInterval(timer);
   }, [isLive]);
 
-  const isRecording = recording.current !== null;
+  const isRecording = recordingActive;
 
   const startLiveRecording = useCallback((): void => {
     if (recording.current) {
@@ -584,6 +589,7 @@ export function useMediaPlayback(
     const chunks: Uint8Array[] = [];
     const startTime = Date.now();
     recording.current = { chunks, controller, startTime };
+    setRecordingActive(true);
     setRecordingSec(0);
     const headers: Record<string, string> = { ...item.requestHeaders };
     (async (): Promise<void> => {
@@ -624,6 +630,7 @@ export function useMediaPlayback(
             });
         }
         recording.current = null;
+        setRecordingActive(false);
         setRecordingSec(0);
       }
     })();

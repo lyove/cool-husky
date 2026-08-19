@@ -86,13 +86,19 @@ const AudioIcon = (): ReactNode => (
 
 type SelectState = 'none' | 'some' | 'all';
 
-const SelectAllIconSvg = ({ state }: { state: SelectState }): ReactNode => {
+const SelectAllIconSvg = ({
+  state,
+  size = 16,
+}: {
+  state: SelectState;
+  size?: number;
+}): ReactNode => {
   const filled = state !== 'none';
   return (
     <svg
       viewBox="0 0 24 24"
-      width="16"
-      height="16"
+      width={size}
+      height={size}
       fill="none"
       stroke="currentColor"
       strokeWidth={1.6}
@@ -133,6 +139,32 @@ const SortIconSvg = ({ desc }: { desc: boolean }): ReactNode => (
       strokeLinejoin="round"
       d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4"
     />
+  </svg>
+);
+
+const ExpandPlusIconSvg = (): ReactNode => (
+  <svg
+    viewBox="0 0 24 24"
+    width="14"
+    height="14"
+    strokeWidth="2"
+    fill="none"
+    stroke="currentColor"
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+  </svg>
+);
+
+const ExpandMinusIconSvg = (): ReactNode => (
+  <svg
+    viewBox="0 0 24 24"
+    width="14"
+    height="14"
+    strokeWidth="2"
+    fill="none"
+    stroke="currentColor"
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
   </svg>
 );
 
@@ -320,10 +352,10 @@ function VirtualList<T>({
   const [viewportHeight, setViewportHeight] = useState(0);
   const [measureTick, setMeasureTick] = useState(0);
 
-  // Measured content height of an item (excluding gap); falls back to
-  // estimateHeight until measured. Items are laid out by their real height
-  // so they never overlap even when estimates are too low.
   const measuredHeightsRef = useRef(new Map<number, number>());
+  const itemObserversRef = useRef(
+    new Map<number, { el: HTMLDivElement; ro: ResizeObserver }>()
+  );
 
   useEffect(() => {
     const el = containerRef.current;
@@ -334,6 +366,15 @@ function VirtualList<T>({
     ro.observe(el);
     setViewportHeight(el.clientHeight);
     return (): void => ro.disconnect();
+  }, []);
+
+  // Disconnect per-item observers on unmount.
+  useEffect(() => {
+    const roMap = itemObserversRef.current;
+    return (): void => {
+      roMap.forEach(({ ro }) => ro.disconnect());
+      roMap.clear();
+    };
   }, []);
 
   /** Measured item height; only triggers re-layout when the height truly changes (>0.5px) to avoid render jitter. */
@@ -383,8 +424,23 @@ function VirtualList<T>({
       <div
         key={getKey(items[i]!, i)}
         ref={(el) => {
-          if (el) {
-            measureItem(el, i);
+          if (!el) {
+            return;
+          }
+          measureItem(el, i);
+          // Re-measure on height changes (e.g. expanding/collapsing a stream
+          // group), otherwise offsets stay stale and later items overlap.
+          // Keyed by index, not element: virtual rows are unmounted/remounted
+          // while scrolling, so releasing the previous observer for the same
+          // index prevents leaking ResizeObservers of detached DOM nodes.
+          const prev = itemObserversRef.current.get(i);
+          if (prev && prev.el !== el) {
+            prev.ro.disconnect();
+          }
+          if (!prev || prev.el !== el) {
+            const ro = new ResizeObserver(() => measureItem(el, i));
+            ro.observe(el);
+            itemObserversRef.current.set(i, { el, ro });
           }
         }}
         style={{
@@ -537,9 +593,7 @@ interface HoverPreviewProps {
 }
 
 /**
- * Media-card hover preview. only video/image/stream items get a preview,
- * it appears below the card (or above it when there is not enough room) after a short delay, and hides shortly
- * after the pointer leaves the card.
+ * Media-card hover preview.
  */
 const HoverPreview: FC<HoverPreviewProps> = ({ state }) => {
   const [failed, setFailed] = useState(false);
@@ -614,7 +668,7 @@ const HoverPreview: FC<HoverPreviewProps> = ({ state }) => {
 
 interface PopupProps {
   embedded?: boolean;
-  /** Reload the media list when the active tab changes (sidepanel mode). */
+  /** Reload the media list when the active tab changes. */
   followActiveTab?: boolean;
 }
 
@@ -982,7 +1036,6 @@ export default function Popup({
    * Merge selected audio into one WAV and download.
    */
   const handleMergeDownload = useCallback((): void => {
-    // filter() preserves mediaList order = sniff order; no re-sort.
     const audioItems = mediaList.filter(
       (i) =>
         selectedUrls.has(getMediaKey(i)) && isMergeableAudioFormat(i.format)
@@ -995,14 +1048,12 @@ export default function Popup({
       showToast(t('mergeDownloadNeedTwo'));
       return;
     }
-    // Merging triggers a file download, so ask for confirmation first.
     setMergeConfirmCount(audioItems.length);
     setShowMergeConfirm(true);
   }, [mediaList, selectedUrls, showToast, t]);
 
   const confirmMergeDownload = useCallback((): void => {
     setShowMergeConfirm(false);
-    // filter() preserves mediaList order = sniff order; no re-sort.
     const audioItems = mediaList.filter(
       (i) =>
         selectedUrls.has(getMediaKey(i)) && isMergeableAudioFormat(i.format)
@@ -1019,7 +1070,6 @@ export default function Popup({
     [actions, showToast, t]
   );
 
-  // ── Rename ──
   const getDisplayName = useCallback(
     (item: MediaListItem): string =>
       customNames.get(item.url) ||
@@ -1088,8 +1138,14 @@ export default function Popup({
           return base;
         }
         const rowH = density === 'comfortable' ? 38 : 34;
+        // Rendered rows: {master && !syntheticMasterUrl && renderRow(master)}
+        // + variants + audioItems. Match that exactly, otherwise the last
+        // child row gets covered by the next virtual item.
+        const masterRows =
+          group.master && /^https?:\/\//i.test(group.master.url || '') ? 1 : 0;
         return (
           base +
+          masterRows * rowH +
           group.variants.length * rowH +
           group.audioItems.length * rowH +
           8
@@ -1113,9 +1169,6 @@ export default function Popup({
   }, [filteredImageList]);
 
   // ── Hover preview (-style) ──
-  // Only video / image / stream items get a preview. It appears below the card
-  // (or above when there is not enough room) after a short delay, and hides
-  // shortly after the pointer leaves the card.
   const handleCardHover = useCallback(
     (e: ReactMouseEvent<HTMLDivElement>, item: MediaListItem): void => {
       const fmt = item.format.toLowerCase();
@@ -1471,6 +1524,21 @@ export default function Popup({
         !allSelected &&
         keys.some((k) => selectedUrls.has(k));
       const master = group.master;
+      const syntheticMasterUrl = Boolean(
+        master && !/^https?:\/\//i.test(master.url || '')
+      );
+      const realVariant = group.variants.find((v) =>
+        /^https?:\/\//i.test(v.url || '')
+      );
+      const masterSource =
+        syntheticMasterUrl && realVariant
+          ? {
+              ...master,
+              url: realVariant.url,
+              format: realVariant.format,
+              size: realVariant.size,
+            }
+          : master;
       const hasChildren =
         group.variants.length > 0 || group.audioItems.length > 0;
       const totalSize = keys.reduce((sum, k) => {
@@ -1493,7 +1561,7 @@ export default function Popup({
       const showGroupVideoThumb =
         canGroupVideoThumb &&
         !hasGroupThumbnail &&
-        !isVideoThumbFailed(master?.url ?? '');
+        !isVideoThumbFailed(masterSource?.url ?? '');
 
       const renderRow = (item: MediaListItem): ReactNode => {
         const key = getMediaKey(item);
@@ -1546,7 +1614,7 @@ export default function Popup({
             <div className={styles.variantActions}>
               <button
                 type="button"
-                className={styles.actionBtn}
+                className={styles.actionBtnCopy}
                 onClick={() => void handleCopyUrl(item.url)}
                 title={t('copyUrl')}
               >
@@ -1554,7 +1622,7 @@ export default function Popup({
               </button>
               <button
                 type="button"
-                className={styles.actionBtn}
+                className={styles.actionBtnPrimary}
                 onClick={() => {
                   if (isPlayableInlineFormat(item.format.toLowerCase())) {
                     setPlayingItem((prev) =>
@@ -1574,7 +1642,7 @@ export default function Popup({
               </button>
               <button
                 type="button"
-                className={styles.actionBtn}
+                className={styles.actionBtnSuccess}
                 onClick={() => void handleDownloadItem(item)}
                 title={t('download')}
               >
@@ -1606,31 +1674,32 @@ export default function Popup({
             >
               <SelectAllIconSvg
                 state={allSelected ? 'all' : someSelected ? 'some' : 'none'}
+                size={22}
               />
             </button>
             <div
               className={styles.thumbnailWrap}
               onMouseEnter={(e) => {
-                if (master) handleCardHover(e, master);
+                if (masterSource) handleCardHover(e, masterSource);
               }}
               onMouseLeave={handleCardLeave}
             >
               {hasGroupThumbnail ? (
                 <img
-                  src={master?.coverUrl || master?.url}
+                  src={master?.coverUrl || masterSource?.url}
                   alt=""
                   className={styles.thumbnailImg}
                   loading="lazy"
                 />
-              ) : showGroupVideoThumb && master ? (
+              ) : showGroupVideoThumb && masterSource ? (
                 <video
-                  src={master.url}
+                  src={masterSource.url}
                   className={styles.thumbnailImg}
                   preload="metadata"
                   muted
                   playsInline
-                  onLoadedData={(e) => onVideoLoadedData(e, master.url)}
-                  onError={() => markVideoThumbFailed(master.url)}
+                  onLoadedData={(e) => onVideoLoadedData(e, masterSource.url)}
+                  onError={() => markVideoThumbFailed(masterSource.url)}
                 />
               ) : (
                 <div
@@ -1675,25 +1744,34 @@ export default function Popup({
               </span>
             )}
             <span className={styles.itemSize}>{formatFileSize(totalSize)}</span>
-            {master && (
+            {/* Group cards with children keep the header clean: operations live
+                on the expanded variant/audio rows (copy url / play / download).
+                Only a group with NO children (a lone stream master, e.g. a plain
+                m3u8 without variants) keeps header actions, otherwise it would
+                have no way to play/download at all. */}
+            {masterSource && !hasChildren && (
               <div className={styles.groupHeaderActions}>
                 <button
                   type="button"
                   className={styles.actionBtnPrimary}
                   onClick={() => {
-                    if (isPlayableInlineFormat(master.format.toLowerCase())) {
+                    if (
+                      isPlayableInlineFormat(masterSource.format.toLowerCase())
+                    ) {
                       setPlayingItem((prev) =>
-                        prev?.url === master.url ? null : master
+                        prev?.url === masterSource.url ? null : masterSource
                       );
                     } else {
-                      setPreviewItem(master);
+                      setPreviewItem(masterSource);
                     }
                   }}
                   title={
-                    playingItem?.url === master.url ? t('pause') : t('play')
+                    playingItem?.url === masterSource.url
+                      ? t('pause')
+                      : t('play')
                   }
                 >
-                  {playingItem?.url === master.url ? (
+                  {playingItem?.url === masterSource.url ? (
                     <PauseIconSvg />
                   ) : (
                     <PlayIconSvg />
@@ -1702,7 +1780,7 @@ export default function Popup({
                 <button
                   type="button"
                   className={styles.actionBtnSuccess}
-                  onClick={() => void handleDownloadItem(master)}
+                  onClick={() => void handleDownloadItem(masterSource)}
                   title={t('download')}
                 >
                   <DownloadIconSvg />
@@ -1715,13 +1793,13 @@ export default function Popup({
                 className={styles.expandBtn}
                 onClick={() => toggleGroup(group.id)}
               >
-                {expanded ? '▾' : '▸'}
+                {expanded ? <ExpandMinusIconSvg /> : <ExpandPlusIconSvg />}
               </button>
             )}
           </div>
           {expanded && hasChildren && (
             <div className={styles.groupBody}>
-              {master && renderRow(master)}
+              {master && !syntheticMasterUrl && renderRow(master)}
               {group.variants.map(renderRow)}
               {group.audioItems.map(renderRow)}
             </div>
@@ -1788,8 +1866,6 @@ export default function Popup({
     []
   );
 
-  // Always show the full tab bar (all / stream / video / audio / image / doc),
-  // even when a type has 0 items, so the popup header matches the reference UI.
   const visibleTabs = useMemo(() => tabDefs, [tabDefs]);
 
   // ── Lightbox keyboard navigation ──
@@ -1803,9 +1879,10 @@ export default function Popup({
     listBody = (
       <div className={styles.masonry}>
         {imageColumns.map((column, colIndex) => (
-          // Fixed two-column layout: stable column index makes a safe key
-          // eslint-disable-next-line react/no-array-index-key
-          <div key={colIndex} className={styles.masonryCol}>
+          <div
+            key={colIndex === 0 ? 'col-left' : 'col-right'}
+            className={styles.masonryCol}
+          >
             {column.map((item) => {
               const actualIndex = filteredImageList.indexOf(item);
               return (
