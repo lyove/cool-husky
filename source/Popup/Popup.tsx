@@ -660,6 +660,8 @@ export default function Popup({
     new Map()
   );
   const [toast, setToast] = useState<{ msg: string; id: number } | null>(null);
+  const [showMergeConfirm, setShowMergeConfirm] = useState(false);
+  const [mergeConfirmCount, setMergeConfirmCount] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState(-1);
   const [hoverPreview, setHoverPreview] = useState<HoverPreviewState | null>(
     null
@@ -978,14 +980,6 @@ export default function Popup({
 
   /**
    * Merge selected audio into one WAV and download.
-   *
-   * Ordering contract (per user requirement): the merge sequence must follow the
-   * SNIFF order, not the click/select order. mediaList is the sniff-ordered array
-   * (background returns entries in detection order, and useMediaList preserves
-   * that order via replace(list.map(normalize))). Array.filter() keeps that order,
-   * so a selection of 4/6/1/2 (sniff order 1..6) is merged as 1/2/4/6. We do NOT
-   * sort by detectedAt here — it is optional and could be undefined for some
-   * entries, which would corrupt the sniff order.
    */
   const handleMergeDownload = useCallback((): void => {
     // filter() preserves mediaList order = sniff order; no re-sort.
@@ -1001,8 +995,21 @@ export default function Popup({
       showToast(t('mergeDownloadNeedTwo'));
       return;
     }
+    // Merging triggers a file download, so ask for confirmation first.
+    setMergeConfirmCount(audioItems.length);
+    setShowMergeConfirm(true);
+  }, [mediaList, selectedUrls, showToast, t]);
+
+  const confirmMergeDownload = useCallback((): void => {
+    setShowMergeConfirm(false);
+    // filter() preserves mediaList order = sniff order; no re-sort.
+    const audioItems = mediaList.filter(
+      (i) =>
+        selectedUrls.has(getMediaKey(i)) && isMergeableAudioFormat(i.format)
+    );
+    if (audioItems.length < 2) return;
     void actions.mergeAndDownload(audioItems, tabIdRef.current).catch(() => {});
-  }, [mediaList, selectedUrls, showToast, t, actions]);
+  }, [mediaList, selectedUrls, actions]);
 
   const handleCopyUrl = useCallback(
     async (url: string): Promise<void> => {
@@ -2197,6 +2204,50 @@ export default function Popup({
             </div>
           </footer>
         </>
+      )}
+
+      {showMergeConfirm && (
+        <div
+          className={styles.overlay}
+          onClick={() => setShowMergeConfirm(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setShowMergeConfirm(false);
+          }}
+          role="presentation"
+        >
+          <div
+            className={styles.confirmDialog}
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setShowMergeConfirm(false);
+            }}
+          >
+            <div className={styles.confirmTitle}>
+              {t('mergeDownloadConfirm')}
+            </div>
+            <div className={styles.confirmDesc}>
+              {t('mergeDownloadConfirmDesc', [String(mergeConfirmCount)])}
+            </div>
+            <div className={styles.confirmActions}>
+              <button
+                type="button"
+                className={styles.confirmCancelBtn}
+                onClick={() => setShowMergeConfirm(false)}
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                className={styles.confirmOkBtn}
+                onClick={() => void confirmMergeDownload()}
+              >
+                {t('mergeDownloadOk')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && (
