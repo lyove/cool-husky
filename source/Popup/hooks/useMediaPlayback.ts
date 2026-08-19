@@ -240,12 +240,32 @@ export function useMediaPlayback(
         analyser.connect(ctx.destination);
         const data = new Uint8Array(analyser.frequencyBinCount);
         const g = canvas.getContext('2d');
+        // "Peak" layout: the center bar is the tallest and tracks the audio loudness;
+        // bars fall off towards both edges with a cosine envelope and jitter randomly,
+        // but no edge bar ever exceeds the center height. The whole shape rises/falls
+        // with the audio level — loud → center high & edges high, quiet → all low.
+        const BAR_COUNT = 40;
+        const center = (BAR_COUNT - 1) / 2;
+        // Per-bar distance-from-center factor (1 at center → ~0.3 at edges).
+        const envelope = new Float32Array(BAR_COUNT);
+        for (let k = 0; k < BAR_COUNT; k++) {
+          const d = Math.abs(k - center) / center; // 0 at center, 1 at edges
+          envelope[k] = 0.3 + 0.7 * Math.cos(d * Math.PI * 0.5);
+        }
+        let frame = 0;
         const draw = (): void => {
           raf = requestAnimationFrame(draw);
           if (!analyser || !g) return;
           analyser.getByteFrequencyData(data);
+          // Overall loudness drives the peak (center) height — the whole shape follows it.
+          let total = 0;
+          for (let j = 0; j < data.length; j++) total += data[j] ?? 0;
+          const loudness = total / data.length / 255; // 0..1
+          // Peak height: loudness lifted so the whole shape is tall enough — center should
+          // routinely exceed half the canvas height and reach the top on loud peaks.
+          const peak = Math.max(0.2, Math.min(1, 0.35 + loudness * 1.8));
           // Sync the canvas backing store to the element's displayed size (DPR-aware)
-          // so the spectrum fills the full container width with no right-side gap.
+          // so bars fill the full container width with no right-side gap.
           const cssW = canvas.clientWidth || canvas.width;
           const cssH = canvas.clientHeight || canvas.height;
           const dpr = window.devicePixelRatio || 1;
@@ -258,43 +278,45 @@ export function useMediaPlayback(
           const w = canvas.width;
           const h = canvas.height;
           g.clearRect(0, 0, w, h);
-          // Adaptive bar count + gap: derive both from the actual canvas width so the
-          // bars always fill the full width regardless of how wide the player is.
-          // Target ~10px bar width in CSS pixels; gap is ~20% of bar width.
-          const targetCssBarWidth = 10;
-          const gapRatio = 0.2;
-          let barCount = Math.max(16, Math.round(cssW / targetCssBarWidth));
-          // Clamp to frequency bins so each bar maps to at least one bin.
-          barCount = Math.min(barCount, data.length);
-          // Only the low-frequency bins carry meaningful energy in most audio; the
-          // high-frequency half is near-zero and would render the right side blank.
-          // Map the full bar count onto the low-frequency slice so every bar has height.
-          const usableBins = Math.max(8, Math.floor(data.length * 0.5));
-          const cssBarWidth = cssW / barCount;
-          const gap = Math.max(1, Math.round(cssBarWidth * gapRatio * dpr));
-          const totalGap = (barCount - 1) * gap;
-          const barWidth = Math.floor((w - totalGap) / barCount);
-          // Absorb rounding remainder into the last bar → last bar's right edge = w.
-          const lastBarExtra = w - totalGap - barWidth * barCount;
+          // Equal-width bars evenly spaced across the full width. Use a float stride so the
+          // rounding remainder is distributed across all gaps (not dumped on the last bar,
+          // which made it visibly wider). Each bar has the exact same width.
+          const gap = Math.round(4 * dpr);
+          const barWidth = Math.max(
+            1,
+            Math.floor((w - (BAR_COUNT - 1) * gap) / BAR_COUNT)
+          );
+          // stride = (total width - bars) / (gaps), float → spreads remainder evenly.
+          const stride = (w - barWidth) / (BAR_COUNT - 1);
           const gradient = g.createLinearGradient(0, h, 0, 0);
           gradient.addColorStop(0, '#2a5fff');
           gradient.addColorStop(1, '#8fb3ff');
           g.fillStyle = gradient;
-          for (let i = 0; i < barCount; i++) {
-            const startBin = Math.floor((i * usableBins) / barCount);
-            const endBin = Math.floor(((i + 1) * usableBins) / barCount);
-            let sum = 0;
-            for (let j = startBin; j < endBin; j++) {
-              sum += data[j] ?? 0;
-            }
-            const avg = sum / Math.max(1, endBin - startBin);
-            const v = avg / 255;
+          frame++;
+          for (let i = 0; i < BAR_COUNT; i++) {
+            // Jitter so edges move randomly but stay within the envelope (≤ peak).
+            const jit =
+              Math.sin(frame * 0.22 + i * 1.9) * 0.5 +
+              Math.sin(frame * 0.13 + i * 0.7) * 0.5; // -1..1
+            const jitter01 = jit * 0.5 + 0.5; // 0..1
+            const env = envelope[i]!;
+            // Edge bars: envelope × (random jitter), clamped to the envelope so they
+            // never exceed the center. Center bar uses the full peak.
+            const v = Math.max(
+              0.04,
+              Math.min(peak, peak * (env * 0.6 + env * 0.4 * jitter01))
+            );
             const barHeight = h * v;
-            const bw = i === barCount - 1 ? barWidth + lastBarExtra : barWidth;
-            const x = i * (barWidth + gap);
+            const x = i * stride;
             const y = h - barHeight;
             g.beginPath();
-            g.roundRect(x, y, bw, barHeight, Math.min(bw / 2, 3 * dpr));
+            g.roundRect(
+              x,
+              y,
+              barWidth,
+              barHeight,
+              Math.min(barWidth / 2, 3 * dpr)
+            );
             g.fill();
           }
         };
