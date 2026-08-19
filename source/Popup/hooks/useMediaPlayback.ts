@@ -240,24 +240,49 @@ export function useMediaPlayback(
         analyser.connect(ctx.destination);
         const data = new Uint8Array(analyser.frequencyBinCount);
         const g = canvas.getContext('2d');
-        const BAR_COUNT = 40;
-        const BAR_GAP = 4;
-        const CORNER_RADIUS = 3;
         const draw = (): void => {
           raf = requestAnimationFrame(draw);
           if (!analyser || !g) return;
           analyser.getByteFrequencyData(data);
+          // Sync the canvas backing store to the element's displayed size (DPR-aware)
+          // so the spectrum fills the full container width with no right-side gap.
+          const cssW = canvas.clientWidth || canvas.width;
+          const cssH = canvas.clientHeight || canvas.height;
+          const dpr = window.devicePixelRatio || 1;
+          const targetW = Math.round(cssW * dpr);
+          const targetH = Math.round(cssH * dpr);
+          if (canvas.width !== targetW || canvas.height !== targetH) {
+            canvas.width = targetW;
+            canvas.height = targetH;
+          }
           const w = canvas.width;
           const h = canvas.height;
           g.clearRect(0, 0, w, h);
-          const barWidth = (w - (BAR_COUNT - 1) * BAR_GAP) / BAR_COUNT;
+          // Adaptive bar count + gap: derive both from the actual canvas width so the
+          // bars always fill the full width regardless of how wide the player is.
+          // Target ~10px bar width in CSS pixels; gap is ~20% of bar width.
+          const targetCssBarWidth = 10;
+          const gapRatio = 0.2;
+          let barCount = Math.max(16, Math.round(cssW / targetCssBarWidth));
+          // Clamp to frequency bins so each bar maps to at least one bin.
+          barCount = Math.min(barCount, data.length);
+          // Only the low-frequency bins carry meaningful energy in most audio; the
+          // high-frequency half is near-zero and would render the right side blank.
+          // Map the full bar count onto the low-frequency slice so every bar has height.
+          const usableBins = Math.max(8, Math.floor(data.length * 0.5));
+          const cssBarWidth = cssW / barCount;
+          const gap = Math.max(1, Math.round(cssBarWidth * gapRatio * dpr));
+          const totalGap = (barCount - 1) * gap;
+          const barWidth = Math.floor((w - totalGap) / barCount);
+          // Absorb rounding remainder into the last bar → last bar's right edge = w.
+          const lastBarExtra = w - totalGap - barWidth * barCount;
           const gradient = g.createLinearGradient(0, h, 0, 0);
           gradient.addColorStop(0, '#2a5fff');
           gradient.addColorStop(1, '#8fb3ff');
           g.fillStyle = gradient;
-          for (let i = 0; i < BAR_COUNT; i++) {
-            const startBin = Math.floor((i * data.length) / BAR_COUNT);
-            const endBin = Math.floor(((i + 1) * data.length) / BAR_COUNT);
+          for (let i = 0; i < barCount; i++) {
+            const startBin = Math.floor((i * usableBins) / barCount);
+            const endBin = Math.floor(((i + 1) * usableBins) / barCount);
             let sum = 0;
             for (let j = startBin; j < endBin; j++) {
               sum += data[j] ?? 0;
@@ -265,10 +290,11 @@ export function useMediaPlayback(
             const avg = sum / Math.max(1, endBin - startBin);
             const v = avg / 255;
             const barHeight = h * v;
-            const x = i * (barWidth + BAR_GAP);
+            const bw = i === barCount - 1 ? barWidth + lastBarExtra : barWidth;
+            const x = i * (barWidth + gap);
             const y = h - barHeight;
             g.beginPath();
-            g.roundRect(x, y, barWidth, barHeight, CORNER_RADIUS);
+            g.roundRect(x, y, bw, barHeight, Math.min(bw / 2, 3 * dpr));
             g.fill();
           }
         };

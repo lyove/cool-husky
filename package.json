@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "advanced-css-reset": "^2.1.3",
+    "audiobuffer-to-wav": "^1.0.0",
     "dashjs": "^5.2.1",
     "hls.js": "^1.7.0",
     "mediainfo.js": "^0.3.7",

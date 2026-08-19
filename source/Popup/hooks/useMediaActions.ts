@@ -10,6 +10,11 @@ import {
   getBatchDownloadFilename,
   getMediaKey,
 } from '../utils/formats';
+import {
+  isMergeableAudioFormat,
+  mergeAudioItemsToWav,
+  type MergeableAudioItem,
+} from '../../utils/audio-merge';
 import type { MediaListItem } from './useMediaList';
 
 export interface DownloadOptions {
@@ -42,12 +47,15 @@ export function useMediaActions(onToast?: (message: string) => void): {
     tabId?: number,
     customNames?: Map<string, string>
   ) => Promise<void>;
+  mergeAndDownload: (items: MediaListItem[], tabId?: number) => Promise<void>;
   downloading: boolean;
+  merging: boolean;
   toggleLiveRecording: (item: MediaListItem) => void;
   isLiveRecording: (item: MediaListItem) => boolean;
   openShortcuts: () => Promise<void>;
 } {
   const [downloading, setDownloading] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [, setRecordingKeys] = useState<Set<string>>(new Set());
   const onToastRef = useRef(onToast);
   onToastRef.current = onToast;
@@ -357,6 +365,57 @@ export function useMediaActions(onToast?: (message: string) => void): {
     [downloadItem, toggleLiveRecording]
   );
 
+  /**
+   * Merge selected audio into a single WAV and download it.
+   *
+   * Ordering: `items` MUST already be in sniff order (the popup keeps mediaList
+   * order and filters by selection, which preserves the original detection
+   * sequence — e.g. sniff order 1..6, selecting 4/6/1/2 still merges as 1/2/4/6).
+   * Non-mergeable items (video/image/unsupported formats) are silently skipped;
+   * the caller validates the audio count and toasts the user.
+   */
+  const mergeAndDownload = useCallback(
+    async (items: MediaListItem[], tabId?: number): Promise<void> => {
+      const mergeable: MergeableAudioItem[] = items
+        .filter((i) => isMergeableAudioFormat(i.format))
+        .map((i) => {
+          return {
+            url: i.url,
+            format: i.format,
+            requestHeaders: i.requestHeaders,
+          };
+        });
+      if (mergeable.length < 2) {
+        showToast(t('mergeDownloadNeedTwo'));
+        return;
+      }
+      setMerging(true);
+      try {
+        showToast(t('mergeDownloadStarted', String(mergeable.length)));
+        const result = await mergeAudioItemsToWav(mergeable, tabId);
+        const blobUrl = URL.createObjectURL(result.blob);
+        try {
+          await browser.downloads.download({
+            url: blobUrl,
+            filename: `merged-${mergeable.length}tracks-${Date.now().toString(36)}.wav`,
+            saveAs: false,
+          });
+          showToast(t('mergeDownloadComplete', String(mergeable.length)));
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+        } catch {
+          URL.revokeObjectURL(blobUrl);
+          showToast(t('mergeDownloadFailed', 'download error'));
+        }
+      } catch (e: unknown) {
+        const reason = (e as Error)?.message || 'unknown';
+        showToast(t('mergeDownloadFailed', reason));
+      } finally {
+        setMerging(false);
+      }
+    },
+    [showToast]
+  );
+
   const openShortcuts = useCallback(async (): Promise<void> => {
     if (typeof (browser.commands as any)?.openShortcutSettings === 'function') {
       (browser.commands as any).openShortcutSettings();
@@ -372,7 +431,9 @@ export function useMediaActions(onToast?: (message: string) => void): {
     downloadItem,
     copyUrl,
     downloadBatch,
+    mergeAndDownload,
     downloading,
+    merging,
     toggleLiveRecording,
     isLiveRecording,
     openShortcuts,

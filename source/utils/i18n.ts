@@ -1,15 +1,7 @@
 import browser from 'webextension-polyfill';
 
 export type LocaleCode =
-  | 'system'
-  | 'en'
-  | 'zh_CN'
-  | 'zh_TW'
-  | 'de'
-  | 'es'
-  | 'ja'
-  | 'ko'
-  | 'ru';
+  'system' | 'en' | 'zh_CN' | 'zh_TW' | 'de' | 'es' | 'ja' | 'ko' | 'ru';
 
 export interface LocaleOption {
   code: LocaleCode;
@@ -111,6 +103,12 @@ const messagesMap: Record<string, Messages> = {
     selectAll: 'Select All',
     deselectAll: 'Deselect All',
     downloadSelected: 'Download Selected',
+    mergeDownload: 'Merge & Download Selected Audio',
+    mergeDownloadStarted: 'Merging $1 audio file(s)…',
+    mergeDownloadComplete: 'Merged audio downloaded ($1 files → 1 WAV)',
+    mergeDownloadFailed: 'Audio merge failed: $1',
+    mergeDownloadNoAudio: 'No mergeable audio in selection',
+    mergeDownloadNeedTwo: 'Select at least 2 audio files to merge',
     clearList: 'Clear current page media list',
     refresh: 'Refresh',
     refreshPage: 'Refresh current page',
@@ -254,6 +252,12 @@ const messagesMap: Record<string, Messages> = {
     selectAll: '全选',
     deselectAll: '取消全选',
     downloadSelected: '下载所选',
+    mergeDownload: '合并下载所选音频',
+    mergeDownloadStarted: '正在合并 $1 个音频…',
+    mergeDownloadComplete: '合并下载完成（$1 个音频 → 1 个 WAV）',
+    mergeDownloadFailed: '音频合并失败：$1',
+    mergeDownloadNoAudio: '所选内容没有可合并的音频',
+    mergeDownloadNeedTwo: '至少选择 2 个音频才能合并',
     clearList: '清理当前页面媒体列表',
     refresh: '刷新',
     refreshPage: '刷新当前页面',
@@ -395,6 +399,12 @@ const messagesMap: Record<string, Messages> = {
     selectAll: '全選',
     deselectAll: '取消全選',
     downloadSelected: '下載所選',
+    mergeDownload: '合併下載所選音訊',
+    mergeDownloadStarted: '正在合併 $1 個音訊…',
+    mergeDownloadComplete: '合併下載完成（$1 個音訊 → 1 個 WAV）',
+    mergeDownloadFailed: '音訊合併失敗：$1',
+    mergeDownloadNoAudio: '所選內容沒有可合併的音訊',
+    mergeDownloadNeedTwo: '至少選擇 2 個音訊才能合併',
     clearList: '清理當前頁面媒體列表',
     refresh: '重新整理',
     refreshPage: '重新整理當前頁面',
@@ -534,6 +544,14 @@ const messagesMap: Record<string, Messages> = {
     selectAll: 'Alle auswählen',
     deselectAll: 'Auswahl aufheben',
     downloadSelected: 'Ausgewählte herunterladen',
+    mergeDownload: 'Ausgewählte Audio zusammenführen',
+    mergeDownloadStarted: '$1 Audiodatei(en) werden zusammengeführt…',
+    mergeDownloadComplete:
+      'Zusammengeführtes Audio heruntergeladen ($1 Dateien → 1 WAV)',
+    mergeDownloadFailed: 'Audio-Zusammenführung fehlgeschlagen: $1',
+    mergeDownloadNoAudio: 'Keine zusammenführbare Audio in der Auswahl',
+    mergeDownloadNeedTwo:
+      'Mindestens 2 Audiodateien zum Zusammenführen auswählen',
     clearList: 'Medienliste der aktuellen Seite leeren',
     refresh: 'Aktualisieren',
     refreshPage: 'Aktuelle Seite aktualisieren',
@@ -678,6 +696,13 @@ const messagesMap: Record<string, Messages> = {
     selectAll: 'Seleccionar todo',
     deselectAll: 'Deseleccionar todo',
     downloadSelected: 'Descargar seleccionados',
+    mergeDownload: 'Fusionar y descargar audio seleccionado',
+    mergeDownloadStarted: 'Fusionando $1 archivo(s) de audio…',
+    mergeDownloadComplete: 'Audio fusionado descargado ($1 archivos → 1 WAV)',
+    mergeDownloadFailed: 'Fusión de audio fallida: $1',
+    mergeDownloadNoAudio: 'No hay audio fusionable en la selección',
+    mergeDownloadNeedTwo:
+      'Selecciona al menos 2 archivos de audio para fusionar',
     clearList: 'Borrar lista de medios de la página actual',
     refresh: 'Actualizar',
     refreshPage: 'Actualizar página actual',
@@ -814,6 +839,13 @@ const messagesMap: Record<string, Messages> = {
     selectAll: 'すべて選択',
     deselectAll: '選択解除',
     downloadSelected: '選択したものをダウンロード',
+    mergeDownload: '選択した音声を結合してダウンロード',
+    mergeDownloadStarted: '$1 個の音声を結合中…',
+    mergeDownloadComplete:
+      '結合した音声をダウンロードしました（$1 個 → 1 WAV）',
+    mergeDownloadFailed: '音声の結合に失敗しました：$1',
+    mergeDownloadNoAudio: '選択範囲に結合可能な音声がありません',
+    mergeDownloadNeedTwo: '結合には 2 つ以上の音声を選択してください',
     clearList: '現在のページのメディアリストをクリア',
     refresh: '更新',
     refreshPage: '現在のページを更新',
@@ -952,6 +984,12 @@ const messagesMap: Record<string, Messages> = {
     selectAll: '전체 선택',
     deselectAll: '선택 해제',
     downloadSelected: '선택 항목 다운로드',
+    mergeDownload: '선택한 오디오 병합하여 다운로드',
+    mergeDownloadStarted: '$1개 오디오 병합 중…',
+    mergeDownloadComplete: '병합된 오디오 다운로드 완료 ($1개 → 1 WAV)',
+    mergeDownloadFailed: '오디오 병합 실패: $1',
+    mergeDownloadNoAudio: '선택 항목에 병합 가능한 오디오가 없습니다',
+    mergeDownloadNeedTwo: '병합하려면 오디오를 2개 이상 선택하세요',
     clearList: '현재 페이지 미디어 목록 지우기',
     refresh: '새로고침',
     refreshPage: '현재 페이지 새로고침',
@@ -1092,6 +1130,12 @@ const messagesMap: Record<string, Messages> = {
     selectAll: 'Выбрать всё',
     deselectAll: 'Снять выделение',
     downloadSelected: 'Скачать выбранное',
+    mergeDownload: 'Объединить и скачать выбранное аудио',
+    mergeDownloadStarted: 'Объединение $1 аудиофайла(ов)…',
+    mergeDownloadComplete: 'Объединённое аудио скачано ($1 файлов → 1 WAV)',
+    mergeDownloadFailed: 'Ошибка объединения аудио: $1',
+    mergeDownloadNoAudio: 'В выборе нет аудио для объединения',
+    mergeDownloadNeedTwo: 'Выберите минимум 2 аудиофайла для объединения',
     clearList: 'Очистить список медиа на текущей странице',
     refresh: 'Обновить',
     refreshPage: 'Обновить текущую страницу',

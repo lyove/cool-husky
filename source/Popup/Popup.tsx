@@ -37,6 +37,7 @@ import {
   isVideoFormat,
   sanitizeDirectoryName,
 } from './utils/formats';
+import { isMergeableAudioFormat } from '../utils/audio-merge';
 import type {
   MediaItem,
   MetadataBatchItem,
@@ -278,6 +279,26 @@ const DownloadIconSvg = (): ReactNode => (
     strokeLinejoin="round"
   >
     <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+  </svg>
+);
+
+/** Merge audio icon: two streams converging into one (concatenation). */
+const MergeIconSvg = (): ReactNode => (
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    {/* Two input streams (top) converging into a single output (bottom) */}
+    <path d="M5 4v3a4 4 0 004 4h6a4 4 0 004-4V4" />
+    {/* Merged output line + arrowhead pointing down (towards download) */}
+    <path d="M12 15v5" />
+    <path d="M9 17.5l3 3 3-3" />
   </svg>
 );
 
@@ -977,6 +998,34 @@ export default function Popup({
     actions,
     customNames,
   ]);
+
+  /**
+   * Merge selected audio into one WAV and download.
+   *
+   * Ordering contract (per user requirement): the merge sequence must follow the
+   * SNIFF order, not the click/select order. mediaList is the sniff-ordered array
+   * (background returns entries in detection order, and useMediaList preserves
+   * that order via replace(list.map(normalize))). Array.filter() keeps that order,
+   * so a selection of 4/6/1/2 (sniff order 1..6) is merged as 1/2/4/6. We do NOT
+   * sort by detectedAt here — it is optional and could be undefined for some
+   * entries, which would corrupt the sniff order.
+   */
+  const handleMergeDownload = useCallback((): void => {
+    // filter() preserves mediaList order = sniff order; no re-sort.
+    const audioItems = mediaList.filter(
+      (i) =>
+        selectedUrls.has(getMediaKey(i)) && isMergeableAudioFormat(i.format)
+    );
+    if (!audioItems.length) {
+      showToast(t('mergeDownloadNoAudio'));
+      return;
+    }
+    if (audioItems.length < 2) {
+      showToast(t('mergeDownloadNeedTwo'));
+      return;
+    }
+    void actions.mergeAndDownload(audioItems, tabIdRef.current).catch(() => {});
+  }, [mediaList, selectedUrls, showToast, t, actions]);
 
   const handleCopyUrl = useCallback(
     async (url: string): Promise<void> => {
@@ -1937,6 +1986,19 @@ export default function Popup({
                 >
                   <DownloadIconSvg />
                 </button>
+                {activeTab === 'audio' && (
+                  <button
+                    type="button"
+                    className={styles.iconBtn}
+                    onClick={() => void handleMergeDownload()}
+                    disabled={
+                      !selectedCount || actions.downloading || actions.merging
+                    }
+                    title={t('mergeDownload')}
+                  >
+                    <MergeIconSvg />
+                  </button>
+                )}
                 <span className={styles.toolbarDivider} />
                 <button
                   type="button"

@@ -10,11 +10,14 @@
 .audioWrap {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 6px;
+  width: 100%;
 }
 
 .spectrum {
   width: 100%;
+  max-width: 100%;
   height: 72px;
   display: block;
   border-radius: 6px;
@@ -33,7 +36,6 @@
   display: block;
 }
 
-// 压缩原生 audio 控件面板高度（Chrome / Edge 旧版 + 现代版）
 .audio::-webkit-media-controls-panel {
   height: 32px;
   padding: 0 6px;

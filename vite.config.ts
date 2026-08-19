@@ -147,6 +147,9 @@ export default defineConfig(({ mode }) => {
 
 			sourcemap: isDevelopment ? 'inline' : false,
 
+			// Disable modulepreload in the built HTML.
+			modulePreload: false,
+
 			minify: mode === 'production',
 
 			rollupOptions: {
