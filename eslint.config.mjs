@@ -28,7 +28,7 @@ export default [
 			'no-console': 'off',
 			'@typescript-eslint/no-use-before-define': 'warn',
 			'@typescript-eslint/no-explicit-any': 'warn',
-			// Disable due to resolver issues in ESM
+			'curly': ['error', 'all'],
 			'import-x/no-duplicates': 'off',
 		},
 	},
@@ -58,6 +58,7 @@ export default [
 			'react/jsx-props-no-spreading': 'off',
 			'react/react-in-jsx-scope': 'off',
 			'jsx-a11y/label-has-associated-control': 'off',
+			'jsx-a11y/media-has-caption': 'off',
 		},
 	},
 ];

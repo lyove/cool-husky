@@ -6,7 +6,6 @@ import type { MediaListItem } from './useMediaList';
 
 export type ActiveTab = 'all' | Exclude<MediaType, 'other'>;
 
-/** Streaming group (master + variants + separate audio tracks). */
 export interface StreamGroup {
   id: string;
   master: MediaListItem | undefined;
@@ -16,10 +15,8 @@ export interface StreamGroup {
   isBilibiliDash: boolean;
 }
 
-/** Flat list item: a regular entry or a stream-group card. */
 export type StreamFlatItem =
-  | { kind: 'item'; item: MediaListItem }
-  | { kind: 'group'; group: StreamGroup };
+  { kind: 'item'; item: MediaListItem } | { kind: 'group'; group: StreamGroup };
 
 export interface UseMediaFiltersOptions {
   mediaList: MediaListItem[];
@@ -85,6 +82,7 @@ export function useMediaFilters({
   const [searchError, setSearchError] = useState('');
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Debounced search with regex validation (120ms delay)
   useEffect(() => {
     const query = searchQuery.trim();
     if (useRegex && query) {
@@ -100,7 +98,9 @@ export function useMediaFilters({
       setRegexValid(true);
       setSearchError('');
     }
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+    }
     searchTimerRef.current = setTimeout(() => {
       setDebouncedSearchQuery(query);
       searchTimerRef.current = null;
@@ -109,17 +109,13 @@ export function useMediaFilters({
 
   useEffect(
     () => (): void => {
-      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+      }
     },
     []
   );
 
-  // Only byte-stream segments (.ts/.m4s chunk files that belong to a master
-  // playlist) count as "segments" here. Variants (alternative renditions of an
-  // HLS/DASH stream, e.g. 1080p vs 720p) are full media streams: hiding them
-  // makes grouped video items "appear then vanish" once paired into a group
-  // (Bilibili/Douyin separated tracks), so they must stay visible inside their
-  // stream-group card.
   const isSegment = (item: MediaListItem): boolean =>
     item.groupRole === 'segment';
 
@@ -128,15 +124,24 @@ export function useMediaFilters({
       return ['all', 'stream', 'video', 'audio', 'image', 'doc'];
     }
     const tabs: ActiveTab[] = ['all'];
-    if (settings.sniffingRules.streaming.enabled) tabs.push('stream');
-    if (settings.sniffingRules.video.enabled) tabs.push('video');
-    if (settings.sniffingRules.audio.enabled) tabs.push('audio');
-    if (settings.sniffingRules.image.enabled) tabs.push('image');
-    if (settings.sniffingRules.document.enabled) tabs.push('doc');
+    if (settings.sniffingRules.streaming.enabled) {
+      tabs.push('stream');
+    }
+    if (settings.sniffingRules.video.enabled) {
+      tabs.push('video');
+    }
+    if (settings.sniffingRules.audio.enabled) {
+      tabs.push('audio');
+    }
+    if (settings.sniffingRules.image.enabled) {
+      tabs.push('image');
+    }
+    if (settings.sniffingRules.document.enabled) {
+      tabs.push('doc');
+    }
     return tabs;
   }, [settings]);
 
-  // If the currently active tab becomes disabled, fall back to "all".
   useEffect(() => {
     if (activeTab !== 'all' && !enabledTabs.includes(activeTab)) {
       setActiveTab('all');
@@ -171,17 +176,15 @@ export function useMediaFilters({
     };
 
     for (const item of mediaList) {
-      if (settings?.hideStreamSegments && isSegment(item)) continue;
+      if (settings?.hideStreamSegments && isSegment(item)) {
+        continue;
+      }
       if (
         settings &&
-        !isMediaAllowed(
-          item.format,
-          settings,
-          item.category,
-          item.groupRole
-        )
-      )
+        !isMediaAllowed(item.format, settings, item.category, item.groupRole)
+      ) {
         continue;
+      }
       const type = getType(item.format, item.category, item.groupRole);
       all.push(item);
       byType[type].push(item);
@@ -189,9 +192,13 @@ export function useMediaFilters({
         isSegment(item) ||
         item.groupRole === 'audio' ||
         item.groupRole === 'variant';
-      if (!isGroupChild) counts.all++;
+      if (!isGroupChild) {
+        counts.all++;
+      }
       if (type === 'stream') {
-        if (!isGroupChild) counts.stream++;
+        if (!isGroupChild) {
+          counts.stream++;
+        }
       } else if (type !== 'other' && !isGroupChild) {
         counts[type]++;
       }
@@ -201,7 +208,9 @@ export function useMediaFilters({
 
   const compiledRegex = useMemo(() => {
     const query = debouncedSearchQuery;
-    if (!useRegex || !query || !regexValid) return null;
+    if (!useRegex || !query || !regexValid) {
+      return null;
+    }
     try {
       return new RegExp(query, 'i');
     } catch {
@@ -224,21 +233,25 @@ export function useMediaFilters({
       );
     }
     list = list.filter((item) => {
-      if (sizeFilter.min > 0 && (item.size ?? 0) < sizeFilter.min * 1024)
+      if (sizeFilter.min > 0 && (item.size ?? 0) < sizeFilter.min * 1024) {
         return false;
-      if (sizeFilter.max > 0 && (item.size ?? 0) > sizeFilter.max * 1024)
+      }
+      if (sizeFilter.max > 0 && (item.size ?? 0) > sizeFilter.max * 1024) {
         return false;
+      }
       if (activeTab === 'image') {
         if (
           dimensionFilter.minWidth > 0 &&
           (item.width ?? 0) < dimensionFilter.minWidth
-        )
+        ) {
           return false;
+        }
         if (
           dimensionFilter.minHeight > 0 &&
           (item.height ?? 0) < dimensionFilter.minHeight
-        )
+        ) {
           return false;
+        }
       }
       if (activeTab === 'video' && resolutionFilter !== 'any') {
         const height = Math.min(item.width ?? 0, item.height ?? 0);
@@ -250,8 +263,12 @@ export function useMediaFilters({
           '480p': 480,
           '360p': 360,
         };
-        if (resolutionFilter === 'sd') return height < 360;
-        if ((minimums[resolutionFilter] ?? 0) > height) return false;
+        if (resolutionFilter === 'sd') {
+          return height < 360;
+        }
+        if ((minimums[resolutionFilter] ?? 0) > height) {
+          return false;
+        }
       }
       return true;
     });
@@ -316,13 +333,8 @@ export function useMediaFilters({
     setSearchError('');
   };
 
-  /**
-   * Streaming groups: master/variant/audio sharing the same groupId collapse into one card.
-   * Ungrouped streams (no groupId/groupRole) are grouped by their own url.
-   */
+  // Builds stream groups: master + variants + audio tracks by groupId
   const groupedStreamList = useMemo<StreamGroup[]>(() => {
-    // Also collect standalone DASH audio tracks (groupRole 'audio', now typed
-    // as audio) so they attach to their stream group or form an audio-only group.
     const streamItems = [
       ...mediaCatalog.byType.stream,
       ...mediaCatalog.byType.audio.filter((i) => i.groupRole === 'audio'),
@@ -358,7 +370,9 @@ export function useMediaFilters({
         pendingAudio.push(item);
         continue;
       }
-      if (item.groupRole === 'segment') continue;
+      if (item.groupRole === 'segment') {
+        continue;
+      }
       const masterId =
         item.groupMasterId ||
         (item.groupRole === 'master' ? item.groupId : undefined);
@@ -367,12 +381,12 @@ export function useMediaFilters({
       if (item.groupRole === 'variant') {
         group.variants.push(item);
       } else {
-        // master or ungrouped stream
-        if (!group.master) group.master = item;
+        if (!group.master) {
+          group.master = item;
+        }
       }
     }
 
-    // Separate audio tracks (standalone DASH audio): attach to an existing group by groupId, otherwise form an audio-only group.
     for (const audio of pendingAudio) {
       if (audio.groupId && groupMap.has(audio.groupId)) {
         groupMap.get(audio.groupId)?.audioItems.push(audio);
@@ -385,7 +399,6 @@ export function useMediaFilters({
       }
     }
 
-    // Sort variants by bandwidth, descending
     for (const group of groups) {
       group.variants.sort(
         (a, b) => (b.variantBandwidth ?? 0) - (a.variantBandwidth ?? 0)
@@ -394,9 +407,6 @@ export function useMediaFilters({
     return groups;
   }, [mediaCatalog]);
 
-  /**
-   * Flat list (all tab): stream-group cards and regular entries sorted by detectedAt.
-   */
   const flatMediaList = useMemo<StreamFlatItem[]>(() => {
     const entries: StreamFlatItem[] = [];
     if (activeTab === 'all' || activeTab === 'stream') {
@@ -405,17 +415,16 @@ export function useMediaFilters({
       }
     }
     for (const item of mediaCatalog.all) {
-      if (getType(item.format, item.category, item.groupRole) === 'stream')
+      if (getType(item.format, item.category, item.groupRole) === 'stream') {
         continue;
-      // Group audio tracks are shown inside their stream group card. Skip them
-      // only when that card actually rendered them; if no card exists for an
-      // audio track (e.g. its video master got filtered out), fall back to an
-      // independent entry so audio never silently disappears from the list.
+      }
       if (item.groupRole === 'audio') {
         const inRenderedGroup = groupedStreamList.some((g) =>
           g.audioItems.some((a) => a.url === item.url)
         );
-        if (inRenderedGroup) continue;
+        if (inRenderedGroup) {
+          continue;
+        }
       }
       entries.push({ kind: 'item', item });
     }

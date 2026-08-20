@@ -24,11 +24,8 @@ export interface MediaEntry {
   width?: number;
   height?: number;
   duration?: number;
-  /** Page/API supplied poster, used when a stream itself has no thumbnail. */
   coverUrl?: string;
-  /** Page title when the resource was sniffed (shown in the list, avoids stale titles after navigation). */
   tabTitle?: string;
-  /** Live-stream flag (true when HTTP-FLV/MPEG-TS lacks Content-Length/Duration). */
   isLiveStream?: boolean;
 }
 
@@ -39,26 +36,14 @@ function tabKey(tabId: number) {
 const useSessionStorage =
   typeof browser !== 'undefined' && !!browser.storage?.session;
 
-/**
- * Writes are serialized through a promise chain. Fire-and-forget saveTabList
- * calls from addMedia can otherwise race: with several concurrent
- * storage.session.set() calls the browser may complete them out of order and a
- * stale snapshot overwrites a newer one, losing freshly sniffed entries.
- * Queuing guarantees the final stored state matches the last call, and every
- * write issued before the service worker is terminated has a chance to land.
- */
+// Serialize writes to avoid race conditions in session storage
 let writeChain: Promise<void> = Promise.resolve();
 function enqueueWrite(fn: () => Promise<void>): Promise<void> {
   writeChain = writeChain.then(fn).catch(() => {});
   return writeChain;
 }
 
-/**
- * Read merged session data. storage.session is the primary store (survives
- * service-worker restarts within a browser session); if it is unavailable,
- * empty or errored, fall back to the `coolhusky__session__` snapshot kept in
- * storage.local (also the Firefox path where storage.session is unsupported).
- */
+// Fallback to local storage snapshot when session storage unavailable
 const SESSION_SNAPSHOT_KEY = 'coolhusky__session__';
 
 async function getSessionData(): Promise<Record<string, any>> {
@@ -69,23 +54,16 @@ async function getSessionData(): Promise<Record<string, any>> {
       if (session && typeof session === 'object') {
         data = { ...session };
       }
-    } catch {
-      /* session storage unavailable — fall through to the local snapshot */
-    }
+    } catch {}
   }
   try {
     const local = await browser.storage.local.get(SESSION_SNAPSHOT_KEY);
     const localData = local[SESSION_SNAPSHOT_KEY] as
-      | Record<string, any>
-      | undefined;
+      Record<string, any> | undefined;
     if (localData && typeof localData === 'object') {
-      // Local entries override session ones (they are newer when session writes
-      // fell back to local).
       return { ...data, ...localData };
     }
-  } catch {
-    /* ignore */
-  }
+  } catch {}
   return data;
 }
 
@@ -94,11 +72,7 @@ async function setSessionData(data: Record<string, any>): Promise<void> {
     try {
       await browser.storage.session.set(data);
       return;
-    } catch {
-      // Session storage may be unavailable or quota-exceeded — persist the
-      // snapshot in the local fallback so a service-worker restart does not
-      // lose the list.
-    }
+    } catch {}
   }
   const existing = await browser.storage.local.get(SESSION_SNAPSHOT_KEY);
   const merged = {
@@ -117,8 +91,6 @@ async function removeSessionData(keys: string | string[]): Promise<void> {
       /* ignore */
     }
   }
-  // Also drop the keys from the local fallback snapshot, otherwise deleted
-  // tabs would resurrect from the local copy after a service-worker restart.
   try {
     const existing = await browser.storage.local.get(SESSION_SNAPSHOT_KEY);
     const data = (existing[SESSION_SNAPSHOT_KEY] as Record<string, any>) || {};
@@ -132,9 +104,7 @@ async function removeSessionData(keys: string | string[]): Promise<void> {
     if (changed) {
       await browser.storage.local.set({ [SESSION_SNAPSHOT_KEY]: data });
     }
-  } catch {
-    /* ignore */
-  }
+  } catch {}
 }
 
 export async function loadAllTabData(): Promise<
@@ -159,7 +129,6 @@ export async function loadAllTabData(): Promise<
               mediaMap.set(url, { format: entry });
             } else if (entry && typeof entry === 'object') {
               const e = entry as any;
-              // Keep grouping/task metadata across service-worker restarts.
               mediaMap.set(url, {
                 ...e,
                 format: e.format || 'm3u8',
@@ -180,8 +149,6 @@ export async function saveTabList(
   tabId: number,
   mediaMap: Map<string, MediaEntry>
 ) {
-  // Snapshot synchronously (call order = snapshot order), then serialize the
-  // actual writes through the chain to prevent out-of-order overwrites.
   const obj: Record<string, MediaEntry> = {};
   mediaMap.forEach((entry, url) => {
     obj[url] = entry;
@@ -189,7 +156,6 @@ export async function saveTabList(
   await enqueueWrite(() => setSessionData({ [tabKey(tabId)]: obj }));
 }
 
-/** Restore a single tab's snapshot from session storage. */
 export async function loadTabList(
   tabId: number
 ): Promise<Map<string, MediaEntry>> {
@@ -225,14 +191,6 @@ function pageUrlKey(tabId: number) {
   return `${PAGE_URL_PREFIX}${tabId}`;
 }
 
-/**
- * Persist each tab's current page URL. The in-memory `tabPageUrls` map in the
- * service worker is lost whenever the worker is evicted (MV3 idle shutdown);
- * without this, the next `tabs.onUpdated` loading event has no previous URL to
- * compare against and the same-site check fails, wiping the sniffed list on
- * e.g. Douyin modal open/close. Storing the URL lets the worker restore it on
- * wake-up so same-site navigations keep their media.
- */
 export async function saveTabPageUrl(
   tabId: number,
   url: string
@@ -240,7 +198,6 @@ export async function saveTabPageUrl(
   await enqueueWrite(() => setSessionData({ [pageUrlKey(tabId)]: url }));
 }
 
-/** Restore the persisted page URLs for all known tabs. */
 export async function loadTabPageUrls(): Promise<Map<number, string>> {
   const all = await getSessionData();
   const map = new Map<number, string>();

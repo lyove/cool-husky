@@ -25,8 +25,8 @@ const THEME_OPTIONS = [
 ] as const;
 
 const DENSITY_OPTIONS = [
-  { value: 'compact', labelKey: 'densityCompact' },
   { value: 'comfortable', labelKey: 'densityComfortable' },
+  { value: 'compact', labelKey: 'densityCompact' },
 ] as const;
 
 const OPEN_MODE_OPTIONS = [
@@ -111,15 +111,18 @@ const SettingsView: FC<SettingsViewProps> = ({
 
   useEffect(
     () => (): void => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
     },
     []
   );
 
-  /** Auto-save (300ms debounce), consistent with CoolHusky behavior */
   const autoSave = (): void => {
     const snapshot = draftRef.current;
-    if (!snapshot) return;
+    if (!snapshot) {
+      return;
+    }
     const domains = excludeTextRef.current
       .split(/[\n,]/)
       .map((s) =>
@@ -130,7 +133,9 @@ const SettingsView: FC<SettingsViewProps> = ({
       )
       .filter(Boolean);
     const patch: Partial<Settings> = { ...snapshot, excludeDomains: domains };
-    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
     debounceRef.current = setTimeout(() => {
       void onSave(patch).then(() => {
         setSaved(true);
@@ -140,7 +145,9 @@ const SettingsView: FC<SettingsViewProps> = ({
   };
 
   const patchDraft = (patch: Partial<Settings>): void => {
-    if (!draft) return;
+    if (!draft) {
+      return;
+    }
     const next = { ...draft, ...patch };
     draftRef.current = next;
     setDraft(next);
@@ -151,7 +158,9 @@ const SettingsView: FC<SettingsViewProps> = ({
     key: SniffingGroup,
     rulePatch: Partial<{ enabled: boolean; minSizeKB: number }>
   ): void => {
-    if (!draft) return;
+    if (!draft) {
+      return;
+    }
     const next = {
       ...draft,
       sniffingRules: {
@@ -174,13 +183,17 @@ const SettingsView: FC<SettingsViewProps> = ({
     const next = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as Settings;
     setDraft(next);
     setExcludeDomainsText('');
-    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
     await onSave({ ...next, excludeDomains: [] });
     setSaved(true);
     setTimeout(() => setSaved(false), 1200);
   };
 
-  if (!draft) return null;
+  if (!draft) {
+    return null;
+  }
 
   return (
     <div className={styles.settings}>

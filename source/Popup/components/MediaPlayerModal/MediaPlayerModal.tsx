@@ -72,7 +72,9 @@ const MediaPlayerModal: FC<MediaPlayerModalProps> = ({
       role="presentation"
       onClick={handleClose}
       onKeyDown={(e) => {
-        if (e.key === 'Escape') handleClose();
+        if (e.key === 'Escape') {
+          handleClose();
+        }
       }}
     >
       <div
@@ -81,7 +83,9 @@ const MediaPlayerModal: FC<MediaPlayerModalProps> = ({
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') handleClose();
+          if (e.key === 'Escape') {
+            handleClose();
+          }
         }}
       >
         <header className={styles.header}>

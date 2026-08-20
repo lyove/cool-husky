@@ -152,7 +152,31 @@
     "resetConfirm":{
         "message": "Haz clic de nuevo para confirmar el restablecimiento"
     },
-    "welcomeSubtitle":{
+    "welcome":{
+        "message": "Bienvenido"
+    },
+    "welcomeTitle":{
+        "message": "Bienvenido a CoolHusky"
+    },
+    "welcomeIntro":{
+        "message": "CoolHusky es un sniffer y descargador inteligente de medios para el navegador que te ayuda a capturar fácilmente recursos de vídeo, audio e imágenes desde páginas web.\n\nDetecta automáticamente los recursos multimedia de las páginas que visitas y los presenta en una lista clara. Puedes filtrar por tipo (streaming, vídeo, audio, imagen), buscar con precisión por formato y tamaño, e incluso descargar por lotes o copiar las URLs de los recursos con un clic.\n\nYa sea para el aprendizaje diario, archivo o creación de contenido, CoolHusky te ayuda a obtener los recursos multimedia que necesitas de forma más eficiente."
+    },
+    "welcomeFeaturesTitle":{
+        "message": "Características principales"
+    },
+    "featureAutoSniff":{
+        "message": "Detección automática: detecta recursos de vídeo, audio e imágenes en las páginas en tiempo real mientras navegas, sin acción manual."
+    },
+    "featureFilter":{
+        "message": "Filtrado inteligente: filtra con precisión por tipo, formato y tamaño para localizar rápidamente lo que buscas."
+    },
+    "featureBatchDownload":{
+        "message": "Descarga por lotes: descarga varios recursos a la vez para archivar eficientemente los materiales que necesitas."
+    },
+    "featureCopyUrl":{
+        "message": "Copia con un clic: copia fácilmente las URLs de los recursos para usarlas directamente en otras herramientas."
+    },
+"welcomeSubtitle":{
         "message": "Detector y Descargador Inteligente de Medios"
     },
     "tutorialTitle":{
@@ -250,12 +274,6 @@
     },
     "faq9A":{
         "message": "Algunos sitios web utilizan cifrado especial, protección DRM o técnicas de carga ofuscadas que impiden la captura de URLs multimedia. Los vídeos también pueden servirse desde iframes embebidos con restricciones de origen cruzado. Intenta actualizar la página y reproducir el vídeo primero para activar la detección."
-    },
-    "needMoreHelp":{
-        "message": "¿Necesitas más ayuda?"
-    },
-    "needMoreHelpDesc":{
-        "message": "Si el contenido anterior no resolvió tu problema, no dudes en obtener soporte a través de lo siguiente"
     },
     "subtitle":{
         "message": "Detección Inteligente, Descarga con Un Clic"

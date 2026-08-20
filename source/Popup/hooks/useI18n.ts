@@ -34,7 +34,9 @@ export function useI18n(): {
   useEffect(() => {
     let disposed = false;
     void loadAppearance().then(() => {
-      if (disposed) return;
+      if (disposed) {
+        return;
+      }
     });
     return (): void => {
       disposed = true;

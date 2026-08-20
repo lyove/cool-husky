@@ -4,8 +4,6 @@ import { t } from '../../utils/i18n';
 import {
   isAudioFormat,
   isImageFormat,
-  // isStreamFormat,
-  // isVideoDownloadFormat,
   getDownloadFilename,
   getBatchDownloadFilename,
   getMediaKey,
@@ -26,18 +24,14 @@ export interface DownloadOptions {
 function decodeProxyImage(data: string): BlobPart {
   const binary = atob(data);
   const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
   return bytes as unknown as BlobPart;
 }
 
 type ResourceKind = 'image' | 'audio' | 'document';
 
-/**
- * React media actions (mirrors the source-side App.vue download/record/copy logic):
- * - Live streams (flv/ts without size) are recorded in real time on the popup side instead of downloaded
- * - Batch downloads can create subdirectories named after the current tab title
- * - Protected-resource downloads: referrer fallback + content-type checks to avoid saving hotlink-protection errors
- */
 export function useMediaActions(onToast?: (message: string) => void): {
   downloadItem: (opts: DownloadOptions) => Promise<void>;
   copyUrl: (url: string) => Promise<boolean>;
@@ -70,7 +64,6 @@ export function useMediaActions(onToast?: (message: string) => void): {
     onToastRef.current?.(msg);
   }, []);
 
-  // Terminate all in-flight recordings when the component unmounts (source-side legacy: no stop entry after clearing the list / switching views)
   useEffect(() => {
     const recordings = flvRecordingRef.current;
     return (): void => {
@@ -79,7 +72,7 @@ export function useMediaActions(onToast?: (message: string) => void): {
     };
   }, []);
 
-  /** Protected resources (images/audio/documents) are fetched via the background proxy fetch, then downloaded by the browser */
+  // Downloads via background proxy fetch to bypass CORS/referrer restrictions
   const downloadProtectedResource = useCallback(
     async (
       url: string,
@@ -89,7 +82,6 @@ export function useMediaActions(onToast?: (message: string) => void): {
       tabId: number | undefined,
       resourceKind: ResourceKind = 'document'
     ): Promise<void> => {
-      // Referrer fallback: prefer request headers, then the current tab URL (source-side behavior)
       const tabUrl =
         tabId === undefined
           ? ''
@@ -99,7 +91,6 @@ export function useMediaActions(onToast?: (message: string) => void): {
           ? requestHeaders
           : undefined;
       const referrer = headers?.Referer || headers?.referer || tabUrl;
-      // 30s timeout fallback: gives the user clear feedback when hotlink-protected sites hang occasionally (source-side had no timeout)
       const FETCH_TIMEOUT_MS = 30_000;
       const response = (await Promise.race([
         browser.runtime.sendMessage({
@@ -128,7 +119,6 @@ export function useMediaActions(onToast?: (message: string) => void): {
         response.headers?.['content-type'] ||
         response.headers?.['Content-Type'] ||
         '';
-      // Hotlink-protected pages may return 200; never save HTML error pages / type-mismatched responses
       const normalizedType = contentType.toLowerCase();
       const typeMatches =
         resourceKind === 'image'
@@ -159,7 +149,9 @@ export function useMediaActions(onToast?: (message: string) => void): {
           saveAs: false,
         });
         const onChanged = (delta: any): void => {
-          if (delta.id !== id) return;
+          if (delta.id !== id) {
+            return;
+          }
           if (
             delta.state?.current === 'complete' ||
             delta.state?.current === 'interrupted'
@@ -177,7 +169,6 @@ export function useMediaActions(onToast?: (message: string) => void): {
     []
   );
 
-  /** Live streams (HTTP-FLV/MPEG-TS) recorded on the popup side: click again to stop */
   const toggleLiveRecording = useCallback(
     (item: MediaListItem): void => {
       const { url, format, requestHeaders } = item;
@@ -201,13 +192,18 @@ export function useMediaActions(onToast?: (message: string) => void): {
             headers,
             mode: 'cors',
           });
-          if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
+          if (!resp.ok || !resp.body) {
+            throw new Error(`HTTP ${resp.status}`);
+          }
           const reader = resp.body.getReader();
           for (;;) {
             const { done, value } = await reader.read();
-            if (done) break;
-            if (value) chunks.push(value);
-            // Safety cap: 500MB to avoid memory blow-up
+            if (done) {
+              break;
+            }
+            if (value) {
+              chunks.push(value);
+            }
             const totalBytes = chunks.reduce((s, c) => s + c.length, 0);
             if (totalBytes > 500 * 1024 * 1024) {
               showToast(
@@ -264,7 +260,9 @@ export function useMediaActions(onToast?: (message: string) => void): {
     async ({ item, tabId, filename }: DownloadOptions): Promise<void> => {
       const { url, format, requestHeaders, captureId, isLiveStream } = item;
       if (format === 'mse') {
-        if (!captureId) return;
+        if (!captureId) {
+          return;
+        }
         await browser.runtime.sendMessage({
           type: 'MSE_DOWNLOAD',
           captureId,
@@ -272,22 +270,11 @@ export function useMediaActions(onToast?: (message: string) => void): {
         });
         return;
       }
-      // Live streams (HTTP-FLV/MPEG-TS without size): recorded on the popup side, cannot open a download page
       if (isLiveStream && (format === 'flv' || format === 'ts')) {
         toggleLiveRecording(item);
         return;
       }
       const finalName = filename ?? getDownloadFilename(url, format);
-      // Opening the external downloader (OPEN_DOWNLOAD_PAGE) is not deployed yet; commented out for now
-      // if (isStreamFormat(format) || isVideoDownloadFormat(format)) {
-      //   await browser.runtime.sendMessage({
-      //     type: 'OPEN_DOWNLOAD_PAGE',
-      //     url,
-      //     format,
-      //     filename: finalName,
-      //     requestHeaders,
-      //   });
-      // } else
       if (isImageFormat(format)) {
         await downloadProtectedResource(
           url,
@@ -341,8 +328,9 @@ export function useMediaActions(onToast?: (message: string) => void): {
         const total = items.length;
         for (let i = 0; i < total; i++) {
           const item = items[i];
-          if (!item) continue;
-          // Live streams: record one by one
+          if (!item) {
+            continue;
+          }
           if (
             item.isLiveStream &&
             (item.format === 'flv' || item.format === 'ts')
@@ -365,15 +353,6 @@ export function useMediaActions(onToast?: (message: string) => void): {
     [downloadItem, toggleLiveRecording]
   );
 
-  /**
-   * Merge selected audio into a single WAV and download it.
-   *
-   * Ordering: `items` MUST already be in sniff order (the popup keeps mediaList
-   * order and filters by selection, which preserves the original detection
-   * sequence — e.g. sniff order 1..6, selecting 4/6/1/2 still merges as 1/2/4/6).
-   * Non-mergeable items (video/image/unsupported formats) are silently skipped;
-   * the caller validates the audio count and toasts the user.
-   */
   const mergeAndDownload = useCallback(
     async (items: MediaListItem[], tabId?: number): Promise<void> => {
       const mergeable: MergeableAudioItem[] = items

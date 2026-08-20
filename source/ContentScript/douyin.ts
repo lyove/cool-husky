@@ -10,9 +10,6 @@ import type {
   const announced = new Set<string>();
   let scheduled = false;
 
-  // ByteDance media CDNs — Douyin (domestic) plus TikTok (overseas). TikTok
-  // pages embed the same aweme-style playAddr/playUrl structures in SIGI_STATE,
-  // so the same parser feeds both platforms.
   const mediaUrlPattern =
     /(^|\.)(douyinvod|douyincdn|bytecdn|bytego|byteimg|bytedance|amemv|iesdouyin|snssdk|pstatp|toutiaovod|ixigua|tiktokcdn|tiktokcdn-us|tiktokcdn-eu|tiktokcdn-in|tiktokv|muscdn|musical|byteoversea)\.(com|cn|net|us|eu|in|gg|io|ly)$/i;
   const addressKeys = new Set([
@@ -26,11 +23,14 @@ import type {
   ]);
 
   const asHttpUrl = (value: unknown): string | undefined => {
-    if (typeof value !== 'string' || !value) return undefined;
+    if (typeof value !== 'string' || !value) {
+      return undefined;
+    }
     try {
       const url = new URL(value, location.href);
-      if (url.protocol !== 'https:' && url.protocol !== 'http:')
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') {
         return undefined;
+      }
       return url.href;
     } catch {
       return undefined;
@@ -50,17 +50,24 @@ import type {
   };
 
   function collectUrls(value: unknown, result: string[], depth = 0): void {
-    if (depth > 4 || result.length >= MAX_CANDIDATES) return;
+    if (depth > 4 || result.length >= MAX_CANDIDATES) {
+      return;
+    }
     const direct = asHttpUrl(value);
     if (direct) {
-      if (isMediaUrl(direct) && !result.includes(direct)) result.push(direct);
+      if (isMediaUrl(direct) && !result.includes(direct)) {
+        result.push(direct);
+      }
       return;
     }
     if (Array.isArray(value)) {
-      for (const child of value) collectUrls(child, result, depth + 1);
-    } else if (value && typeof value === 'object') {
-      for (const child of Object.values(value as Record<string, unknown>))
+      for (const child of value) {
         collectUrls(child, result, depth + 1);
+      }
+    } else if (value && typeof value === 'object') {
+      for (const child of Object.values(value as Record<string, unknown>)) {
+        collectUrls(child, result, depth + 1);
+      }
     }
   }
 
@@ -78,7 +85,9 @@ import type {
       getText(node.gear_name) ||
       getText(node.quality) ||
       getText(node.quality_name);
-    if (label) return label;
+    if (label) {
+      return label;
+    }
     const width = numberValue(node.width);
     const height = numberValue(node.height);
     return height ? `${height}p` : width ? `${width}px` : undefined;
@@ -89,15 +98,17 @@ import type {
     parentKey: string
   ): 'video' | 'audio' {
     const keys = `${parentKey} ${Object.keys(node).join(' ')}`.toLowerCase();
-    if (/audio|music|sound/.test(keys)) return 'audio';
+    if (/audio|music|sound/.test(keys)) {
+      return 'audio';
+    }
     return 'video';
   }
 
   function normalizeDuration(value: unknown): number | undefined {
     const duration = numberValue(value);
-    if (!duration) return undefined;
-    // Douyin page payloads normally use milliseconds; retain seconds when
-    // the source already supplies a short, human-scale duration.
+    if (!duration) {
+      return undefined;
+    }
     return duration > 1_000 ? duration / 1_000 : duration;
   }
 
@@ -111,17 +122,22 @@ import type {
         typeof value !== 'object' ||
         seen.has(value) ||
         visited++ >= MAX_OBJECTS
-      )
+      ) {
         return;
+      }
       seen.add(value);
       if (Array.isArray(value)) {
-        for (const child of value) visit(child, parentKey);
+        for (const child of value) {
+          visit(child, parentKey);
+        }
         return;
       }
       const node = value as Record<string, unknown>;
       const urls: string[] = [];
       for (const [key, child] of Object.entries(node)) {
-        if (addressKeys.has(key.toLowerCase())) collectUrls(child, urls);
+        if (addressKeys.has(key.toLowerCase())) {
+          collectUrls(child, urls);
+        }
       }
       if (
         urls.length &&
@@ -129,7 +145,9 @@ import type {
           Object.keys(node).some((key) => addressKeys.has(key.toLowerCase())))
       ) {
         for (const url of urls) {
-          if (candidates.size >= MAX_CANDIDATES) break;
+          if (candidates.size >= MAX_CANDIDATES) {
+            break;
+          }
           candidates.set(url, {
             url,
             format: /\.m3u8(?:[?#]|$)/i.test(url)
@@ -146,8 +164,9 @@ import type {
           });
         }
       }
-      for (const [key, child] of Object.entries(node))
+      for (const [key, child] of Object.entries(node)) {
         visit(child, key.toLowerCase());
+      }
     };
     visit(root);
     return [...candidates.values()];
@@ -155,7 +174,9 @@ import type {
 
   function parseJsonScript(script: HTMLScriptElement): unknown | undefined {
     const raw = script.textContent?.trim();
-    if (!raw || raw.length > 4_000_000) return undefined;
+    if (!raw || raw.length > 4_000_000) {
+      return undefined;
+    }
     const attempts = [raw];
     try {
       attempts.push(decodeURIComponent(raw));
@@ -163,7 +184,9 @@ import type {
     for (const text of attempts) {
       try {
         const parsed = JSON.parse(text);
-        if (typeof parsed !== 'string') return parsed;
+        if (typeof parsed !== 'string') {
+          return parsed;
+        }
         try {
           return JSON.parse(parsed);
         } catch {
@@ -180,7 +203,9 @@ import type {
       'script[type="application/json"], script[id="RENDER_DATA"], script[id="SIGI_STATE"], script[id="__NEXT_DATA__"]'
     )) {
       const parsed = parseJsonScript(script);
-      if (parsed) roots.push(parsed);
+      if (parsed) {
+        roots.push(parsed);
+      }
     }
     const candidates = roots.flatMap(collectCandidates);
     const uniqueCandidates = [
@@ -188,7 +213,9 @@ import type {
         candidates.map((candidate) => [candidate.url, candidate])
       ).values(),
     ];
-    if (!uniqueCandidates.length) return undefined;
+    if (!uniqueCandidates.length) {
+      return undefined;
+    }
 
     const title =
       document.querySelector<HTMLMetaElement>('meta[property="og:title"]')
@@ -219,21 +246,29 @@ import type {
   function announce(): void {
     scheduled = false;
     const task = extractTask();
-    if (!task) return;
+    if (!task) {
+      return;
+    }
     const signature = `${task.key}:${task.candidates
       .map((item) => item.url)
       .sort()
       .join('|')}`;
-    if (announced.has(signature)) return;
+    if (announced.has(signature)) {
+      return;
+    }
     announced.add(signature);
-    if (announced.size > 30) announced.clear();
+    if (announced.size > 30) {
+      announced.clear();
+    }
     browser.runtime
       .sendMessage({ type: 'PLATFORM_MEDIA_FOUND', task })
       .catch(() => {});
   }
 
   function schedule(): void {
-    if (scheduled) return;
+    if (scheduled) {
+      return;
+    }
     scheduled = true;
     setTimeout(announce, 300);
   }

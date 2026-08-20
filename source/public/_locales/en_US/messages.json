@@ -152,7 +152,31 @@
     "resetConfirm":{
         "message": "Click again to confirm reset"
     },
-    "welcomeSubtitle":{
+    "welcome":{
+        "message": "Welcome"
+    },
+    "welcomeTitle":{
+        "message": "Welcome to CoolHusky"
+    },
+    "welcomeIntro":{
+        "message": "CoolHusky is a smart browser media sniffer and downloader that helps you easily capture video, audio, and image resources from web pages.\n\nIt automatically detects media resources on the pages you browse and presents them in a clear list. You can filter by type (streaming, video, audio, image), search precisely by format and size, and even batch download or copy resource URLs with one click.\n\nWhether for daily learning, archiving, or content creation, CoolHusky helps you obtain the media resources you need more efficiently."
+    },
+    "welcomeFeaturesTitle":{
+        "message": "Key Features"
+    },
+    "featureAutoSniff":{
+        "message": "Auto Sniffing: Detects video, audio, and image resources on web pages in real time as you browse — no manual action needed."
+    },
+    "featureFilter":{
+        "message": "Smart Filtering: Precisely filter by type, format, and size to quickly locate the resources you want."
+    },
+    "featureBatchDownload":{
+        "message": "Batch Download: Download multiple resources at once to efficiently archive the materials you need."
+    },
+    "featureCopyUrl":{
+        "message": "One-Click Copy: Easily copy resource URLs for direct use in other tools."
+    },
+"welcomeSubtitle":{
         "message": "Smart Media Sniffer & Downloader"
     },
     "tutorialTitle":{
@@ -250,12 +274,6 @@
     },
     "faq9A":{
         "message": "Some websites use special encryption, DRM protection, or obfuscated loading techniques that prevent media URL capture. Videos may also be served from embedded iframes with cross-origin restrictions. Try refreshing the page and playing the video first to trigger detection."
-    },
-    "needMoreHelp":{
-        "message": "Need more help?"
-    },
-    "needMoreHelpDesc":{
-        "message": "If the above content didn't solve your problem, feel free to get support through the following"
     },
     "subtitle":{
         "message": "Smart Sniff, One-Click Download"

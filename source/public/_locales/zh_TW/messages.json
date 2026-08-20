@@ -152,7 +152,31 @@
     "resetConfirm":{
         "message": "再次點擊確認重置"
     },
-    "welcomeSubtitle":{
+    "welcome":{
+        "message": "歡迎"
+    },
+    "welcomeTitle":{
+        "message": "歡迎使用 CoolHusky"
+    },
+    "welcomeIntro":{
+        "message": "CoolHusky（酷哈）是一款智慧的瀏覽器媒體嗅探與下載工具，幫你輕鬆擷取網頁中的影片、音訊和圖片資源。\n\n它會在你瀏覽網頁時自動偵測頁面上的媒體資源，並以清晰的清單呈現。你可以依類型（串流媒體、影片、音訊、圖片）篩選，也可以依格式和大小精確查找，還支援批次下載與一鍵複製資源網址。\n\n無論是日常學習、資料留存還是內容創作，CoolHusky 都能讓你更高效地取得所需的媒體資源。"
+    },
+    "welcomeFeaturesTitle":{
+        "message": "核心特性"
+    },
+    "featureAutoSniff":{
+        "message": "自動嗅探：瀏覽網頁時即時偵測頁面中的影片、音訊和圖片資源，無需手動操作。"
+    },
+    "featureFilter":{
+        "message": "智慧篩選：依類型、格式和大小精確過濾，快速定位你想要的資源。"
+    },
+    "featureBatchDownload":{
+        "message": "批次下載：支援一次下載多個資源，高效留存所需素材。"
+    },
+    "featureCopyUrl":{
+        "message": "一鍵複製：輕鬆複製資源網址，方便在其他工具中直接使用。"
+    },
+"welcomeSubtitle":{
         "message": "智慧媒體嗅探與下載工具"
     },
     "tutorialTitle":{
@@ -250,12 +274,6 @@
     },
     "faq9A":{
         "message": "某些網站使用了特殊的加密、DRM 保護或混淆載入技術，導致無法擷取媒體 URL。影片也可能透過帶有跨域限制的嵌入式 iframe 提供。請嘗試重新整理頁面並先播放影片來觸發偵測。"
-    },
-    "needMoreHelp":{
-        "message": "需要更多幫助？"
-    },
-    "needMoreHelpDesc":{
-        "message": "如果以上內容未能解決你的問題，歡迎透過以下方式取得支援"
     },
     "subtitle":{
         "message": "智慧嗅探，一鍵下載"

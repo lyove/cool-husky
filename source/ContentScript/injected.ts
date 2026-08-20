@@ -2,17 +2,19 @@
   const sentUrls = new Set<string>();
   const sentBilibiliTasks = new Set<string>();
   const sentPlatformTasks = new Set<string>();
-  // data: URL embedded image sniffing (off by default; enabled after COOLHUSKY_DATA_IMAGES_ENABLE)
   let dataImagesEnabled = false;
   let dataImageMinBytes = 50 * 1024;
 
-  // ── data: URL utilities (inlined because main-world injection cannot import) ──────
   const DATA_IMAGE_PREFIX_RE =
     /^data:image\/([a-z0-9.+-]+)\s*(?:;([^,]*))?\s*,/i;
   function detectDataImageUrl(url: string): string | null {
-    if (!url || !url.startsWith('data:')) return null;
+    if (!url || !url.startsWith('data:')) {
+      return null;
+    }
     const m = url.match(DATA_IMAGE_PREFIX_RE);
-    if (!m) return null;
+    if (!m) {
+      return null;
+    }
     const sub = m[1]!.toLowerCase();
     const map: Record<string, string> = {
       png: 'png',
@@ -31,9 +33,13 @@
     return map[sub] || null;
   }
   function estimateDataUrlBytes(url: string): number {
-    if (!url || !url.startsWith('data:')) return 0;
+    if (!url || !url.startsWith('data:')) {
+      return 0;
+    }
     const i = url.indexOf(',');
-    if (i < 0) return 0;
+    if (i < 0) {
+      return 0;
+    }
     const meta = url.slice(0, i);
     const payload = url.slice(i + 1);
     if (meta.includes('base64')) {
@@ -49,27 +55,16 @@
   }
 
   const isBilibiliPage = /(^|\.)bilibili\.com$/i.test(location.hostname);
-  // YouTube is intentionally excluded from sniffing. Keep this guard at the
-  // common entry point so generic Fetch/XHR/DOM detection cannot report it.
   const isYouTubePage = /(^|\.)(youtube\.com|youtu\.be)$/i.test(
     location.hostname
   );
-  // Only pages that actually host a Bilibili player may establish a fallback
-  // primary playurl.  On feeds/search pages every playurl is normally a
-  // hover-card preview, so accepting the first one produces a cover-less
-  // pseudo main-video card.
   function isBilibiliWatchPage(): boolean {
-    // This script survives Bilibili's SPA navigation.  Do not cache the
-    // pathname at injection time, otherwise the decision is made for the
-    // previous page after the user switches videos or autoplay advances.
     return /^\/(?:video\/|bangumi\/play\/|list\/|festival\/play\/)/i.test(
       location.pathname
     );
   }
 
   function getBilibiliRouteKey(): string {
-    // Ignore tracking parameters, but retain identifiers that can select a
-    // different item without changing /video/BV... (notably multi-part `p`).
     const params = new URLSearchParams(location.search);
     const identity = ['p', 'cid', 'ep_id']
       .map((name) => {
@@ -81,10 +76,6 @@
     return identity ? `${location.pathname}?${identity}` : location.pathname;
   }
 
-  // Bilibili's SPA router can leave __INITIAL_STATE__ pointing at the
-  // previous video after an autoplay/related-video transition.  Cache the
-  // cid resolved from the *current URL* so ownership checks never depend on
-  // that stale page object.
   interface BilibiliRouteMeta {
     cid: string;
     coverUrl?: string;
@@ -96,7 +87,9 @@
   function getBilibiliPageCid(): string | undefined {
     try {
       const resolvedCid = bilibiliRouteMeta.get(getBilibiliRouteKey())?.cid;
-      if (resolvedCid) return resolvedCid;
+      if (resolvedCid) {
+        return resolvedCid;
+      }
       const state = (window as any).__INITIAL_STATE__;
       const part = Number(new URLSearchParams(location.search).get('p') || 1);
       const partCid = state?.videoData?.pages?.[Math.max(0, part - 1)]?.cid;
@@ -109,8 +102,9 @@
         state?.cid,
       ];
       for (const value of candidates) {
-        if (value !== undefined && value !== null && String(value))
+        if (value !== undefined && value !== null && String(value)) {
           return String(value);
+        }
       }
     } catch {}
     return undefined;
@@ -121,26 +115,29 @@
   ): Promise<void> {
     try {
       const match = /\/video\/(BV[\w]+)/i.exec(location.pathname);
-      if (!match) return;
+      if (!match) {
+        return;
+      }
       const part = Math.max(
         1,
         Number(new URLSearchParams(location.search).get('p') || 1)
       );
-      // Use the page's native fetch rather than an extension request: this is
-      // a same-origin public page API and carries the same session context as
-      // the player itself.  It runs once per actual route change.
       const response = await originalFetch(
         `${location.origin}/x/web-interface/view?bvid=${encodeURIComponent(match[1]!)}`,
         {
           credentials: 'same-origin',
         }
       );
-      if (!response.ok || routeKey !== getBilibiliRouteKey()) return;
+      if (!response.ok || routeKey !== getBilibiliRouteKey()) {
+        return;
+      }
       const json = await response.json();
       const data = json?.data;
       const page = data?.pages?.[part - 1];
       const cid = page?.cid || data?.cid;
-      if (cid === undefined || cid === null || !String(cid)) return;
+      if (cid === undefined || cid === null || !String(cid)) {
+        return;
+      }
       const rawCover = page?.first_frame || data?.pic;
       let coverUrl: string | undefined;
       if (typeof rawCover === 'string' && rawCover) {
@@ -159,21 +156,10 @@
       flushPendingBilibiliPlayurls();
     } catch {}
   }
-  // The page's embedded playinfo identifies the actual video being watched.
-  // Hover cards request their own playurl payloads, which must not become
-  // downloadable stream groups for the current page.
   let primaryBilibiliTaskKey: string | undefined;
-  // __playinfo__ is reliable for the initial document only. After Bilibili's
-  // SPA navigates it commonly remains the previous video's payload even when
-  // the title, cover and URL have already changed.
+  // __playinfo__ unreliable post-SPA
   let hasBilibiliSpaNavigated = false;
-  // A route transition briefly leaves window.__playinfo__ pointing at the
-  // previous video.  While waiting for the new page state, never let that
-  // stale object establish a new primary stream.
   let awaitingBilibiliPageInfo = false;
-  // A player response can arrive a few hundred milliseconds before Bilibili
-  // updates __INITIAL_STATE__ during SPA navigation.  Keep it briefly instead
-  // of mistaking it for a hover-preview response and dropping the new video.
   const pendingBilibiliPlayurls = new Map<
     string,
     {
@@ -208,33 +194,31 @@
 
   function flushPendingBilibiliPlayurls(): void {
     const currentCid = getBilibiliPageCid();
-    if (!currentCid) return;
+    if (!currentCid) {
+      return;
+    }
     for (const [pendingKey, entry] of pendingBilibiliPlayurls) {
       const data = entry.json?.data ?? entry.json?.result ?? entry.json;
       const responseKey =
         getBilibiliRequestCid(entry.sourceUrl) ||
         getBilibiliTaskKey(data, entry.sourceUrl);
-      if (responseKey !== currentCid) continue;
+      if (responseKey !== currentCid) {
+        continue;
+      }
       pendingBilibiliPlayurls.delete(pendingKey);
-      // The player may request/receive the next video before pushState updates
-      // location. CID, rather than the route observed at request time, is the
-      // reliable ownership key.
       parseBilibiliPlayurl(entry.json, entry.sourceUrl, false);
     }
   }
 
   function getBilibiliSubtitleFormat(url: string): string | null {
     const path = url.toLowerCase().split(/[?#]/, 1)[0]!;
-    if (/\.(vtt|srt|ass|ssa)$/.test(path))
+    if (/\.(vtt|srt|ass|ssa)$/.test(path)) {
       return path.slice(path.lastIndexOf('.') + 1);
-    // Bilibili player APIs frequently contain "subtitle" or "caption" in
-    // their path, but return a protobuf subtitle *catalog* rather than a text
-    // subtitle file.  Naming that response .vtt produces unreadable garbage
-    // such as the captured `view.vtt`.  Do not infer a text format from an API
-    // name: only a genuine subtitle-file extension is safe to download.
+    }
     return null;
   }
 
+  // Per-site URL-to-format rules for streaming platforms
   const SITE_RULES: Array<{
     test: (url: string, hostname: string) => boolean;
     format: string | ((url: string) => string);
@@ -261,7 +245,6 @@
         (url.includes('.m3u8') || url.includes('.mpd')),
       format: (url: string) => (url.includes('.mpd') ? 'mpd' : 'm3u8'),
     },
-    // Douyin live: HTTP-FLV stream, URLs often lack a .flv extension; fetch the stream
     {
       test: (url, hostname) =>
         (hostname.includes('live.douyin.com') ||
@@ -270,8 +253,6 @@
         (url.includes('/flv') || url.includes('.flv') || url.includes('live')),
       format: 'flv',
     },
-    // Douyin/TikTok (ByteDance) short-video CDN: URLs lack extensions, content-type is usually octet-stream
-    // Fall back to mp4 (the background webRequest corrects via content-type)
     {
       test: (url, hostname) =>
         /\.(douyinvod|douyinpic|douyincdn|amemv|iesdouyin|snssdk|bytecdn|byteimg|bytego|bytedns|byteoss|bytedance|pstatp|toutiaovod|ixigua|tiktokcdn|tiktokcdn-us|tiktokcdn-eu|tiktokcdn-in|tiktokv|muscdn|musical|byteoversea)\.(?:com|cn|net|us|eu|in|gg|io|ly)\b/i.test(
@@ -280,8 +261,9 @@
         !url.includes('.m3u8') &&
         !url.includes('.mpd'),
       format: (url: string) => {
-        // A URL containing an flv marker is treated as a live stream
-        if (/\.flv|\/flv|live/i.test(url)) return 'flv';
+        if (/\.flv|\/flv|live/i.test(url)) {
+          return 'flv';
+        }
         return 'mp4';
       },
     },
@@ -295,16 +277,15 @@
       return null;
     }
     for (const rule of SITE_RULES) {
-      if (rule.test(url, hostname))
+      if (rule.test(url, hostname)) {
         return typeof rule.format === 'function'
           ? rule.format(url)
           : rule.format;
+      }
     }
     return null;
   }
 
-  // Precompiled regex: one scan completes extension recognition, replacing the previous N indexOf linear lookups
-  // Order is "most specific first": m3u8 must match before m3u, so .m3u8 isn't truncated to m3u
   const EXT_REGEX =
     /\.(m3u8|m3u|mpd|mp4|webm|mkv|flv|mov|avi|mp3|aac|flac|ogg|wav)(?:[?#\/]|$)/i;
   const EXT_TO_FMT: Record<string, string> = {
@@ -323,28 +304,32 @@
     ogg: 'ogg',
     wav: 'wav',
   };
-  // Quick exclusion of segment extensions (single regex, avoiding N scans of some() + hasExtension)
   const EXCLUDED_EXT_REGEX = /\.(m4s|m4f|m4i|cmfv|cmfa|cmft|ts)(?:[?#\/]|$)/i;
 
   function getFormatFromUrl(url: string): string | null {
-    // Segment-extension short-circuit: exclude before recognizing, so .m4s etc. aren't misjudged by EXT_REGEX
-    if (EXCLUDED_EXT_REGEX.test(url)) return null;
+    if (EXCLUDED_EXT_REGEX.test(url)) {
+      return null;
+    }
     const m = EXT_REGEX.exec(url);
-    if (m) return EXT_TO_FMT[m[1]!.toLowerCase()] ?? null;
+    if (m) {
+      return EXT_TO_FMT[m[1]!.toLowerCase()] ?? null;
+    }
     return detectSiteFormat(url);
   }
 
+  // Dedup set with eviction: oldest 1000 entries pruned at 5000 cap
   function send(url: string, format: string) {
-    if (sentUrls.has(url)) return;
+    if (sentUrls.has(url)) {
+      return;
+    }
     sentUrls.add(url);
-    // When the cap is exceeded, evict the oldest batch instead of clearing everything.
-    // A full clear would re-post the same URLs within a short window, and background would
-    // addMedia/broadcast them again, causing UI jitter.
     if (sentUrls.size > 5000) {
       const it = sentUrls.values();
       for (let i = 0; i < 1000; i++) {
         const v = it.next();
-        if (v.done) break;
+        if (v.done) {
+          break;
+        }
         sentUrls.delete(v.value);
       }
     }
@@ -353,20 +338,32 @@
 
   function tryDetect(url: unknown) {
     try {
-      if (isYouTubePage) return;
+      if (isYouTubePage) {
+        return;
+      }
       let urlStr: string | null = null;
-      if (typeof url === 'string') urlStr = url;
-      else if (url instanceof URL) urlStr = url.toString();
-      else if (url instanceof Request) urlStr = url.url;
-      if (!urlStr) return;
-      // data: URL embedded image (only handled when the switch is on)
+      if (typeof url === 'string') {
+        urlStr = url;
+      } else if (url instanceof URL) {
+        urlStr = url.toString();
+      } else if (url instanceof Request) {
+        urlStr = url.url;
+      }
+      if (!urlStr) {
+        return;
+      }
       if (urlStr.startsWith('data:')) {
-        if (!dataImagesEnabled) return;
+        if (!dataImagesEnabled) {
+          return;
+        }
         const fmt = detectDataImageUrl(urlStr);
-        if (!fmt) return;
+        if (!fmt) {
+          return;
+        }
         const bytes = estimateDataUrlBytes(urlStr);
-        if (bytes < dataImageMinBytes) return;
-        // Use a content hash as the key, avoiding very long data URLs from being duplicated in sentUrls
+        if (bytes < dataImageMinBytes) {
+          return;
+        }
         let key: string;
         if (urlStr.length <= 200) {
           key = urlStr;
@@ -377,13 +374,17 @@
           }
           key = `data:${fmt}:${urlStr.length}:${h}`;
         }
-        if (sentUrls.has(key)) return;
+        if (sentUrls.has(key)) {
+          return;
+        }
         sentUrls.add(key);
         if (sentUrls.size > 5000) {
           const it = sentUrls.values();
           for (let i = 0; i < 1000; i++) {
             const v = it.next();
-            if (v.done) break;
+            if (v.done) {
+              break;
+            }
             sentUrls.delete(v.value);
           }
         }
@@ -400,24 +401,20 @@
           return;
         }
       }
-      // Bilibili video/audio tracks are obtained from playurl below. Do not
-      // process every player/API request; only retain actual subtitle files.
       if (isBilibiliPage) {
         const subtitleFormat = getBilibiliSubtitleFormat(urlStr);
-        if (subtitleFormat) send(urlStr, subtitleFormat);
+        if (subtitleFormat) {
+          send(urlStr, subtitleFormat);
+        }
         return;
       }
       const fmt = getFormatFromUrl(urlStr);
-      if (fmt) send(urlStr, fmt);
+      if (fmt) {
+        send(urlStr, fmt);
+      }
     } catch {}
   }
 
-  // ────────────────────────────────────────────────────────────────────
-  // MediaSource proxy (following cat-catch's proxyMediaSourceMethods)
-  // Intercepts addSourceBuffer + appendBuffer, buffering each MSE data stream in memory,
-  // and notifies the popup of downloadable MSE streams at endOfStream (metadata only; data stays in page memory).
-  // Inactive by default; the proxy is installed only after receiving COOLHUSKY_MSE_ENABLE.
-  // ────────────────────────────────────────────────────────────────────
   interface MseTrack {
     mimeType: string;
     buffers: ArrayBuffer[];
@@ -440,8 +437,12 @@
 
   void formatBytes;
   function formatBytes(b: number): string {
-    if (b < 1024 * 1024) return (b / 1024).toFixed(1) + 'KB';
-    if (b < 1024 * 1024 * 1024) return (b / 1024 / 1024).toFixed(1) + 'MB';
+    if (b < 1024 * 1024) {
+      return (b / 1024).toFixed(1) + 'KB';
+    }
+    if (b < 1024 * 1024 * 1024) {
+      return (b / 1024 / 1024).toFixed(1) + 'MB';
+    }
     return (b / 1024 / 1024 / 1024).toFixed(1) + 'GB';
   }
 
@@ -459,9 +460,14 @@
     );
   }
 
+  // Proxy MediaSource.addSourceBuffer/appendBuffer to capture MSE data
   function installMseProxy() {
-    if (mseProxyInstalled) return;
-    if (typeof MediaSource === 'undefined') return;
+    if (mseProxyInstalled) {
+      return;
+    }
+    if (typeof MediaSource === 'undefined') {
+      return;
+    }
     mseProxyInstalled = true;
 
     const _addSourceBuffer = MediaSource.prototype.addSourceBuffer;
@@ -495,7 +501,9 @@
               Reflect.apply(abTarget, sb, abArgs);
               try {
                 const buf = abArgs[0];
-                if (!buf) return;
+                if (!buf) {
+                  return;
+                }
                 const srcArray = ArrayBuffer.isView(buf)
                   ? new Uint8Array(
                       (buf as ArrayBufferView).buffer as ArrayBuffer,
@@ -539,9 +547,13 @@
         Reflect.apply(target, ms, args);
         try {
           const captureId = mseCaptureIds.get(ms);
-          if (!captureId) return;
+          if (!captureId) {
+            return;
+          }
           const capture = mseCaptures.get(captureId);
-          if (!capture) return;
+          if (!capture) {
+            return;
+          }
           capture.complete = true;
           capture.title = document.title;
           clearTimeout((capture as any)._notifyTimer);
@@ -552,7 +564,9 @@
   }
 
   window.addEventListener('message', (event) => {
-    if (event.source !== window || !event.data) return;
+    if (event.source !== window || !event.data) {
+      return;
+    }
     if (event.data.type === 'COOLHUSKY_MSE_ENABLE') {
       if (event.data.enabled !== false) {
         installMseProxy();
@@ -569,26 +583,31 @@
     }
   });
 
-  // Handle download requests in the page via postMessage
   window.addEventListener('message', (event) => {
-    if (event.source !== window || !event.data) return;
-    if (event.data.type !== 'COOLHUSKY_MSE_DOWNLOAD_REQUEST') return;
+    if (event.source !== window || !event.data) {
+      return;
+    }
+    if (event.data.type !== 'COOLHUSKY_MSE_DOWNLOAD_REQUEST') {
+      return;
+    }
     const { captureId } = event.data as { captureId: string };
     const port = event.ports?.[0];
     const capture = mseCaptures.get(captureId);
-    if (!capture || !port) return;
+    if (!capture || !port) {
+      return;
+    }
     try {
-      // Serialize: send each track's buffers array and mimeType to the content script
       const tracks = capture.tracks.map((t) => {
         return {
           mimeType: t.mimeType,
           buffers: t.buffers,
         };
       });
-      // Collect all transferable buffers (zero-copy transfer)
       const transferList: ArrayBuffer[] = [];
       for (const t of tracks) {
-        for (const b of t.buffers) transferList.push(b);
+        for (const b of t.buffers) {
+          transferList.push(b);
+        }
       }
       port.postMessage(
         {
@@ -608,22 +627,23 @@
     }
   });
 
-  // ── Bilibili-specific parsing ────────────────────────────────────────────────────
-
   function getBilibiliTaskKey(data: any, sourceUrl?: string): string {
     const responseCid = data?.cid;
     if (
       responseCid !== undefined &&
       responseCid !== null &&
       String(responseCid)
-    )
+    ) {
       return String(responseCid);
+    }
     try {
       const params = new URL(sourceUrl || location.href, location.href)
         .searchParams;
       for (const name of ['cid', 'ep_id', 'aid', 'avid', 'bvid', 'season_id']) {
         const value = params.get(name);
-        if (value) return `${name}_${value}`;
+        if (value) {
+          return `${name}_${value}`;
+        }
       }
     } catch {}
     return location.pathname;
@@ -640,6 +660,7 @@
     }
   }
 
+  // Parse Bilibili playurl JSON: DASH streams or legacy durl segments
   function parseBilibiliPlayurl(
     json: any,
     sourceUrl?: string,
@@ -647,12 +668,13 @@
     _requestRouteKey?: string
   ): void {
     try {
-      // Do not reject a response merely because the route changed after its
-      // request began. Bilibili commonly preloads the next main video before
-      // pushState. Ownership is verified below using the current page CID.
       const data = json?.data ?? json?.result ?? json;
-      if (!data) return;
-      if (!isPagePlayinfo && !isBilibiliWatchPage()) return;
+      if (!data) {
+        return;
+      }
+      if (!isPagePlayinfo && !isBilibiliWatchPage()) {
+        return;
+      }
 
       if (data.dash) {
         const videos: any[] = data.dash.video || [];
@@ -677,11 +699,7 @@
               127: '8K',
             }) as Record<number, string>
           )[id] || `${id}P`;
-        // Standard tracks first, sorted by bandwidth desc: the preferred audio
-        // (audioOptions[0] in the background) must be a track the browser can
-        // actually decode and should match the video quality. Dolby (E-AC-3)
-        // and Hi-Res (FLAC) stay in the list as selectable alternatives but
-        // must never be picked first - Chrome <audio> cannot decode E-AC-3.
+        // dolby/Hi-Res never first
         const standardAudios = audios
           .map((s: any) => {
             return { ...s, _label: `标准音质 ${s.id || ''}`.trim() };
@@ -702,14 +720,17 @@
         const audioStreams = [...standardAudios, ...specialAudios];
         const codecName = (codecs: unknown): string => {
           const codec = String(codecs || '').toLowerCase();
-          if (codec.startsWith('avc')) return 'H.264';
-          if (codec.startsWith('hev') || codec.startsWith('hvc'))
+          if (codec.startsWith('avc')) {
+            return 'H.264';
+          }
+          if (codec.startsWith('hev') || codec.startsWith('hvc')) {
             return 'H.265';
-          if (codec.startsWith('av01')) return 'AV1';
+          }
+          if (codec.startsWith('av01')) {
+            return 'AV1';
+          }
           return codec ? codec.toUpperCase() : '';
         };
-        // Keep the highest-bandwidth CDN representation for each quality and
-        // codec, while preserving meaningful codec alternatives.
         const bestVideos = new Map<string, any>();
         for (const stream of videos.filter((s: any) => !!toUrl(s))) {
           const key = `${stream.id || 0}:${codecName(stream.codecs)}`;
@@ -717,20 +738,19 @@
           if (
             !current ||
             Number(stream.bandwidth || 0) > Number(current.bandwidth || 0)
-          )
+          ) {
             bestVideos.set(key, stream);
+          }
         }
         const videoStreams = [...bestVideos.values()].sort(
           (a, b) =>
             Number(b.id || 0) - Number(a.id || 0) ||
             Number(b.bandwidth || 0) - Number(a.bandwidth || 0)
         );
-        if (!videoStreams.length) return;
+        if (!videoStreams.length) {
+          return;
+        }
 
-        // __playinfo__ usually contains DASH tracks but not its own cid.  The
-        // page state is the authoritative identity in that case; falling back
-        // to pathname causes the first page's group to be delayed or merged
-        // with a later SPA navigation.
         const pageCid = isPagePlayinfo ? getBilibiliPageCid() : undefined;
         const requestCid = isPagePlayinfo
           ? undefined
@@ -740,33 +760,27 @@
           (data?.cid !== undefined && data?.cid !== null
             ? String(data.cid)
             : undefined);
-        // A page snapshot without a cid has no reliable ownership yet.  Do
-        // not turn it into a pathname-keyed group that later duplicates the
-        // same video when its real playurl response arrives.
-        if (isPagePlayinfo && !pageCid) return;
+        if (isPagePlayinfo && !pageCid) {
+          return;
+        }
         let taskKey =
           pageCid || responseCid || getBilibiliTaskKey(data, sourceUrl);
         if (isPagePlayinfo) {
-          if (hasBilibiliSpaNavigated) return;
-          // On a route/P switch the old __playinfo__ survives briefly.  It
-          // has no independent cid, so only the real playurl?cid= response
-          // may confirm the newly selected item.
-          if (awaitingBilibiliPageInfo) return;
+          if (hasBilibiliSpaNavigated) {
+            return;
+          }
+          if (awaitingBilibiliPageInfo) {
+            return;
+          }
           primaryBilibiliTaskKey = taskKey;
           awaitingBilibiliPageInfo = false;
         } else {
           const currentCid = getBilibiliPageCid();
-          // A current-page playurl carries its cid in the request URL. It is
-          // authoritative for a part switch and must replace the old primary
-          // before its duration/variants are stored.
           if (responseCid && currentCid && responseCid === currentCid) {
             taskKey = currentCid;
             primaryBilibiliTaskKey = currentCid;
             awaitingBilibiliPageInfo = false;
           } else if (!primaryBilibiliTaskKey) {
-            // A playurl must identify the video currently mounted in the
-            // player.  Never use the first request after navigation: Bilibili
-            // eagerly fetches recommendation hover previews on the same page.
             rememberPendingBilibiliPlayurl(
               json,
               sourceUrl,
@@ -775,9 +789,6 @@
             );
             return;
           } else if (primaryBilibiliTaskKey !== taskKey) {
-            // This may be a hover preview, or a real response that won the
-            // race against the SPA state update.  Queue it briefly; a matching
-            // new page cid will promote it, otherwise it is discarded.
             rememberPendingBilibiliPlayurl(
               json,
               sourceUrl,
@@ -792,13 +803,14 @@
           Number(data.timelength || data.dash?.duration || 0) /
             (data.timelength ? 1000 : 1) || undefined;
         const duration = routeMeta?.duration || responseDuration;
-        // A Bilibili page can first expose a partial/stale playinfo and then
-        // return the same tracks with the correct duration.  Duration belongs
-        // in the signature so the later authoritative response updates it.
         const taskSignature = `${taskKey}:${Math.round((duration || 0) * 1000)}:${videoStreams.map((s: any) => toUrl(s)).join('|')}`;
-        if (sentBilibiliTasks.has(taskSignature)) return;
+        if (sentBilibiliTasks.has(taskSignature)) {
+          return;
+        }
         sentBilibiliTasks.add(taskSignature);
-        if (sentBilibiliTasks.size > 100) sentBilibiliTasks.clear();
+        if (sentBilibiliTasks.size > 100) {
+          sentBilibiliTasks.clear();
+        }
         window.postMessage(
           {
             type: 'COOLHUSKY_BILIBILI_DASH_DETECTED',
@@ -847,12 +859,16 @@
       if (data.durl && Array.isArray(data.durl)) {
         for (const seg of data.durl) {
           const url = seg.url || seg.play_url;
-          if (url) send(url, url.includes('.flv') ? 'flv' : 'mp4');
+          if (url) {
+            send(url, url.includes('.flv') ? 'flv' : 'mp4');
+          }
           if (seg.backup_url) {
             for (const u of Array.isArray(seg.backup_url)
               ? seg.backup_url
               : [seg.backup_url]) {
-              if (u) send(u, u.includes('.flv') ? 'flv' : 'mp4');
+              if (u) {
+                send(u, u.includes('.flv') ? 'flv' : 'mp4');
+              }
             }
           }
         }
@@ -863,7 +879,9 @@
   }
 
   function asHttpUrl(value: unknown): string | undefined {
-    if (typeof value !== 'string' || !value) return undefined;
+    if (typeof value !== 'string' || !value) {
+      return undefined;
+    }
     try {
       const url = new URL(value, location.href);
       return url.protocol === 'https:' || url.protocol === 'http:'
@@ -874,13 +892,18 @@
     }
   }
 
+  // Recursively extract HTTP URLs from nested Douyin JSON (url_list, etc.)
   function readUrlList(value: any): string[] {
     const urls: string[] = [];
     const visit = (node: any, depth = 0) => {
-      if (depth > 3 || !node) return;
+      if (depth > 3 || !node) {
+        return;
+      }
       const direct = asHttpUrl(node);
       if (direct) {
-        if (!urls.includes(direct)) urls.push(direct);
+        if (!urls.includes(direct)) {
+          urls.push(direct);
+        }
         return;
       }
       if (Array.isArray(node)) {
@@ -895,15 +918,15 @@
           'src',
           'play_url',
           'playUrl',
-        ])
+        ]) {
           visit(node[key], depth + 1);
+        }
       }
     };
     visit(value);
     return urls;
   }
 
-  /** Extract the player-owned tracks from Douyin's detail/feed response. */
   function parseDouyinAwemeResponse(json: any, sourceUrl?: string): void {
     try {
       const data = json?.data ?? json;
@@ -913,11 +936,15 @@
         data?.item_list?.[0] ||
         data?.aweme_list?.[0];
       const video = aweme?.video;
-      if (!aweme || !video) return;
+      if (!aweme || !video) {
+        return;
+      }
       const candidates: Array<any> = [];
       const add = (address: any, stream: any, role: 'video' | 'audio') => {
         for (const url of readUrlList(address)) {
-          if (candidates.some((item) => item.url === url)) continue;
+          if (candidates.some((item) => item.url === url)) {
+            continue;
+          }
           candidates.push({
             url,
             format: /\.m3u8(?:[?#]|$)/i.test(url)
@@ -946,16 +973,15 @@
         : Array.isArray(video.bitRate)
           ? video.bitRate
           : [];
-      for (const stream of bitrates)
+      for (const stream of bitrates) {
         add(stream?.play_addr || stream?.playAddr || stream, stream, 'video');
+      }
       add(
         video.play_addr || video.playAddr || video.play_url || video.playUrl,
         video,
         'video'
       );
 
-      // Only consume audio explicitly attached to the video object. Music is
-      // deliberately excluded: it is often a separately played background song.
       const audioTracks = [
         video.audio,
         video.audio_track,
@@ -976,7 +1002,9 @@
         }
       }
       const videos = candidates.filter((item) => item.role === 'video');
-      if (!videos.length) return;
+      if (!videos.length) {
+        return;
+      }
       const key = String(
         aweme.aweme_id ||
           aweme.id ||
@@ -989,9 +1017,13 @@
         video.cover || video.origin_cover || aweme.cover
       )[0];
       const signature = `${key}:${candidates.map((item) => item.url).join('|')}`;
-      if (sentPlatformTasks.has(signature)) return;
+      if (sentPlatformTasks.has(signature)) {
+        return;
+      }
       sentPlatformTasks.add(signature);
-      if (sentPlatformTasks.size > 100) sentPlatformTasks.clear();
+      if (sentPlatformTasks.size > 100) {
+        sentPlatformTasks.clear();
+      }
       window.postMessage(
         {
           type: 'COOLHUSKY_PLATFORM_MEDIA_DETECTED',
@@ -1026,7 +1058,6 @@
     }
   }
 
-  // ── Intercept XHR response bodies ────────────────────────────────────────────────
   const originalXHROpen = XMLHttpRequest.prototype.open;
   const originalXHRSend = XMLHttpRequest.prototype.send;
 
@@ -1037,8 +1068,6 @@
   ) {
     (this as any)._coolHuskyUrl =
       typeof url === 'string' ? url : url.toString();
-    // Save the route at request creation, rather than looking at location when
-    // the async response arrives.
     (this as any)._coolHuskyBilibiliRouteKey = getBilibiliRouteKey();
     tryDetect(url);
     return originalXHROpen.apply(this, [method, url, ...rest] as any);
@@ -1050,7 +1079,9 @@
       (this as any)._coolHuskyBilibiliRouteKey || getBilibiliRouteKey();
     this.addEventListener('load', function (this: XMLHttpRequest) {
       try {
-        if (this.status < 200 || this.status >= 300) return;
+        if (this.status < 200 || this.status >= 300) {
+          return;
+        }
         const urlLower = fpUrl.toLowerCase();
 
         if (
@@ -1072,8 +1103,6 @@
           parseDouyinAwemeResponse(JSON.parse(this.responseText), fpUrl);
           return;
         }
-
-        // YouTube player-response parsing is intentionally disabled.
       } catch {}
     });
     return originalXHRSend.apply(
@@ -1082,16 +1111,19 @@
     );
   };
 
-  // ── Intercept fetch response bodies ──────────────────────────────────────────────
   const originalFetch = window.fetch;
   window.fetch = function (...args: Parameters<typeof fetch>) {
     let urlStr = '';
     const requestRouteKey = getBilibiliRouteKey();
     try {
       const input = args[0];
-      if (typeof input === 'string') urlStr = input;
-      else if (input instanceof URL) urlStr = input.toString();
-      else if (input instanceof Request) urlStr = input.url;
+      if (typeof input === 'string') {
+        urlStr = input;
+      } else if (input instanceof URL) {
+        urlStr = input.toString();
+      } else if (input instanceof Request) {
+        urlStr = input.url;
+      }
       tryDetect(urlStr);
     } catch {}
 
@@ -1105,7 +1137,9 @@
           urlLower.includes('/playurl'));
       if (isBiliPlayurl) {
         return promise.then(async (response) => {
-          if (!response.ok) return response;
+          if (!response.ok) {
+            return response;
+          }
           try {
             const clone = response.clone();
             const json = await clone.json();
@@ -1116,7 +1150,9 @@
       }
       if (isDouyinMediaApi(urlStr)) {
         return promise.then(async (response) => {
-          if (!response.ok) return response;
+          if (!response.ok) {
+            return response;
+          }
           try {
             parseDouyinAwemeResponse(await response.clone().json(), urlStr);
           } catch {}
@@ -1128,19 +1164,24 @@
     return promise;
   };
 
-  // ── Read the Bilibili page-embedded __playinfo__ variable ─────────────────────────────
   function tryReadBiliPagePlayinfo(expectedRouteKey = getBilibiliRouteKey()) {
     try {
-      if (!location.hostname.toLowerCase().includes('bilibili.com')) return;
-      if (!isBilibiliWatchPage()) return;
-      if (expectedRouteKey !== getBilibiliRouteKey()) return;
+      if (!location.hostname.toLowerCase().includes('bilibili.com')) {
+        return;
+      }
+      if (!isBilibiliWatchPage()) {
+        return;
+      }
+      if (expectedRouteKey !== getBilibiliRouteKey()) {
+        return;
+      }
       const playinfo = (window as any).__playinfo__;
-      if (playinfo)
+      if (playinfo) {
         parseBilibiliPlayurl(playinfo, undefined, true, expectedRouteKey);
+      }
     } catch {}
   }
 
-  // ── Global proxy listener for <video>/<audio> src ─────────────────────────────
   const srcDescriptor = Object.getOwnPropertyDescriptor(
     HTMLMediaElement.prototype,
     'src'
@@ -1166,7 +1207,7 @@
     });
   }
 
-  // ── iframe sandbox removal utilities ───────────────────────────────────
+  // Remove sandbox attr from iframes to allow media interception
   function clearIframeSandbox(iframe: HTMLIFrameElement) {
     try {
       const cloned = iframe.cloneNode(true) as HTMLIFrameElement;
@@ -1175,7 +1216,6 @@
     } catch {}
   }
 
-  // Proxy setAttribute to intercept dynamically-written sandbox attributes (set before insertion)
   const _origSetAttribute = Element.prototype.setAttribute;
   Element.prototype.setAttribute = function (name: string, value: string) {
     if (name.toLowerCase() === 'sandbox' && this.nodeName === 'IFRAME') {
@@ -1184,7 +1224,6 @@
     return _origSetAttribute.call(this, name, value);
   };
 
-  // ── Listen for <source> insertion + iframe sandbox removal ──────────────────
   const domObserver = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       if (
@@ -1201,7 +1240,9 @@
       }
 
       for (const node of mutation.addedNodes) {
-        if (!(node instanceof HTMLElement)) continue;
+        if (!(node instanceof HTMLElement)) {
+          continue;
+        }
 
         if (
           node.nodeName === 'IFRAME' &&
@@ -1214,7 +1255,6 @@
           });
         }
 
-        // <source>/<video>/<audio> src detection
         const sources =
           node.nodeName === 'SOURCE'
             ? [node as HTMLSourceElement]
@@ -1223,10 +1263,10 @@
           const src =
             (el as HTMLSourceElement | HTMLMediaElement).src ||
             (el as HTMLSourceElement).getAttribute?.('src');
-          if (src && !src.startsWith('blob:') && !src.startsWith('data:'))
+          if (src && !src.startsWith('blob:') && !src.startsWith('data:')) {
             tryDetect(src);
+          }
         }
-        // data: embedded images (scan <img> only when the switch is on, to avoid overhead)
         if (dataImagesEnabled) {
           const imgs =
             node.nodeName === 'IMG' &&
@@ -1235,12 +1275,16 @@
               : Array.from(
                   node.querySelectorAll?.('img[src^="data:image/"]') ?? []
                 );
-          const MAX = 100; // process at most 100 per mutation to avoid jank on infinite scroll
+          const MAX = 100; // cap per mutation
           let n = 0;
           for (const img of imgs) {
-            if (n++ >= MAX) break;
+            if (n++ >= MAX) {
+              break;
+            }
             const src = img.getAttribute('src') || '';
-            if (src.startsWith('data:')) tryDetect(src);
+            if (src.startsWith('data:')) {
+              tryDetect(src);
+            }
           }
         }
       }
@@ -1255,7 +1299,6 @@
     });
   } catch {}
 
-  // ── Page scan ─────────────────────────────────────────────────────────
   function scanExistingMedia() {
     document
       .querySelectorAll('video[src], audio[src], source[src]')
@@ -1263,8 +1306,9 @@
         const src =
           (el as HTMLMediaElement | HTMLSourceElement).src ||
           el.getAttribute('src');
-        if (src && !src.startsWith('blob:') && !src.startsWith('data:'))
+        if (src && !src.startsWith('blob:') && !src.startsWith('data:')) {
           tryDetect(src);
+        }
       });
     document
       .querySelectorAll<HTMLIFrameElement>('iframe[sandbox]')
@@ -1272,41 +1316,42 @@
         clearIframeSandbox(iframe);
       });
     tryReadBiliPagePlayinfo();
-    // YouTube's ytInitialPlayerResponse is intentionally not parsed.
-    // data: image scan (only when the switch is on; triggered by message callback or explicit request)
     scanExistingDataImages();
   }
 
-  // Scan existing <img src="data:image/..."> (called when the switch is on)
   function scanExistingDataImages() {
-    if (!dataImagesEnabled) return;
-    // Limit the scan scope to avoid jank on very large DOMs
+    if (!dataImagesEnabled) {
+      return;
+    }
     const imgs = document.querySelectorAll<HTMLImageElement>(
       'img[src^="data:image/"]'
     );
     const MAX = 500;
     let count = 0;
     imgs.forEach((img) => {
-      if (count++ >= MAX) return;
+      if (count++ >= MAX) {
+        return;
+      }
       const src = img.getAttribute('src') || '';
-      if (src.startsWith('data:')) tryDetect(src);
+      if (src.startsWith('data:')) {
+        tryDetect(src);
+      }
     });
   }
 
-  // Bilibili uses SPA navigation for related videos, episodes and playlist
-  // items. The injected script survives that navigation, so the previous
-  // page's primary cid must not keep filtering the new video's playurl.
   let lastBilibiliPageUrl = getBilibiliRouteKey();
   let lastBilibiliPageCid = getBilibiliPageCid();
+  // Track SPA navigations: reset primary task key on route change
   function refreshBilibiliPrimaryAfterNavigation() {
-    if (!isBilibiliPage) return;
+    if (!isBilibiliPage) {
+      return;
+    }
     const currentCid = getBilibiliPageCid();
     const currentRouteKey = getBilibiliRouteKey();
-    // Bilibili may populate __INITIAL_STATE__ after this script is injected.
-    // Treat that first cid as initial hydration, not a navigation; otherwise
-    // recommendation previews can become the temporary primary stream.
     if (currentRouteKey === lastBilibiliPageUrl) {
-      if (!currentCid || currentCid === lastBilibiliPageCid) return;
+      if (!currentCid || currentCid === lastBilibiliPageCid) {
+        return;
+      }
       if (!lastBilibiliPageCid) {
         lastBilibiliPageCid = currentCid;
         return;
@@ -1319,7 +1364,6 @@
     awaitingBilibiliPageInfo = true;
     const routeKey = getBilibiliRouteKey();
     void resolveBilibiliRouteCid(routeKey);
-    // __playinfo__ is replaced asynchronously by Bilibili's router.
     setTimeout(() => tryReadBiliPagePlayinfo(routeKey), 80);
     setTimeout(() => tryReadBiliPagePlayinfo(routeKey), 400);
     setTimeout(() => tryReadBiliPagePlayinfo(routeKey), 1000);
@@ -1341,13 +1385,7 @@
     return result;
   };
   window.addEventListener('popstate', refreshBilibiliPrimaryAfterNavigation);
-  // Autoplay does not always go through the page's wrapped History methods.
-  // This lightweight Bilibili-only guard still resets the primary on such
-  // route transitions; it does not inspect or intercept media requests.
   if (isBilibiliPage) {
-    // On first load, __playinfo__ may be filled after this injected script.
-    // Polling the small in-page object is cheap and lets the page snapshot
-    // establish the primary before any preview playurl can be considered.
     setTimeout(tryReadBiliPagePlayinfo, 80);
     setTimeout(tryReadBiliPagePlayinfo, 300);
     setTimeout(tryReadBiliPagePlayinfo, 800);
@@ -1359,8 +1397,6 @@
     }, 500);
   }
 
-  // The injected script loads asynchronously, so content's COOLHUSKY_DATA_IMAGES_ENABLE may arrive
-  // before the listener is registered and be lost. Request the settings once proactively; content re-sends on receipt.
   window.postMessage({ type: 'COOLHUSKY_REQUEST_SETTINGS' }, '*');
 
   if (document.readyState === 'loading') {

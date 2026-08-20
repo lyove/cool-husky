@@ -50,7 +50,6 @@ import styles from './Popup.module.scss';
 
 const METADATA_BATCH_SIZE = 200;
 
-/** Video formats that need media info fetched */
 const VIDEO_FORMATS = new Set([
   'mp4',
   'webm',
@@ -68,7 +67,6 @@ const mobileCapabilityTip = /zh/i.test(navigator.language)
   ? '移动端提示：普通下载可用；直播录制和 MSE 下载可能受后台运行及内存限制。'
   : 'Mobile note: regular downloads are supported; live recording and MSE downloads may be limited by background execution and memory.';
 
-// ── Inline SVG icons for the media cards (flowpick-style) ──
 const AudioIcon = (): ReactNode => (
   <svg
     viewBox="0 0 24 24"
@@ -300,7 +298,6 @@ const DownloadIconSvg = (): ReactNode => (
   </svg>
 );
 
-/** Merge audio icon: two streams converging into one (concatenation). */
 const MergeIconSvg = (): ReactNode => (
   <svg viewBox="0 0 1024 1024" width="1em" height="1em">
     <path
@@ -310,12 +307,17 @@ const MergeIconSvg = (): ReactNode => (
   </svg>
 );
 
-/** Returns the badge color class based on the format, aligned with the flowpick style. */
 function getFormatBadgeClass(fmt: string, streamLabel?: boolean): string {
   const f = fmt.toLowerCase();
-  if (streamLabel) return styles.formatBadgeStream ?? '';
-  if (isImageFormat(f)) return styles.formatBadgeImage ?? '';
-  if (isAudioFormat(f)) return styles.formatBadgeAudio ?? '';
+  if (streamLabel) {
+    return styles.formatBadgeStream ?? '';
+  }
+  if (isImageFormat(f)) {
+    return styles.formatBadgeImage ?? '';
+  }
+  if (isAudioFormat(f)) {
+    return styles.formatBadgeAudio ?? '';
+  }
   if (isVideoFormat(f) || isStreamFormat(f)) {
     return styles.formatBadgeVideo ?? '';
   }
@@ -325,8 +327,6 @@ function getFormatBadgeClass(fmt: string, streamLabel?: boolean): string {
 function isPlayableInlineFormat(fmt: string): boolean {
   return isAudioFormat(fmt) || isVideoFormat(fmt) || isStreamFormat(fmt);
 }
-
-// ────────────────────────────── Generic virtual list ──────────────────────────────
 
 interface VirtualListProps<T> {
   items: T[];
@@ -338,6 +338,7 @@ interface VirtualListProps<T> {
   gap?: number;
 }
 
+// Virtual list with ResizeObserver-based height measurement
 function VirtualList<T>({
   items,
   getKey,
@@ -368,7 +369,6 @@ function VirtualList<T>({
     return (): void => ro.disconnect();
   }, []);
 
-  // Disconnect per-item observers on unmount.
   useEffect(() => {
     const roMap = itemObserversRef.current;
     return (): void => {
@@ -377,7 +377,6 @@ function VirtualList<T>({
     };
   }, []);
 
-  /** Measured item height; only triggers re-layout when the height truly changes (>0.5px) to avoid render jitter. */
   const measureItem = useCallback(
     (el: HTMLDivElement, index: number): void => {
       const measured = el.getBoundingClientRect().height - gap;
@@ -395,7 +394,6 @@ function VirtualList<T>({
   );
 
   const offsets = useMemo(() => {
-    // measureTick only serves as a recompute trigger when measured values change.
     void measureTick;
     const arr = new Array<number>(items.length + 1);
     arr[0] = 0;
@@ -410,11 +408,14 @@ function VirtualList<T>({
   const total = Math.max(0, (offsets[items.length] ?? 0) - gap);
 
   let start = 0;
-  while (start < items.length && (offsets[start + 1] ?? 0) <= scrollTop)
+  while (start < items.length && (offsets[start + 1] ?? 0) <= scrollTop) {
     start++;
+  }
   let end = start;
   const bottom = scrollTop + viewportHeight;
-  while (end < items.length && (offsets[end + 1] ?? 0) <= bottom) end++;
+  while (end < items.length && (offsets[end + 1] ?? 0) <= bottom) {
+    end++;
+  }
   start = Math.max(0, start - overscan);
   end = Math.min(items.length, end + overscan);
 
@@ -428,11 +429,7 @@ function VirtualList<T>({
             return;
           }
           measureItem(el, i);
-          // Re-measure on height changes (e.g. expanding/collapsing a stream
-          // group), otherwise offsets stay stale and later items overlap.
-          // Keyed by index, not element: virtual rows are unmounted/remounted
-          // while scrolling, so releasing the previous observer for the same
-          // index prevents leaking ResizeObservers of detached DOM nodes.
+          // re-measure on height change
           const prev = itemObserversRef.current.get(i);
           if (prev && prev.el !== el) {
             prev.ro.disconnect();
@@ -468,8 +465,6 @@ function VirtualList<T>({
   );
 }
 
-// ────────────────────────────── Image lightbox ──────────────────────────────
-
 interface LightboxProps {
   images: MediaListItem[];
   index: number;
@@ -493,16 +488,21 @@ const Lightbox: FC<LightboxProps> = ({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose();
-      else if (e.key === 'ArrowLeft')
+      if (e.key === 'Escape') {
+        onClose();
+      } else if (e.key === 'ArrowLeft') {
         onNavigate((index - 1 + images.length) % images.length);
-      else if (e.key === 'ArrowRight') onNavigate((index + 1) % images.length);
+      } else if (e.key === 'ArrowRight') {
+        onNavigate((index + 1) % images.length);
+      }
     };
     window.addEventListener('keydown', onKey);
     return (): void => window.removeEventListener('keydown', onKey);
   }, [index, images.length, onNavigate, onClose]);
 
-  if (!current) return null;
+  if (!current) {
+    return null;
+  }
 
   return (
     <div
@@ -510,10 +510,14 @@ const Lightbox: FC<LightboxProps> = ({
       role="button"
       tabIndex={-1}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
       }}
       onKeyDown={(e) => {
-        if (e.key === 'Escape' || e.key === 'Enter') onClose();
+        if (e.key === 'Escape' || e.key === 'Enter') {
+          onClose();
+        }
       }}
     >
       <div className={styles.lightboxHeader}>
@@ -574,8 +578,6 @@ const Lightbox: FC<LightboxProps> = ({
   );
 };
 
-// ────────────────────────────── Image hover preview ──────────────────────────────
-
 interface HoverPreviewState {
   item: MediaListItem;
   left: number;
@@ -592,14 +594,13 @@ interface HoverPreviewProps {
   state: HoverPreviewState | null;
 }
 
-/**
- * Media-card hover preview.
- */
 const HoverPreview: FC<HoverPreviewProps> = ({ state }) => {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [state?.item.url]);
 
-  if (!state) return null;
+  if (!state) {
+    return null;
+  }
   const { item } = state;
   const fmt = item.format.toLowerCase();
   const isImg = isImageFormat(fmt);
@@ -664,8 +665,6 @@ const HoverPreview: FC<HoverPreviewProps> = ({ state }) => {
   );
 };
 
-// ────────────────────────────── Main component ──────────────────────────────
-
 interface PopupProps {
   embedded?: boolean;
   followActiveTab?: boolean;
@@ -700,7 +699,6 @@ export default function Popup({
     markFailed: markVideoThumbFailed,
   } = useVideoThumbnails();
 
-  // ── UI state ──
   const [showSettings, setShowSettings] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
@@ -730,11 +728,12 @@ export default function Popup({
 
   const showToast = useCallback((msg: string): void => {
     setToast({ msg, id: Date.now() });
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
     toastTimerRef.current = setTimeout(() => setToast(null), 2200);
   }, []);
 
-  // ── Media store / actions ──
   const fetchMetadataRef = useRef<() => void>(() => {});
   const {
     mediaList,
@@ -782,7 +781,6 @@ export default function Popup({
     mediaCatalog,
   } = filters;
 
-  // Refs expose the latest values to callbacks / effects
   const tabIdRef = useRef(currentTabId);
   tabIdRef.current = currentTabId;
   const mediaByKeyRef = useRef(mediaByKey);
@@ -792,18 +790,25 @@ export default function Popup({
   const removeKeysRef = useRef(removeKeys);
   removeKeysRef.current = removeKeys;
 
-  // ── Batch metadata fetch (mirrors source-side fetchAllMetadataBatch + updateMediaMeta) ──
+  // Batched metadata fetch: chunked, cancellable, skips failed/blob URLs
   useEffect(() => {
     fetchMetadataRef.current = (): void => {
       const tabId = tabIdRef.current;
-      if (tabId === undefined) return;
+      if (tabId === undefined) {
+        return;
+      }
       const requests: MetadataBatchItem[] = [];
       for (const item of mediaByKeyRef.current.values()) {
         const key = getMediaKey(item);
-        if (failedMetadataKeysRef.current.has(key)) continue;
-        if (item.url.startsWith('blob:') || item.url.startsWith('data:'))
+        if (failedMetadataKeysRef.current.has(key)) {
           continue;
-        if (item.url.includes('blob.chromium.org')) continue;
+        }
+        if (item.url.startsWith('blob:') || item.url.startsWith('data:')) {
+          continue;
+        }
+        if (item.url.includes('blob.chromium.org')) {
+          continue;
+        }
         const f = item.format.toLowerCase();
         const needMediaInfo = VIDEO_FORMATS.has(f)
           ? !item.width || !item.height || !item.duration
@@ -827,7 +832,9 @@ export default function Popup({
             f === 'ism' ||
             f === 'ts' ||
             f === 'flv');
-        if (!needMediaInfo && !needSize) continue;
+        if (!needMediaInfo && !needSize) {
+          continue;
+        }
         requests.push({
           key,
           url: item.url,
@@ -837,7 +844,9 @@ export default function Popup({
           needSize,
         });
       }
-      if (!requests.length) return;
+      if (!requests.length) {
+        return;
+      }
       const taskId = `metadata:${tabId}:${Date.now()}:${metadataTaskSeqRef.current++}`;
       const previousTask = activeMetadataTaskRef.current;
       activeMetadataTaskRef.current = taskId;
@@ -865,8 +874,12 @@ export default function Popup({
               tabId,
               items: chunk,
             })) as MetadataBatchResponse | undefined;
-            if (tabIdRef.current !== tabId) return;
-            if (!resp?.ok || !Array.isArray(resp.items)) continue;
+            if (tabIdRef.current !== tabId) {
+              return;
+            }
+            if (!resp?.ok || !Array.isArray(resp.items)) {
+              continue;
+            }
             for (const result of resp.items) {
               if (result.removed) {
                 removedKeys.add(result.key);
@@ -877,20 +890,33 @@ export default function Popup({
                 continue;
               }
               const patch: MediaListItemPatch = {};
-              if (result.width) patch.width = result.width;
-              if (result.height) patch.height = result.height;
-              if (result.duration) patch.duration = result.duration;
-              if (typeof result.size === 'number') patch.size = result.size;
-              if (Object.keys(patch).length) patches.set(result.key, patch);
+              if (result.width) {
+                patch.width = result.width;
+              }
+              if (result.height) {
+                patch.height = result.height;
+              }
+              if (result.duration) {
+                patch.duration = result.duration;
+              }
+              if (typeof result.size === 'number') {
+                patch.size = result.size;
+              }
+              if (Object.keys(patch).length) {
+                patches.set(result.key, patch);
+              }
             }
           }
-          if (removedKeys.size) removeKeysRef.current(removedKeys);
+          if (removedKeys.size) {
+            removeKeysRef.current(removedKeys);
+          }
           patchManyRef.current(patches);
-          // Persist fetched metadata (source-side updateMediaMeta)
           const byKey = mediaByKeyRef.current;
           for (const [key, patch] of patches) {
             const item = byKey.get(key);
-            if (!item) continue;
+            if (!item) {
+              continue;
+            }
             void browser.runtime
               .sendMessage({
                 type: 'UPDATE_MEDIA_META',
@@ -901,18 +927,20 @@ export default function Popup({
               .catch(() => {});
           }
         } catch {
-          // Task cancelled or network error: fail silently
+          // cancelled or network error
         }
       })();
     };
   }, []);
 
-  // ── Selection / batch ──
   const toggleSelectItem = useCallback((key: string): void => {
     setSelectedUrls((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
       return next;
     });
   }, []);
@@ -920,11 +948,17 @@ export default function Popup({
   const itemKeysOfGroup = useCallback((group: StreamGroup): string[] => {
     const keys: string[] = [];
     const push = (i?: MediaListItem): void => {
-      if (i) keys.push(getMediaKey(i));
+      if (i) {
+        keys.push(getMediaKey(i));
+      }
     };
     push(group.master);
-    for (const v of group.variants) push(v);
-    for (const a of group.audioItems) push(a);
+    for (const v of group.variants) {
+      push(v);
+    }
+    for (const a of group.audioItems) {
+      push(a);
+    }
     return keys;
   }, []);
 
@@ -935,8 +969,11 @@ export default function Popup({
         const next = new Set(prev);
         const allSelected = keys.every((k) => next.has(k));
         for (const k of keys) {
-          if (allSelected) next.delete(k);
-          else next.add(k);
+          if (allSelected) {
+            next.delete(k);
+          } else {
+            next.add(k);
+          }
         }
         return next;
       });
@@ -944,21 +981,28 @@ export default function Popup({
     [itemKeysOfGroup]
   );
 
-  /** Keys of all visible list entries (for select-all) */
   const visibleItemKeys = useMemo(() => {
     const keys: string[] = [];
     if (activeTab === 'all') {
       for (const entry of flatMediaList) {
-        if (entry.kind === 'group') keys.push(...itemKeysOfGroup(entry.group));
-        else keys.push(getMediaKey(entry.item));
+        if (entry.kind === 'group') {
+          keys.push(...itemKeysOfGroup(entry.group));
+        } else {
+          keys.push(getMediaKey(entry.item));
+        }
       }
     } else if (activeTab === 'stream') {
-      for (const group of groupedStreamList)
+      for (const group of groupedStreamList) {
         keys.push(...itemKeysOfGroup(group));
+      }
     } else if (activeTab === 'image') {
-      for (const item of filteredImageList) keys.push(getMediaKey(item));
+      for (const item of filteredImageList) {
+        keys.push(getMediaKey(item));
+      }
     } else {
-      for (const item of filteredMediaList) keys.push(getMediaKey(item));
+      for (const item of filteredMediaList) {
+        keys.push(getMediaKey(item));
+      }
     }
     return keys;
   }, [
@@ -982,9 +1026,13 @@ export default function Popup({
     setSelectedUrls((prev) => {
       const next = new Set(prev);
       if (allVisibleSelected) {
-        for (const k of visibleItemKeys) next.delete(k);
+        for (const k of visibleItemKeys) {
+          next.delete(k);
+        }
       } else {
-        for (const k of visibleItemKeys) next.add(k);
+        for (const k of visibleItemKeys) {
+          next.add(k);
+        }
       }
       return next;
     });
@@ -1015,7 +1063,9 @@ export default function Popup({
     const selectedItems = mediaList.filter((i) =>
       selectedUrls.has(getMediaKey(i))
     );
-    if (!selectedItems.length) return;
+    if (!selectedItems.length) {
+      return;
+    }
     showToast(t('downloadBatchStarted') || '已开始批量下载');
     const subDir = sanitizeDirectoryName(currentTabTitle);
     void actions
@@ -1031,9 +1081,6 @@ export default function Popup({
     customNames,
   ]);
 
-  /**
-   * Merge selected audio into one WAV and download.
-   */
   const handleMergeDownload = useCallback((): void => {
     const audioItems = mediaList.filter(
       (i) =>
@@ -1057,14 +1104,18 @@ export default function Popup({
       (i) =>
         selectedUrls.has(getMediaKey(i)) && isMergeableAudioFormat(i.format)
     );
-    if (audioItems.length < 2) return;
+    if (audioItems.length < 2) {
+      return;
+    }
     void actions.mergeAndDownload(audioItems, tabIdRef.current).catch(() => {});
   }, [mediaList, selectedUrls, actions]);
 
   const handleCopyUrl = useCallback(
     async (url: string): Promise<void> => {
       const ok = await actions.copyUrl(url);
-      if (ok) showToast(t('copyTips'));
+      if (ok) {
+        showToast(t('copyTips'));
+      }
     },
     [actions, showToast, t]
   );
@@ -1092,12 +1143,17 @@ export default function Popup({
   );
 
   const confirmRename = useCallback((): void => {
-    if (!editingUrl) return;
+    if (!editingUrl) {
+      return;
+    }
     const name = editingName.trim();
     setCustomNames((prev) => {
       const next = new Map(prev);
-      if (name) next.set(editingUrl, name);
-      else next.delete(editingUrl);
+      if (name) {
+        next.set(editingUrl, name);
+      } else {
+        next.delete(editingUrl);
+      }
       return next;
     });
     setEditingUrl('');
@@ -1111,23 +1167,27 @@ export default function Popup({
 
   const onRenameKeyDown = useCallback(
     (e: ReactKeyboardEvent<HTMLInputElement>): void => {
-      if (e.key === 'Enter') confirmRename();
-      else if (e.key === 'Escape') cancelRename();
+      if (e.key === 'Enter') {
+        confirmRename();
+      } else if (e.key === 'Escape') {
+        cancelRename();
+      }
     },
     [confirmRename, cancelRename]
   );
 
-  // ── Stream group expansion ──
   const toggleGroup = useCallback((id: string): void => {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   }, []);
 
-  // ── Virtual list height estimation ──
   const estimateFlatHeight = useCallback(
     (entry: StreamFlatItem): number => {
       if (entry.kind === 'group') {
@@ -1137,9 +1197,6 @@ export default function Popup({
           return base;
         }
         const rowH = density === 'comfortable' ? 38 : 34;
-        // Rendered rows: {master && !syntheticMasterUrl && renderRow(master)}
-        // + variants + audioItems. Match that exactly, otherwise the last
-        // child row gets covered by the next virtual item.
         const masterRows =
           group.master && /^https?:\/\//i.test(group.master.url || '') ? 1 : 0;
         return (
@@ -1160,14 +1217,12 @@ export default function Popup({
     [density]
   );
 
-  // ── Image masonry (two columns) ──
   const imageColumns = useMemo(() => {
     const cols: MediaListItem[][] = [[], []];
     filteredImageList.forEach((item, i) => cols[i % 2]!.push(item));
     return cols;
   }, [filteredImageList]);
 
-  // ── Hover preview (-style) ──
   const handleCardHover = useCallback(
     (e: ReactMouseEvent<HTMLDivElement>, item: MediaListItem): void => {
       const fmt = item.format.toLowerCase();
@@ -1192,8 +1247,6 @@ export default function Popup({
         const rect = target.getBoundingClientRect();
         const spaceBelow = window.innerHeight - rect.bottom - 6;
         const above = spaceBelow < PREVIEW_HEIGHT;
-        // Center the popover horizontally on the card (looks more natural
-        // when there is no thumbnail) and keep it within the viewport.
         const left = Math.min(
           Math.max(8, rect.left + rect.width / 2 - PREVIEW_WIDTH / 2),
           window.innerWidth - PREVIEW_WIDTH - 8
@@ -1226,13 +1279,16 @@ export default function Popup({
 
   useEffect(() => {
     const cleanup = (): void => {
-      if (hoverEnterTimerRef.current) clearTimeout(hoverEnterTimerRef.current);
-      if (hoverLeaveTimerRef.current) clearTimeout(hoverLeaveTimerRef.current);
+      if (hoverEnterTimerRef.current) {
+        clearTimeout(hoverEnterTimerRef.current);
+      }
+      if (hoverLeaveTimerRef.current) {
+        clearTimeout(hoverLeaveTimerRef.current);
+      }
     };
     return cleanup;
   }, []);
 
-  // ── Render: regular media card (flowpick-style) ──
   const renderItemCard = useCallback(
     (item: MediaListItem): ReactNode => {
       const key = getMediaKey(item);
@@ -1427,7 +1483,9 @@ export default function Popup({
                 onClick={() => {
                   if (isImageFormat(fmt)) {
                     const index = filteredImageList.indexOf(item);
-                    if (index >= 0) setLightboxIndex(index);
+                    if (index >= 0) {
+                      setLightboxIndex(index);
+                    }
                   } else if (isPlayableInlineFormat(fmt)) {
                     setPlayingItem((prev) =>
                       prev?.url === item.url ? null : item
@@ -1511,7 +1569,6 @@ export default function Popup({
     ]
   );
 
-  // ── Render: stream group card ──
   const renderGroupCard = useCallback(
     (group: StreamGroup): ReactNode => {
       const expanded = expandedGroups.has(group.id);
@@ -1679,7 +1736,9 @@ export default function Popup({
             <div
               className={styles.thumbnailWrap}
               onMouseEnter={(e) => {
-                if (masterSource) handleCardHover(e, masterSource);
+                if (masterSource) {
+                  handleCardHover(e, masterSource);
+                }
               }}
               onMouseLeave={handleCardLeave}
             >
@@ -1734,7 +1793,9 @@ export default function Popup({
                 className={styles.groupName}
                 title={master?.tabTitle || master?.url}
                 onDoubleClick={() => {
-                  if (master) startRename(master);
+                  if (master) {
+                    startRename(master);
+                  }
                 }}
               >
                 {master
@@ -1840,7 +1901,6 @@ export default function Popup({
     [renderGroupCard, renderItemCard]
   );
 
-  // ── Tab definitions (dynamic via i18n and enabled sniffing rules) ──
   const tabDefs = useMemo(
     () =>
       TAB_DEFS.filter((tab) => enabledTabs.includes(tab.key)).map((tab) => {
@@ -1850,7 +1910,6 @@ export default function Popup({
     [t, locale, enabledTabs]
   );
 
-  // Close all playback/preview and collapse expanded groups when switching tabs
   useEffect(() => {
     setPreviewItem(null);
     setPlayingItem(null);
@@ -1872,12 +1931,10 @@ export default function Popup({
 
   const visibleTabs = useMemo(() => tabDefs, [tabDefs]);
 
-  // ── Lightbox keyboard navigation ──
   const navigateLightbox = useCallback((index: number): void => {
     setLightboxIndex(index);
   }, []);
 
-  // List body
   let listBody: ReactNode;
   if (activeTab === 'image') {
     listBody = (
@@ -2292,7 +2349,9 @@ export default function Popup({
           className={styles.overlay}
           onClick={() => setShowMergeConfirm(false)}
           onKeyDown={(e) => {
-            if (e.key === 'Escape') setShowMergeConfirm(false);
+            if (e.key === 'Escape') {
+              setShowMergeConfirm(false);
+            }
           }}
           role="presentation"
         >
@@ -2302,7 +2361,9 @@ export default function Popup({
             aria-modal="true"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
-              if (e.key === 'Escape') setShowMergeConfirm(false);
+              if (e.key === 'Escape') {
+                setShowMergeConfirm(false);
+              }
             }}
           >
             <div className={styles.confirmTitle}>

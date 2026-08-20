@@ -75,20 +75,11 @@ function normalize(item: RawMediaEntry): MediaListItem {
 }
 
 export interface UseMediaListOptions {
-  /** Callback after a coalesced LIST_UPDATED commit (e.g. to trigger batch metadata fetch). */
   onCommitted?: () => void;
-  /** LIST_UPDATED coalescing window, default 80ms. */
   coalesceMs?: number;
-  /** Reload the list whenever the active tab changes (used by the sidepanel). */
   followActiveTab?: boolean;
 }
 
-/**
- * React media list store (mirrors the source-side useMediaStore + useMediaList):
- * - LIST_UPDATED incremental refresh (80ms coalescing window, keeps fetched duration/width/height/size)
- * - replace / patchOne / patchMany / clear in-place updates
- * - byKey / indexByKey / byUrl indexes
- */
 export function useMediaList(options?: UseMediaListOptions): {
   mediaList: MediaListItem[];
   mediaByKey: Map<string, MediaListItem>;
@@ -135,12 +126,13 @@ export function useMediaList(options?: UseMediaListOptions): {
   const mediaByUrl = useMemo(() => {
     const m = new Map<string, MediaListItem>();
     mediaList.forEach((i) => {
-      if (!m.has(i.url)) m.set(i.url, i);
+      if (!m.has(i.url)) {
+        m.set(i.url, i);
+      }
     });
     return m;
   }, [mediaList]);
 
-  // Expose latest indexes to callbacks (avoid stale closures).
   const lookupRef = useRef({ indexByKey: mediaIndexByKey, byKey: mediaByKey });
   lookupRef.current = { indexByKey: mediaIndexByKey, byKey: mediaByKey };
 
@@ -152,7 +144,9 @@ export function useMediaList(options?: UseMediaListOptions): {
     (key: string, patch: MediaListItemPatch): void => {
       setMediaList((prev) => {
         const index = lookupRef.current.indexByKey.get(key);
-        if (index === undefined) return prev;
+        if (index === undefined) {
+          return prev;
+        }
         const next = prev.slice();
         next[index] = { ...next[index]!, ...patch };
         return next;
@@ -163,13 +157,17 @@ export function useMediaList(options?: UseMediaListOptions): {
 
   const patchMany = useCallback(
     (patches: Map<string, MediaListItemPatch>): void => {
-      if (!patches.size) return;
+      if (!patches.size) {
+        return;
+      }
       setMediaList((prev) => {
         const next = prev.slice();
         let changed = false;
         for (const [key, patch] of patches) {
           const index = lookupRef.current.indexByKey.get(key);
-          if (index === undefined) continue;
+          if (index === undefined) {
+            continue;
+          }
           next[index] = { ...next[index]!, ...patch };
           changed = true;
         }
@@ -180,7 +178,9 @@ export function useMediaList(options?: UseMediaListOptions): {
   );
 
   const clear = useCallback((): void => {
-    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+    }
     flushTimerRef.current = null;
     pendingRef.current = null;
     setMediaList([]);
@@ -188,24 +188,31 @@ export function useMediaList(options?: UseMediaListOptions): {
 
   const removeKeys = useCallback((keys: Iterable<string>): void => {
     const toRemove = new Set(keys);
-    if (!toRemove.size) return;
+    if (!toRemove.size) {
+      return;
+    }
     setMediaList((prev) => {
       const next = prev.filter((i) => !toRemove.has(getMediaKey(i)));
       return next.length === prev.length ? prev : next;
     });
   }, []);
 
+  // Coalesces batch list updates, preserving metadata from previous items
   const flush = useCallback((): void => {
     flushTimerRef.current = null;
     const rawList = pendingRef.current;
     pendingRef.current = null;
-    if (!rawList) return;
+    if (!rawList) {
+      return;
+    }
     setMediaList((prev) => {
       const oldByKey = new Map(prev.map((i) => [getMediaKey(i), i]));
       return rawList.map((raw) => {
         const item = normalize(raw);
         const old = oldByKey.get(getMediaKey(item));
-        if (!old) return item;
+        if (!old) {
+          return item;
+        }
         return {
           ...item,
           duration: item.duration || old.duration,
@@ -222,10 +229,6 @@ export function useMediaList(options?: UseMediaListOptions): {
     async (targetTabId?: number): Promise<void> => {
       const session = ++sessionRef.current;
       try {
-        // Resolve the active tab AND fetch the list in ONE background round
-        // trip. Resolving via `tabs.query` from an embedded page (sidepanel)
-        // can return a stale/other window, which left the list empty when
-        // media had been captured before the panel opened.
         const resp = (await browser.runtime.sendMessage({
           type: 'GET_LIST',
           tabId: targetTabId,
@@ -236,7 +239,9 @@ export function useMediaList(options?: UseMediaListOptions): {
               list?: RawMediaEntry[];
             }
           | undefined;
-        if (session !== sessionRef.current) return;
+        if (session !== sessionRef.current) {
+          return;
+        }
         const resolvedTabId = resp?.tabId;
         if (resolvedTabId === undefined || resolvedTabId < 0) {
           setListLoaded(true);
@@ -244,17 +249,22 @@ export function useMediaList(options?: UseMediaListOptions): {
         }
         tabIdRef.current = resolvedTabId;
         setCurrentTabId(resolvedTabId);
-        if (resp?.title) setCurrentTabTitle(resp.title);
+        if (resp?.title) {
+          setCurrentTabTitle(resp.title);
+        }
         replace(resp?.list ?? []);
       } catch {
-        // background not ready yet — keep current state
+        // background not ready
       } finally {
-        if (session === sessionRef.current) setListLoaded(true);
+        if (session === sessionRef.current) {
+          setListLoaded(true);
+        }
       }
     },
     [replace]
   );
 
+  // Handles LIST_UPDATED messages with coalescing and follow-active-tab
   const handleListUpdate = useCallback(
     (msg: unknown): void => {
       const m = msg as {
@@ -262,9 +272,15 @@ export function useMediaList(options?: UseMediaListOptions): {
         tabId?: number;
         list?: RawMediaEntry[];
       };
-      if (m?.type !== 'LIST_UPDATED') return;
-      if (!Array.isArray(m.list)) return;
-      if (m.tabId === undefined || m.tabId < 0) return;
+      if (m?.type !== 'LIST_UPDATED') {
+        return;
+      }
+      if (!Array.isArray(m.list)) {
+        return;
+      }
+      if (m.tabId === undefined || m.tabId < 0) {
+        return;
+      }
       if (m.tabId !== tabIdRef.current) {
         if (
           followActiveTabRef.current &&
@@ -299,23 +315,29 @@ export function useMediaList(options?: UseMediaListOptions): {
       }
     };
     const onTabActivated = (info: { tabId: number }): void => {
-      if (!followActiveTabRef.current) return;
-      if (info.tabId !== tabIdRef.current) void loadMediaList(info.tabId);
+      if (!followActiveTabRef.current) {
+        return;
+      }
+      if (info.tabId !== tabIdRef.current) {
+        void loadMediaList(info.tabId);
+      }
     };
-    // active tab changed there).
     const onVisibilityChange = (): void => {
-      if (!followActiveTabRef.current) return;
-      if (document.visibilityState === 'visible') void loadMediaList();
+      if (!followActiveTabRef.current) {
+        return;
+      }
+      if (document.visibilityState === 'visible') {
+        void loadMediaList();
+      }
     };
-    // The sidepanel bridges the background's port push (SIDEPANEL_TAB_ID →
-    // LIST_UPDATED) through this custom event. Replay any push that arrived
-    // before React mounted.
     const onPanelList = (e: Event): void => {
       handleListUpdate((e as CustomEvent).detail);
     };
     window.addEventListener('coolhusky:panel-list', onPanelList);
     const pendingPanelList = (window as any).__coolhuskyPanelList;
-    if (pendingPanelList) handleListUpdate(pendingPanelList);
+    if (pendingPanelList) {
+      handleListUpdate(pendingPanelList);
+    }
     browser.runtime.onMessage.addListener(onMessage);
     browser.tabs.onUpdated.addListener(onTabUpdated);
     browser.tabs.onActivated.addListener(onTabActivated);
@@ -326,14 +348,18 @@ export function useMediaList(options?: UseMediaListOptions): {
       browser.tabs.onUpdated.removeListener(onTabUpdated);
       browser.tabs.onActivated.removeListener(onTabActivated);
       document.removeEventListener('visibilitychange', onVisibilityChange);
-      if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+      }
       flushTimerRef.current = null;
       pendingRef.current = null;
     };
   }, [loadMediaList, handleListUpdate]);
 
   const clearList = useCallback(async (): Promise<void> => {
-    if (tabIdRef.current === undefined) return;
+    if (tabIdRef.current === undefined) {
+      return;
+    }
     await browser.runtime.sendMessage({
       type: 'CLEAR_LIST',
       tabId: tabIdRef.current,
@@ -342,7 +368,9 @@ export function useMediaList(options?: UseMediaListOptions): {
   }, [clear]);
 
   const refreshPage = useCallback(async (): Promise<void> => {
-    if (tabIdRef.current === undefined) return;
+    if (tabIdRef.current === undefined) {
+      return;
+    }
     await browser.tabs.reload(tabIdRef.current);
   }, []);
 

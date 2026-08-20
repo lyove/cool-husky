@@ -26,12 +26,10 @@ const AUDIO_FORMATS = new Set([
 ]);
 
 const formatTime = (seconds: number): string => {
-  if (!Number.isFinite(seconds) || seconds < 0) {
-    seconds = 0;
-  }
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
+  const safeSeconds = Number.isFinite(seconds) && seconds >= 0 ? seconds : 0;
+  const h = Math.floor(safeSeconds / 3600);
+  const m = Math.floor((safeSeconds % 3600) / 60);
+  const s = Math.floor(safeSeconds % 60);
   if (h > 0) {
     return `${h}:${m.toString().padStart(2, '0')}:${s
       .toString()
@@ -116,7 +114,6 @@ const InlineMediaPlayer: FC<InlineMediaPlayerProps> = ({
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
     video.addEventListener('volumechange', handleVolumeChange);
 
-    // Initial state in case metadata is already loaded.
     if (video.readyState >= 1) {
       setDuration(video.duration);
     }
@@ -151,13 +148,14 @@ const InlineMediaPlayer: FC<InlineMediaPlayerProps> = ({
       return;
     }
     const rect = track.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    const ratio = Math.min(
+      1,
+      Math.max(0, (e.clientX - rect.left) / rect.width)
+    );
     video.currentTime = ratio * video.duration;
   };
 
-  const handleVolumeChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ): void => {
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const video = videoRef.current;
     if (!video) {
       return;
@@ -221,12 +219,7 @@ const InlineMediaPlayer: FC<InlineMediaPlayerProps> = ({
 
       {!isMse && !isAudio && (
         <div className={styles.videoWrap}>
-          <video
-            ref={videoRef}
-            autoPlay
-            className={styles.video}
-            playsInline
-          />
+          <video ref={videoRef} autoPlay className={styles.video} playsInline />
           <div className={styles.customControls}>
             <button
               type="button"
@@ -245,6 +238,30 @@ const InlineMediaPlayer: FC<InlineMediaPlayerProps> = ({
               ref={progressRef}
               className={styles.progressWrap}
               onClick={handleSeek}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  const video = videoRef.current;
+                  if (!video || !Number.isFinite(video.duration)) {
+                    return;
+                  }
+                  const step = video.duration * 0.05;
+                  const nextTime =
+                    e.key === ' '
+                      ? video.currentTime + step
+                      : video.currentTime;
+                  video.currentTime = Math.min(
+                    video.duration,
+                    Math.max(0, nextTime)
+                  );
+                }
+              }}
+              role="slider"
+              tabIndex={0}
+              aria-label="Video progress"
+              aria-valuenow={currentTime}
+              aria-valuemin={0}
+              aria-valuemax={duration}
             >
               <div className={styles.progressTrack}>
                 <div

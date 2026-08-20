@@ -21,6 +21,12 @@ const baseRules = {
   // https://eslint.org/docs/rules/func-names
   'func-names': 'error',
 
+  // Require braces around blocks for if/else/for/while/do/etc.
+  // 'all' mode: every branch must have braces — no single-line body,
+  // no line-break-then-indented body. Enforces consistent block style.
+  // https://eslint.org/docs/rules/curly
+  'curly': ['error', 'all'],
+
   // Enforce a maximum line length
   // https://eslint.org/docs/rules/max-len
   'max-len': 'off',

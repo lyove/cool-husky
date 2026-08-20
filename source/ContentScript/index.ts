@@ -7,8 +7,7 @@ import {
 } from './image-extractor';
 
 {
-  // Cached capture switches so disabling a setting takes effect immediately.
-  // (The injected MSE proxy / data-image sniffer may stay installed but is bypassed.)
+  // cached capture switches
   let mseCaptureEnabled = false;
   let dataImagesEnabled = false;
 
@@ -40,7 +39,9 @@ import {
     .catch(() => {});
 
   window.addEventListener('message', (event) => {
-    if (event.source !== window) return;
+    if (event.source !== window) {
+      return;
+    }
     if (event.data?.type === 'COOLHUSKY_PING') {
       window.postMessage(
         {
@@ -50,37 +51,9 @@ import {
         '*'
       );
     }
-    // The external downloader (COOLHUSKY_REQUEST_DOWNLOAD / COOLHUSKY_DOWNLOAD_READY) is not deployed yet; commented out for now
-    // if (event.data?.type === 'COOLHUSKY_REQUEST_DOWNLOAD') {
-    //   let retries = 0;
-    //   function tryFetch() {
-    //     browser.runtime
-    //       .sendMessage({ type: 'COOLHUSKY_DOWNLOAD_READY' })
-    //       .then((resp: any) => {
-    //         if (resp?.ok && resp.url) {
-    //           window.postMessage(
-    //             {
-    //               type: 'COOLHUSKY_DOWNLOAD_DATA',
-    //               url: resp.url,
-    //               format: resp.format,
-    //               filename: resp.filename,
-    //               sourceUrl: resp.sourceUrl,
-    //               requestHeaders: resp.requestHeaders,
-    //               audioUrl: resp.audioUrl,
-    //             },
-    //             '*'
-    //           );
-    //         } else if (retries < 20) {
-    //           retries++;
-    //           setTimeout(tryFetch, 300);
-    //         }
-    //       });
-    //   }
-    //   tryFetch();
-    // }
   });
 
-  // Receive messages from background and forward them to the page via postMessage
+  // forward background messages to page
   browser.runtime.onMessage.addListener((msg: any) => {
     if (msg.type === 'COOLHUSKY_SOURCE_URL' && msg.sourceUrl) {
       window.postMessage(
@@ -131,35 +104,37 @@ import {
   let currentTabId: number | undefined;
   const coolhuskyFetchControllers = new Map<string, AbortController>();
 
-  // Buffer M3U8_DETECTED in batches: an HLS live stream's first screen may emit dozens of segments concurrently,
-  // and sending one message per segment causes excessive IPC round-trips. Coalesce within a 50ms window into a single MEDIA_FOUND_BATCH.
+  // batch segments to reduce IPC
   const mediaBuffer: Array<{ url: string; format: string }> = [];
   let mediaFlushTimer: ReturnType<typeof setTimeout> | null = null;
-  // Last-resort Douyin player collector. Unlike generic media sniffing this
-  // preserves the relation carried by the CDN playback token, before either
-  // URL is rendered as an independent card.
+  // Douyin track pairing
   const douyinTracks = new Map<
     string,
     Array<{ url: string; role: 'video' | 'audio'; at: number }>
   >();
+  // FNV-1a hash to group Douyin video/audio tracks by URL
   const douyinGroupKey = (url: string) => {
     let hash = 2166136261;
-    for (let i = 0; i < url.length; i++)
+    for (let i = 0; i < url.length; i++) {
       hash = Math.imul(hash ^ url.charCodeAt(i), 16777619);
+    }
     return `track_${(hash >>> 0).toString(36)}`;
   };
   const isDouyinCdnTrack = (
     value: string
   ): { key: string; role: 'video' | 'audio' } | undefined => {
-    if (window.top !== window) return undefined;
+    if (window.top !== window) {
+      return undefined;
+    }
     try {
       const parsed = new URL(value);
       if (
         !/\.(douyinvod|douyincdn|amemv|iesdouyin|snssdk|bytecdn|bytego|bytedance|toutiaovod|tiktokcdn|tiktokcdn-us|tiktokcdn-eu|tiktokcdn-in|tiktokv|muscdn|musical|byteoversea)\.(?:com|cn|net|us|eu|in|gg|io|ly)$/i.test(
           parsed.hostname
         )
-      )
+      ) {
         return undefined;
+      }
       const role = /(?:^|[-_/])media-audio(?:[-_/]|$)|\/audio[-_/]/i.test(
         parsed.pathname
       )
@@ -178,9 +153,12 @@ import {
       return undefined;
     }
   };
+  // Pair Douyin CDN video+audio tracks by query param key, 30s window
   const collectDouyinPlayerTrack = (url: string) => {
     const track = isDouyinCdnTrack(url);
-    if (!track) return;
+    if (!track) {
+      return;
+    }
     const now = Date.now();
     const pending = (douyinTracks.get(track.key) || []).filter(
       (item) => now - item.at < 30_000
@@ -235,10 +213,14 @@ import {
   };
   let tabIdFetching = false;
   async function ensureTabId(): Promise<number | undefined> {
-    if (currentTabId) return currentTabId;
+    if (currentTabId) {
+      return currentTabId;
+    }
     if (tabIdFetching) {
-      // Wait for the in-flight fetch to complete
-      while (tabIdFetching) await new Promise((r) => setTimeout(r, 5));
+      // wait for in-flight fetch
+      while (tabIdFetching) {
+        await new Promise((r) => setTimeout(r, 5));
+      }
       return currentTabId;
     }
     tabIdFetching = true;
@@ -249,7 +231,7 @@ import {
       currentTabId = (tab as { id?: number } | undefined)?.id;
     } catch {}
     tabIdFetching = false;
-    // Once tabId is ready, schedule a flush immediately if there is buffered data and no timer
+    // flush buffered data once tabId is ready
     if (currentTabId && mediaBuffer.length > 0 && mediaFlushTimer === null) {
       mediaFlushTimer = setTimeout(flushMediaBuffer, 50);
     }
@@ -257,7 +239,9 @@ import {
   }
   function flushMediaBuffer() {
     mediaFlushTimer = null;
-    if (mediaBuffer.length === 0 || !currentTabId) return;
+    if (mediaBuffer.length === 0 || !currentTabId) {
+      return;
+    }
     const batch = mediaBuffer.splice(0);
     browser.runtime
       .sendMessage({
@@ -269,9 +253,11 @@ import {
   }
 
   window.addEventListener('message', async (event) => {
-    if (event.source !== window) return;
+    if (event.source !== window) {
+      return;
+    }
 
-    // The injected script requests settings after loading; re-send to avoid losing updates due to races
+    // re-send settings to avoid races
     if (event.data?.type === 'COOLHUSKY_REQUEST_SETTINGS') {
       browser.runtime
         .sendMessage({ type: 'GET_SETTINGS' })
@@ -303,7 +289,9 @@ import {
         url: event.data.url,
         format: event.data.format || 'm3u8',
       });
-      if (!currentTabId && !tabIdFetching) ensureTabId();
+      if (!currentTabId && !tabIdFetching) {
+        ensureTabId();
+      }
       if (mediaFlushTimer === null) {
         mediaFlushTimer = setTimeout(flushMediaBuffer, 50);
       }
@@ -341,7 +329,9 @@ import {
     }
 
     if (event.data?.type === 'COOLHUSKY_MSE_STREAM_UPDATE') {
-      if (!mseCaptureEnabled) return;
+      if (!mseCaptureEnabled) {
+        return;
+      }
       if (!currentTabId) {
         const tab = await browser.runtime.sendMessage({
           type: 'GET_CURRENT_TAB',
@@ -364,31 +354,6 @@ import {
       return;
     }
 
-    // The external downloader (EXT_DOWNLOAD_REQUEST → OPEN_DOWNLOAD_PAGE) is not deployed yet; commented out for now
-    // if (
-    //   event.data?.type === 'EXT_DOWNLOAD_REQUEST' &&
-    //   typeof event.data.url === 'string'
-    // ) {
-    //   const { url, format = 'm3u8', filename, requestId } = event.data;
-    //   try {
-    //     await browser.runtime.sendMessage({
-    //       type: 'OPEN_DOWNLOAD_PAGE',
-    //       url,
-    //       format,
-    //       filename: filename || getFilenameFromUrl(url),
-    //     });
-    //     window.postMessage(
-    //       { type: 'EXT_DOWNLOAD_RESPONSE', requestId, ok: true },
-    //       '*'
-    //     );
-    //   } catch {
-    //     window.postMessage(
-    //       { type: 'EXT_DOWNLOAD_RESPONSE', requestId, ok: false },
-    //       '*'
-    //     );
-    //   }
-    // }
-
     if (
       event.data?.type === 'COOLHUSKY_FETCH' &&
       typeof event.data.url === 'string'
@@ -407,7 +372,7 @@ import {
           cache: 'no-store',
         };
         if (options?.headers) {
-          // Strip cache/conditional headers the browser may attach, avoiding partial 206 responses from the HTTP cache
+          // strip cache headers
           const CACHE_HEADER_NAMES = new Set([
             'cache-control',
             'pragma',
@@ -420,8 +385,9 @@ import {
           ]);
           const clean: Record<string, string> = {};
           for (const [k, v] of Object.entries(options.headers)) {
-            if (!CACHE_HEADER_NAMES.has(String(k).toLowerCase()))
+            if (!CACHE_HEADER_NAMES.has(String(k).toLowerCase())) {
               clean[k] = v as string;
+            }
           }
           fetchOptions.headers = clean;
         }
@@ -464,7 +430,9 @@ import {
         }
       } catch (err) {
         coolhuskyFetchControllers.delete(requestId);
-        if (err instanceof DOMException && err.name === 'AbortError') return;
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return;
+        }
         window.postMessage(
           { type: 'COOLHUSKY_FETCH_RESPONSE', requestId, ok: false },
           '*'
@@ -543,7 +511,7 @@ import {
       event.data?.type === 'COOLHUSKY_PROXY_FETCH_CANCEL' &&
       typeof event.data.requestId === 'string'
     ) {
-      // Actively cancel the background proxy fetch when the page stops playing or leaves, preventing background segment requests
+      // cancel background proxy fetch
       browser.runtime
         .sendMessage({
           type: 'PROXY_FETCH_CANCEL',
@@ -556,9 +524,6 @@ import {
       event.data?.type === 'COOLHUSKY_NOTIFY' &&
       typeof event.data.title === 'string'
     ) {
-      // A regular page (content injection) asks the extension background to dispatch a system notification:
-      // forward to background, which calls chrome.notifications; send back an ACK when done,
-      // letting the page know the extension has taken over, avoiding duplicate fallback to web notifications.
       const { title, body, tag, pageUrl } = event.data;
       browser.runtime
         .sendMessage({
@@ -572,7 +537,7 @@ import {
           window.postMessage({ type: 'COOLHUSKY_NOTIFY_ACK', tag }, '*')
         )
         .catch(() => {
-          /* Extension did not handle it: the page will fall back to a web notification */
+          /* unhandled */
         });
     }
   });
@@ -590,7 +555,9 @@ import {
 
       for (let i = 0; i < tracks.length; i++) {
         const track = tracks[i]!;
-        if (!track.buffers || !track.buffers.length) continue;
+        if (!track.buffers || !track.buffers.length) {
+          continue;
+        }
 
         const totalSize = track.buffers.reduce((s, b) => s + b.byteLength, 0);
         const merged = new Uint8Array(totalSize);
@@ -627,36 +594,27 @@ import {
   function b64ToArrayBuffer(b64: string): ArrayBuffer {
     const binary = atob(b64);
     const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
     return bytes.buffer;
   }
 
-  // function getFilenameFromUrl(url: string): string {
-  //   try {
-  //     const pathname = new URL(url).pathname;
-  //     return pathname.split('/').pop() || 'download';
-  //   } catch {
-  //     return 'download';
-  //   }
-  // }
-
-  // ---- DOM image extraction (complements webRequest-based sniffing) ----
-  // The webRequest sniffer only sees images whose request is actually in flight.
-  // Cache hits, already-loaded images, CSS backgrounds, srcset candidates and
-  // lazy-loaded (data-src) images are invisible to it; walking the DOM/CSSOM
-  // (modeled after the Media-downloader extension) finds those proactively.
-  // Only the top frame walks the DOM; images inside iframes are still caught
-  // by the background webRequest listener.
+  // DOM image extraction
   if (window.top === window.self && typeof document !== 'undefined') {
     const reportedImageUrls = new Set<string>();
     const dispatchImages = (candidates: DomImageCandidate[]): void => {
       const fresh = candidates.filter((c) => {
-        if (reportedImageUrls.has(c.url)) return false;
+        if (reportedImageUrls.has(c.url)) {
+          return false;
+        }
         reportedImageUrls.add(c.url);
         return true;
       });
-      if (!fresh.length) return;
-      // Split into chunks to avoid oversized runtime messages
+      if (!fresh.length) {
+        return;
+      }
+      // chunk to avoid oversized messages
       for (let i = 0; i < fresh.length; i += 100) {
         const batch = fresh.slice(i, i + 100);
         browser.runtime
@@ -681,7 +639,7 @@ import {
         'DOMContentLoaded',
         () => {
           scanPage();
-          // Second pass: catches lazy-loaded / async-rendered images
+          // second pass for lazy images
           setTimeout(scanPage, 2500);
         },
         { once: true }
@@ -691,22 +649,26 @@ import {
       setTimeout(scanPage, 2500);
     }
 
-    // Incremental scan: catches lazy-loading src replacements and dynamically inserted images
+    // incremental scan for lazy/dynamic images
     let pendingImageMutations: MutationRecord[] = [];
     let mutationTimer: number | null = null;
     const observer = new MutationObserver((mutations) => {
-      // Accumulate records so mutations arriving while a scan is scheduled are
-      // not lost (a 600ms throttle without buffering would skip them).
       pendingImageMutations.push(...mutations);
-      if (mutationTimer !== null) return;
+      if (mutationTimer !== null) {
+        return;
+      }
       mutationTimer = window.setTimeout(() => {
         mutationTimer = null;
-        if (pendingImageMutations.length === 0) return;
+        if (pendingImageMutations.length === 0) {
+          return;
+        }
         const batch = pendingImageMutations;
         pendingImageMutations = [];
         for (const m of batch) {
           if (m.type === 'childList') {
-            for (const node of m.addedNodes) scanSubtree(node);
+            for (const node of m.addedNodes) {
+              scanSubtree(node);
+            }
           } else if (m.type === 'attributes') {
             scanSubtree(m.target);
           }

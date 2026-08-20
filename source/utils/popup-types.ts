@@ -18,10 +18,8 @@ export interface RawMediaEntry {
   groupMasterId?: string;
   variantBandwidth?: number;
   audioUrl?: string;
-  /** Structured audio choices for a site-specific separated A/V task. */
   audioOptions?: Array<{ url: string; label: string }>;
   tabTitle?: string;
-  /** Live-stream flag (true when HTTP-FLV lacks Content-Length/Duration). */
   isLiveStream?: boolean;
 }
 
@@ -46,11 +44,6 @@ export interface MetadataBatchRequest {
   items: MetadataBatchItem[];
 }
 
-export interface MetadataBatchCancelRequest {
-  type: 'CANCEL_MEDIA_METADATA_BATCH';
-  taskId: string;
-}
-
 export interface MetadataBatchResult {
   key: string;
   url: string;
@@ -67,10 +60,4 @@ export interface MetadataBatchResponse {
   cancelled?: boolean;
   items: MetadataBatchResult[];
   error?: string;
-}
-
-export interface ListUpdatedMessage {
-  type: 'LIST_UPDATED';
-  tabId: number;
-  list: RawMediaEntry[];
 }

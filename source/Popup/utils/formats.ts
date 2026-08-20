@@ -1,12 +1,7 @@
 import { t } from '../../utils/i18n';
 
 export type MediaType =
-  | 'stream'
-  | 'video'
-  | 'audio'
-  | 'image'
-  | 'doc'
-  | 'other';
+  'stream' | 'video' | 'audio' | 'image' | 'doc' | 'other';
 
 export const STREAM_FORMATS = ['m3u8', 'mpd', 'mse', 'flv'];
 export const VIDEO_DOWNLOAD_FORMATS = [
@@ -119,27 +114,44 @@ export function getType(
   groupRole?: string
 ): MediaType {
   const f = format.toLowerCase();
-  if (groupRole === 'audio') return 'audio';
-  // Platform-managed entries (e.g. Douyin grouped tracks) are marked
-  // `category: 'stream'` even when the format is a plain mp4/webm. That flag
-  // must win over the format-based guess, otherwise these entries are
-  // miscounted as regular videos AND their master/variants get flattened into
-  // the list as standalone items (duplicating what the group card already
-  // shows).
-  if (category === 'stream') return 'stream';
-  if (f === 'mse') return 'stream';
-  if (isStreamFormat(f)) return 'stream';
-  if (isVideoFormat(f)) return 'video';
-  if (isAudioFormat(f)) return 'audio';
-  if (isImageFormat(f)) return 'image';
-  if (isDocFormat(f)) return 'doc';
-  if (category === 'image') return 'image';
-  if (category === 'subtitle') return 'doc';
+  if (groupRole === 'audio') {
+    return 'audio';
+  }
+  // category flag wins over format
+  if (category === 'stream') {
+    return 'stream';
+  }
+  if (f === 'mse') {
+    return 'stream';
+  }
+  if (isStreamFormat(f)) {
+    return 'stream';
+  }
+  if (isVideoFormat(f)) {
+    return 'video';
+  }
+  if (isAudioFormat(f)) {
+    return 'audio';
+  }
+  if (isImageFormat(f)) {
+    return 'image';
+  }
+  if (isDocFormat(f)) {
+    return 'doc';
+  }
+  if (category === 'image') {
+    return 'image';
+  }
+  if (category === 'subtitle') {
+    return 'doc';
+  }
   return 'other';
 }
 
 export function getFormatLabel(format: string): string {
-  if (!format) return t('unknown');
+  if (!format) {
+    return t('unknown');
+  }
   const map: Record<string, string> = {
     m3u8: 'HLS',
     mpd: 'DASH',
@@ -168,25 +180,24 @@ export function getFormatLabel(format: string): string {
   return map[format.toLowerCase()] ?? format.toUpperCase();
 }
 
-/** Replace illegal filename characters */
 export function sanitizeFilename(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) || 'download';
 }
 
-/** Extract filename from URL (without extension) */
+// Hashes data: URLs and long query-string filenames to short stable names
 export function getFileName(url: string): string {
   try {
     if (url.startsWith('data:')) {
       let h = 0;
-      for (let i = 0; i < url.length; i++)
+      for (let i = 0; i < url.length; i++) {
         h = (h * 31 + url.charCodeAt(i)) >>> 0;
+      }
       return `image-${h.toString(36).slice(0, 8)}`;
     }
 
     const pathname = decodeURIComponent(new URL(url).pathname);
     const last = pathname.split('/').pop() || '';
 
-    // CDN signed URLs often expose an unreadable query-style path segment.
     if (last.length > 48 || /[=?&]/.test(last)) {
       const extMatch = last.match(
         /\.(mp4|m3u8|webm|mov|m4v|mp3|m4a|ts|png|jpe?g|webp|gif|svg|pdf|mkv|avi|flv|ogg|wav|aac)(?=$|&|\?)/i
@@ -208,18 +219,19 @@ export function getFileName(url: string): string {
   }
 }
 
-/** Ensure the filename has an extension */
 export function ensureFileExtension(filename: string, format: string): string {
   const ext = format.toLowerCase();
   const base = sanitizeFilename(filename);
-  if (ext && !base.toLowerCase().endsWith(`.${ext}`)) return `${base}.${ext}`;
+  if (ext && !base.toLowerCase().endsWith(`.${ext}`)) {
+    return `${base}.${ext}`;
+  }
   return base;
 }
 
-export const DEFAULT_FORMAT_OPTIONS = Object.values(FORMAT_GROUPS).flat();
-
 export function formatFileSize(bytes?: number): string {
-  if (bytes === undefined || bytes === null || bytes === 0) return '';
+  if (bytes === undefined || bytes === null || bytes === 0) {
+    return '';
+  }
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   const value = bytes / Math.pow(1024, i);
@@ -228,11 +240,14 @@ export function formatFileSize(bytes?: number): string {
     : `${value.toFixed(1)} ${units[i]}`;
 }
 
+// Prefixes ~ for stream formats whose size is approximate
 export function formatItemSize(item: {
   format?: string;
   size?: number;
 }): string {
-  if (!item.size) return '';
+  if (!item.size) {
+    return '';
+  }
   const base = formatFileSize(item.size);
   const f = (item.format ?? '').toLowerCase();
   return ['m3u8', 'mpd', 'ism', 'flv', 'mpegts'].includes(f)
@@ -240,9 +255,7 @@ export function formatItemSize(item: {
     : base;
 }
 
-// ── Stream grouping / metadata / naming utilities (aligned with the source-side CoolHusky App.vue) ──
-
-/** Stable media-entry key (keeps identity consistent across list updates) */
+// Composite key: captureId|groupId|groupRole|format|url for dedup
 export function getMediaKey(item: {
   captureId?: string;
   groupId?: string;
@@ -259,84 +272,76 @@ export function getMediaKey(item: {
   ].join('|');
 }
 
-/**
- * Determine whether an item is a stream segment (HLS .ts / DASH .m4s, or a segment linked to its parent).
- * Such segments are child resources of m3u8/mpd and should be hidden, showing only the parent playlist entry.
- * Note: only explicit association info (groupRole/groupId/groupMasterId) is considered;
- * no heuristic of "hide all standalone .ts when an m3u8 exists" (the source-side heuristic wrongly kills standalone TS files).
- */
-export function isStreamSegment(item: {
-  groupRole?: string;
-  groupId?: string;
-  groupMasterId?: string;
-  format: string;
-}): boolean {
-  if (item.groupRole === 'segment') {
-    return true;
-  }
-  const f = item.format.toLowerCase();
-  return (
-    (f === 'ts' || f === 'm4s') && Boolean(item.groupId || item.groupMasterId)
-  );
-}
-
-/** Seconds → m:ss / h:mm:ss */
 export function formatDuration(seconds?: number): string {
-  if (seconds === undefined || seconds === null || isNaN(seconds)) return '';
+  if (seconds === undefined || seconds === null || isNaN(seconds)) {
+    return '';
+  }
   const s = Math.floor(seconds);
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  if (h > 0)
+  if (h > 0) {
     return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  }
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
-/** Resolution label: 8K / 4K / 1440p / 1080p / 720p / 480p */
 export function getResolutionLabel(
   width?: number,
   height?: number
 ): string | null {
-  if (!width || !height) return null;
+  if (!width || !height) {
+    return null;
+  }
   const h = Math.min(width, height);
-  if (h >= 4320) return '8K';
-  if (h >= 2160) return '4K';
-  if (h >= 1440) return '1440p';
-  if (h >= 1080) return '1080p';
-  if (h >= 720) return '720p';
-  if (h >= 480) return '480p';
+  if (h >= 4320) {
+    return '8K';
+  }
+  if (h >= 2160) {
+    return '4K';
+  }
+  if (h >= 1440) {
+    return '1440p';
+  }
+  if (h >= 1080) {
+    return '1080p';
+  }
+  if (h >= 720) {
+    return '720p';
+  }
+  if (h >= 480) {
+    return '480p';
+  }
   return null;
 }
 
-/** Domain label (strips www. prefix) */
-export function getDomainLabel(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return '';
-  }
-}
-
-/** Relative time (pairs with i18n timeJustNow/timeSecondsAgo etc.) */
 export function getRelativeTime(
   ts?: number,
   tFn: (key: string, substitutions?: string | string[]) => string = t
 ): string {
-  if (!ts) return '';
+  if (!ts) {
+    return '';
+  }
   const diff = Math.floor((Date.now() - ts) / 1000);
-  if (diff < 5) return tFn('timeJustNow');
-  if (diff < 60) return tFn('timeSecondsAgo', String(diff));
-  if (diff < 3600) return tFn('timeMinutesAgo', String(Math.floor(diff / 60)));
-  if (diff < 86400) return tFn('timeHoursAgo', String(Math.floor(diff / 3600)));
+  if (diff < 5) {
+    return tFn('timeJustNow');
+  }
+  if (diff < 60) {
+    return tFn('timeSecondsAgo', String(diff));
+  }
+  if (diff < 3600) {
+    return tFn('timeMinutesAgo', String(Math.floor(diff / 60)));
+  }
+  if (diff < 86400) {
+    return tFn('timeHoursAgo', String(Math.floor(diff / 3600)));
+  }
   return tFn('timeDaysAgo', String(Math.floor(diff / 86400)));
 }
 
-/** Sanitize directory name (batch-download subdirectory) */
 export function sanitizeDirectoryName(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) || 'download';
 }
 
-/** Single download filename (custom name takes priority) */
 export function getDownloadFilename(
   url: string,
   format: string,
@@ -346,7 +351,6 @@ export function getDownloadFilename(
   return ensureFileExtension(baseName, format);
 }
 
-/** Batch download filename (optional subdirectory prefix) */
 export function getBatchDownloadFilename(
   url: string,
   format: string,

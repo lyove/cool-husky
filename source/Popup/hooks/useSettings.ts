@@ -14,14 +14,13 @@ export function useSettings(): {
       browser.runtime
         .sendMessage({ type: 'GET_SETTINGS' })
         .then((res: unknown) => {
-          if (!disposed && res) setSettings(res as Settings);
+          if (!disposed && res) {
+            setSettings(res as Settings);
+          }
         })
         .catch(() => {});
     };
     load();
-    // Keep settings fresh: toggling sniffing switches (e.g. image/doc) in the
-    // options page must reflect live in the popup / sidepanel — counts, tabs
-    // and filters are all derived from `settings`.
     const onChanged = (
       changes: Record<string, { newValue?: unknown }>,
       area: string

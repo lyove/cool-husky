@@ -86,9 +86,6 @@ export function useMediaPlayback(
   const [error, setError] = useState<string>('');
   const [drm, setDrm] = useState(false);
   const [recordingSec, setRecordingSec] = useState(0);
-  // Mirrors `recording.current` as real state: stopping a sub-second recording
-  // used to leave setRecordingSec(0) unchanged, so React never re-rendered and
-  // the button stayed stuck in "stop recording" mode.
   const [recordingActive, setRecordingActive] = useState(false);
   const [imgSrc, setImgSrc] = useState<string>('');
 
@@ -162,11 +159,16 @@ export function useMediaPlayback(
     setImgSrc(URL.createObjectURL(blob));
   }, [item, currentTabId, t]);
 
+  // Syncs a separate audio track to video element with play/pause/seek handlers
   const attachSeparatedAudio = useCallback(async (): Promise<void> => {
     const audioUrl = item.audioUrl || item.audioOptions?.[0]?.url;
-    if (!audioUrl || separatedAudioRef.current) return;
+    if (!audioUrl || separatedAudioRef.current) {
+      return;
+    }
     const video = videoRef.current;
-    if (!video || !video.isConnected) return;
+    if (!video || !video.isConnected) {
+      return;
+    }
     const tabUrl =
       currentTabId === undefined
         ? ''
@@ -183,7 +185,9 @@ export function useMediaPlayback(
         requestHeaders: item.requestHeaders,
       })
       .catch(() => {});
-    if (!video.isConnected || separatedAudioRef.current) return;
+    if (!video.isConnected || separatedAudioRef.current) {
+      return;
+    }
     const audioEl = new Audio();
     audioEl.preload = 'auto';
     audioEl.src = audioUrl;
@@ -217,14 +221,15 @@ export function useMediaPlayback(
       syncRate,
       onAudioError,
     };
-    if (!video.paused) syncPlay();
+    if (!video.paused) {
+      syncPlay();
+    }
   }, [item, currentTabId]);
 
   const disposeSeparatedAudio = useCallback((): void => {
     const audioEl = separatedAudioRef.current;
     const handlers = separatedAudioHandlersRef.current;
     const video = videoRef.current;
-    // removeEventListener requires the exact same handler references that were registered.
     if (video && handlers) {
       video.removeEventListener('play', handlers.syncPlay);
       video.removeEventListener('pause', handlers.syncPause);
@@ -240,49 +245,47 @@ export function useMediaPlayback(
     separatedAudioHandlersRef.current = null;
   }, []);
 
+  // Audio spectrum visualizer via Web Audio API analyser node
   useEffect(() => {
-    if (!isAudio) return;
+    if (!isAudio) {
+      return;
+    }
     const audio = audioRef.current;
     const canvas = spectrumCanvasRef.current;
-    if (!audio || !canvas) return;
+    if (!audio || !canvas) {
+      return;
+    }
     let ctx: AudioContext | null = null;
     let analyser: AnalyserNode | null = null;
     let source: MediaElementAudioSourceNode | null = null;
     let raf = 0;
-    // The AudioContext graph must be wired up only once per element
-    // (createMediaElementSource throws on an already-connected element).
     let started = false;
-    // drawing stays true only while the audio is actually playing.
     let drawing = false;
     let g: CanvasRenderingContext2D | null = null;
     let data = new Uint8Array(0);
-    // "Peak" layout: the center bar is the tallest and tracks the audio loudness;
-    // bars fall off towards both edges with a cosine envelope and jitter randomly,
-    // but no edge bar ever exceeds the center height. The whole shape rises/falls
-    // with the audio level — loud → center high & edges high, quiet → all low.
     const BAR_COUNT = 40;
     const center = (BAR_COUNT - 1) / 2;
-    // Per-bar distance-from-center factor (1 at center → ~0.3 at edges).
     const envelope = new Float32Array(BAR_COUNT);
     for (let k = 0; k < BAR_COUNT; k++) {
-      const d = Math.abs(k - center) / center; // 0 at center, 1 at edges
+      const d = Math.abs(k - center) / center;
       envelope[k] = 0.3 + 0.7 * Math.cos(d * Math.PI * 0.5);
     }
     let frame = 0;
     const draw = (): void => {
-      if (!drawing) return;
+      if (!drawing) {
+        return;
+      }
       raf = requestAnimationFrame(draw);
-      if (!analyser || !g) return;
+      if (!analyser || !g) {
+        return;
+      }
       analyser.getByteFrequencyData(data);
-      // Overall loudness drives the peak (center) height — the whole shape follows it.
       let total = 0;
-      for (let j = 0; j < data.length; j++) total += data[j] ?? 0;
-      const loudness = total / data.length / 255; // 0..1
-      // Peak height: loudness lifted so the whole shape is tall enough — center should
-      // routinely exceed half the canvas height and reach the top on loud peaks.
+      for (let j = 0; j < data.length; j++) {
+        total += data[j] ?? 0;
+      }
+      const loudness = total / data.length / 255;
       const peak = Math.max(0.2, Math.min(1, 0.35 + loudness * 1.8));
-      // Sync the canvas backing store to the element's displayed size (DPR-aware)
-      // so bars fill the full container width with no right-side gap.
       const cssW = canvas.clientWidth || canvas.width;
       const cssH = canvas.clientHeight || canvas.height;
       const dpr = window.devicePixelRatio || 1;
@@ -295,15 +298,11 @@ export function useMediaPlayback(
       const w = canvas.width;
       const h = canvas.height;
       g.clearRect(0, 0, w, h);
-      // Equal-width bars evenly spaced across the full width. Use a float stride so the
-      // rounding remainder is distributed across all gaps (not dumped on the last bar,
-      // which made it visibly wider). Each bar has the exact same width.
       const gap = Math.round(4 * dpr);
       const barWidth = Math.max(
         1,
         Math.floor((w - (BAR_COUNT - 1) * gap) / BAR_COUNT)
       );
-      // stride = (total width - bars) / (gaps), float → spreads remainder evenly.
       const stride = (w - barWidth) / (BAR_COUNT - 1);
       const gradient = g.createLinearGradient(0, h, 0, 0);
       gradient.addColorStop(0, '#2a5fff');
@@ -311,14 +310,11 @@ export function useMediaPlayback(
       g.fillStyle = gradient;
       frame++;
       for (let i = 0; i < BAR_COUNT; i++) {
-        // Jitter so edges move randomly but stay within the envelope (≤ peak).
         const jit =
           Math.sin(frame * 0.22 + i * 1.9) * 0.5 +
-          Math.sin(frame * 0.13 + i * 0.7) * 0.5; // -1..1
-        const jitter01 = jit * 0.5 + 0.5; // 0..1
+          Math.sin(frame * 0.13 + i * 0.7) * 0.5;
+        const jitter01 = jit * 0.5 + 0.5;
         const env = envelope[i]!;
-        // Edge bars: envelope × (random jitter), clamped to the envelope so they
-        // never exceed the center. Center bar uses the full peak.
         const v = Math.max(
           0.04,
           Math.min(peak, peak * (env * 0.6 + env * 0.4 * jitter01))
@@ -332,12 +328,16 @@ export function useMediaPlayback(
       }
     };
     const setup = (): void => {
-      if (started) return;
+      if (started) {
+        return;
+      }
       const AudioCtx =
         window.AudioContext ||
         (window as unknown as { webkitAudioContext?: typeof AudioContext })
           .webkitAudioContext;
-      if (!AudioCtx) return;
+      if (!AudioCtx) {
+        return;
+      }
       try {
         ctx = new AudioCtx();
         analyser = ctx.createAnalyser();
@@ -349,20 +349,25 @@ export function useMediaPlayback(
         g = canvas.getContext('2d');
         started = true;
       } catch {
-        // AudioContext unavailable: silently degrade
+        // AudioContext unavailable
       }
     };
     const startDrawing = (): void => {
-      if (!started || drawing) return;
+      if (!started || drawing) {
+        return;
+      }
       drawing = true;
       draw();
     };
     const stopDrawing = (): void => {
       drawing = false;
-      if (raf) cancelAnimationFrame(raf);
+      if (raf) {
+        cancelAnimationFrame(raf);
+      }
       raf = 0;
-      // Clear the canvas so the bars do not linger after playback stops/ends.
-      if (g) g.clearRect(0, 0, canvas.width, canvas.height);
+      if (g) {
+        g.clearRect(0, 0, canvas.width, canvas.height);
+      }
     };
     const onPlay = (): void => {
       setup();
@@ -371,15 +376,25 @@ export function useMediaPlayback(
     audio.addEventListener('play', onPlay);
     audio.addEventListener('pause', stopDrawing);
     audio.addEventListener('ended', stopDrawing);
-    if (!audio.paused) onPlay();
+    if (!audio.paused) {
+      onPlay();
+    }
     return (): void => {
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('pause', stopDrawing);
       audio.removeEventListener('ended', stopDrawing);
-      if (raf) cancelAnimationFrame(raf);
-      if (source) source.disconnect();
-      if (analyser) analyser.disconnect();
-      if (ctx) void ctx.close();
+      if (raf) {
+        cancelAnimationFrame(raf);
+      }
+      if (source) {
+        source.disconnect();
+      }
+      if (analyser) {
+        analyser.disconnect();
+      }
+      if (ctx) {
+        void ctx.close();
+      }
     };
   }, [isAudio, item.url]);
 
@@ -388,7 +403,9 @@ export function useMediaPlayback(
       void loadImage();
       return (): void => {
         setImgSrc((prev) => {
-          if (prev) URL.revokeObjectURL(prev);
+          if (prev) {
+            URL.revokeObjectURL(prev);
+          }
           return '';
         });
       };
@@ -405,13 +422,17 @@ export function useMediaPlayback(
     }
 
     const video = videoRef.current;
-    if (!video) return;
+    if (!video) {
+      return;
+    }
     let cancelled = false;
 
     const startPlayback = async (): Promise<void> => {
       try {
         const ctx = await getPlaybackContext();
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         setDrm(ctx.drm);
         if (ctx.drm) {
           setError(t('drmProtected'));
@@ -425,11 +446,14 @@ export function useMediaPlayback(
             return;
           }
           const Hls = await loadHls();
-          if (cancelled) return;
+          if (cancelled) {
+            return;
+          }
           if (!Hls.isSupported()) {
             setError(t('hlsUnsupported'));
             return;
           }
+          // HLS with proxy fallback on network error
           let proxyFallbackStarted = false;
           const startHls = (useProxy: boolean): void => {
             const previous = hlsInstance.current;
@@ -455,11 +479,14 @@ export function useMediaPlayback(
             });
             hlsInstance.current = hls;
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
-              if (hlsInstance.current === hls)
+              if (hlsInstance.current === hls) {
                 void video.play().catch(() => {});
+              }
             });
             hls.on(Hls.Events.ERROR, (_e, data) => {
-              if (!data.fatal || hlsInstance.current !== hls) return;
+              if (!data.fatal || hlsInstance.current !== hls) {
+                return;
+              }
               if (
                 data.type === Hls.ErrorTypes.NETWORK_ERROR &&
                 !useProxy &&
@@ -483,7 +510,9 @@ export function useMediaPlayback(
           startHls(false);
         } else if (format === 'mpd') {
           const dashjs = await loadDash();
-          if (cancelled) return;
+          if (cancelled) {
+            return;
+          }
           const dash = dashjs.MediaPlayer().create();
           dashInstance.current = dash;
           dash.initialize(video, item.url, false);
@@ -495,7 +524,9 @@ export function useMediaPlayback(
           });
         } else if (format === 'flv' || format === 'ts') {
           const mts = await loadMpegts();
-          if (cancelled) return;
+          if (cancelled) {
+            return;
+          }
           if (!mts.isSupported()) {
             setError(t('flvUnsupported'));
             return;
@@ -522,15 +553,18 @@ export function useMediaPlayback(
           void video.play().catch(() => {});
         } else {
           await attachSeparatedAudio();
-          if (cancelled) return;
+          if (cancelled) {
+            return;
+          }
           video.src = item.url;
           void video.play().catch(() => {});
         }
       } catch (e) {
-        if (!cancelled)
+        if (!cancelled) {
           setError(
             e instanceof Error ? t('playError') + e.message : t('playFail')
           );
+        }
       }
     };
 
@@ -567,7 +601,9 @@ export function useMediaPlayback(
   ]);
 
   useEffect(() => {
-    if (!isLive) return;
+    if (!isLive) {
+      return;
+    }
     const timer = setInterval(() => {
       if (recording.current) {
         setRecordingSec(
@@ -599,12 +635,18 @@ export function useMediaPlayback(
           headers,
           cache: 'no-store',
         });
-        if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
+        if (!resp.ok || !resp.body) {
+          throw new Error(`HTTP ${resp.status}`);
+        }
         const reader = resp.body.getReader();
         for (;;) {
           const { done, value } = await reader.read();
-          if (done) break;
-          if (value) chunks.push(value);
+          if (done) {
+            break;
+          }
+          if (value) {
+            chunks.push(value);
+          }
           const totalBytes = chunks.reduce((s, c) => s + c.length, 0);
           if (totalBytes > MAX_RECORD_BYTES) {
             setError(t('liveRecordingLimit'));

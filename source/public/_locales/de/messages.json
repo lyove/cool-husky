@@ -152,7 +152,31 @@
     "resetConfirm":{
         "message": "Klicken Sie erneut, um das Zurücksetzen zu bestätigen"
     },
-    "welcomeSubtitle":{
+    "welcome":{
+        "message": "Willkommen"
+    },
+    "welcomeTitle":{
+        "message": "Willkommen bei CoolHusky"
+    },
+    "welcomeIntro":{
+        "message": "CoolHusky ist ein intelligenter Browser-Media-Sniffer und -Downloader, mit dem Sie Video-, Audio- und Bildressourcen aus Webseiten einfach erfassen können.\n\nEr erkennt automatisch Mediendateien auf den besuchten Seiten und zeigt sie in einer übersichtlichen Liste an. Sie können nach Typ (Streaming, Video, Audio, Bild) filtern, gezielt nach Format und Größe suchen sowie mehrere Ressourcen gleichzeitig herunterladen oder URLs mit einem Klick kopieren.\n\nOb für tägliches Lernen, Archivierung oder Content-Erstellung – CoolHusky hilft Ihnen, benötigte Medienressourcen effizienter zu erhalten."
+    },
+    "welcomeFeaturesTitle":{
+        "message": "Hauptfunktionen"
+    },
+    "featureAutoSniff":{
+        "message": "Automatisches Sniffing: Erkennt Video-, Audio- und Bildressourcen beim Surfen in Echtzeit – ohne manuellen Aufwand."
+    },
+    "featureFilter":{
+        "message": "Intelligentes Filtern: Präzises Filtern nach Typ, Format und Größe, um Ressourcen schnell zu finden."
+    },
+    "featureBatchDownload":{
+        "message": "Stapeldownload: Mehrere Ressourcen gleichzeitig herunterladen und benötigte Materialien effizient archivieren."
+    },
+    "featureCopyUrl":{
+        "message": "Ein-Klick-Kopieren: Ressourcen-URLs einfach kopieren und direkt in anderen Tools verwenden."
+    },
+"welcomeSubtitle":{
         "message": "Intelligenter Medien-Sniffer und Downloader"
     },
     "tutorialTitle":{
@@ -250,12 +274,6 @@
     },
     "faq9A":{
         "message": "Einige Websites verwenden spezielle Verschlüsselung, DRM-Schutz oder verschleierte Lade-Techniken, die die Medien-URL-Erfassung verhindern. Videos können auch über eingebettete iframes mit Cross-Origin-Einschränkungen bereitgestellt werden. Versuchen Sie, die Seite zu aktualisieren und das Video zuerst abzuspielen, um die Erkennung auszulösen."
-    },
-    "needMoreHelp":{
-        "message": "Benötigen Sie weitere Hilfe?"
-    },
-    "needMoreHelpDesc":{
-        "message": "Wenn die oben genannten Inhalte Ihr Problem nicht lösen, können Sie über Folgendes Unterstützung erhalten"
     },
     "subtitle":{
         "message": "Intelligentes Sniffing, Einklick-Download"

@@ -7,11 +7,8 @@ export interface ProbedVideoMetadata {
 }
 
 export interface VideoThumbState {
-  /** URLs that have successfully produced a usable first-frame thumbnail */
   successUrls: Set<string>;
-  /** URLs that failed to load as a thumbnail */
   failedUrls: Set<string>;
-  /** Probed metadata keyed by URL */
   metadataByUrl: Map<string, ProbedVideoMetadata>;
 }
 
@@ -32,7 +29,6 @@ export function useVideoThumbnails(): {
     metadataByUrl: new Map(),
   });
 
-  // Keep a stable ref so callbacks are memoized and still observe current state
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -51,7 +47,9 @@ export function useVideoThumbnails(): {
 
   const markSuccess = useCallback((url: string) => {
     setState((prev) => {
-      if (prev.successUrls.has(url)) return prev;
+      if (prev.successUrls.has(url)) {
+        return prev;
+      }
       const nextSuccess = new Set(prev.successUrls);
       const nextFailed = new Set(prev.failedUrls);
       nextSuccess.add(url);
@@ -66,7 +64,9 @@ export function useVideoThumbnails(): {
 
   const markFailed = useCallback((url: string) => {
     setState((prev) => {
-      if (prev.failedUrls.has(url)) return prev;
+      if (prev.failedUrls.has(url)) {
+        return prev;
+      }
       const nextSuccess = new Set(prev.successUrls);
       const nextFailed = new Set(prev.failedUrls);
       nextFailed.add(url);
@@ -101,9 +101,7 @@ export function useVideoThumbnails(): {
     []
   );
 
-  // Seek to a small non-zero time so the first meaningful frame is shown,
-  // mirroring the flowpick reference behaviour, and also probe metadata that
-  // the background may have failed to extract (e.g. CORS-protected MP4s).
+  // Seeks to 0.1s to trigger a thumbnail frame and probes metadata
   const onVideoLoadedData = useCallback(
     (event: React.SyntheticEvent<HTMLVideoElement>, url: string) => {
       const video = event.currentTarget;

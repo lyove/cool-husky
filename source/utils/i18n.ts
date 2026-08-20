@@ -1,15 +1,7 @@
 import browser from 'webextension-polyfill';
 
 export type LocaleCode =
-  | 'system'
-  | 'en'
-  | 'zh_CN'
-  | 'zh_TW'
-  | 'de'
-  | 'es'
-  | 'ja'
-  | 'ko'
-  | 'ru';
+  'system' | 'en' | 'zh_CN' | 'zh_TW' | 'de' | 'es' | 'ja' | 'ko' | 'ru';
 
 export interface LocaleOption {
   code: LocaleCode;
@@ -189,7 +181,7 @@ const messagesMap: Record<string, Messages> = {
     startRecording: 'Record live stream',
   },
   zh_CN: {
-    extName: '酷哈 - 万能网页视频/音频/图片下载器',
+    extName: '酷哈 - 智能网页媒体嗅探与下载工具',
     title: '酷哈',
     home: '主页',
     download: '下载',
@@ -1298,10 +1290,14 @@ const BROWSER_LANG_MAP: Record<string, string> = {
 function detectSystemLocale(): string {
   const uiLang = browser.i18n.getUILanguage();
   const direct = BROWSER_LANG_MAP[uiLang];
-  if (direct) return direct;
+  if (direct) {
+    return direct;
+  }
   const base = uiLang.split('-')[0] ?? '';
   const mapped = BROWSER_LANG_MAP[base];
-  if (mapped) return mapped;
+  if (mapped) {
+    return mapped;
+  }
   return 'en';
 }
 
@@ -1310,7 +1306,6 @@ export type DensityMode = 'compact' | 'comfortable';
 
 const APPEARANCE_KEY = 'coolhusky_appearance';
 
-/** Module-level appearance state (subscribed via React's useSyncExternalStore) */
 let currentLocale: LocaleCode = 'system';
 let currentTheme: ThemeMode = 'light';
 let currentDensity: DensityMode = 'compact';
@@ -1340,8 +1335,7 @@ export function getResolvedLocale(): string {
   return currentLocale === 'system' ? detectSystemLocale() : currentLocale;
 }
 
-// Version counter for manual changes: loadAppearance's async restore
-// will not overwrite modifications the user has just made.
+// Stale write guard
 let manualChangeVersion = 0;
 
 export function setLocale(locale: LocaleCode): void {
@@ -1366,9 +1360,10 @@ export function setDensity(density: DensityMode): void {
 export async function loadAppearance(): Promise<void> {
   const versionAtStart = manualChangeVersion;
   const result = await browser.storage.local.get(APPEARANCE_KEY);
-  // The user modified the appearance while storage was loading:
-  // discard the stale restore to avoid overwriting their changes.
-  if (versionAtStart !== manualChangeVersion) return;
+  // Stale restore guard
+  if (versionAtStart !== manualChangeVersion) {
+    return;
+  }
 
   const stored = result[APPEARANCE_KEY] as Record<string, unknown> | undefined;
   if (stored) {
@@ -1402,13 +1397,11 @@ export async function saveAppearance(): Promise<void> {
   });
 }
 
-export function applyTheme(theme: ThemeMode): void {
+function applyTheme(theme: ThemeMode): void {
   const root = document.documentElement;
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const isDark = theme === 'dark' || (theme === 'system' && prefersDark);
   root.classList.toggle('dark', isDark);
-  // Force color-scheme inline to prevent the browser from auto-darkening
-  // canvas and controls under a dark system theme.
   root.style.colorScheme = isDark ? 'dark' : 'light';
 }
 
@@ -1419,7 +1412,9 @@ function activeMessages(): Messages {
 
 export function t(key: string, substitutions?: string | string[]): string {
   const msg = activeMessages()[key] ?? messagesMap['en']?.[key] ?? key;
-  if (!substitutions) return msg;
+  if (!substitutions) {
+    return msg;
+  }
   const subs = Array.isArray(substitutions) ? substitutions : [substitutions];
   return msg.replace(/\$(\d+)/g, (_, n) => subs[parseInt(n) - 1] ?? '');
 }

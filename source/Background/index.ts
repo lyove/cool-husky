@@ -40,11 +40,10 @@ const mediaInfoCache = new Map<
   string,
   { width?: number; height?: number; duration?: number }
 >();
+// Negative cache: skip retrying failed URLs for 60s
 const mediaInfoFailCache = new Map<string, number>();
 const MEDIA_INFO_FAIL_TTL_MS = 60_000;
 const metadataBatchControllers = new Map<string, AbortController>();
-
-// ── Resource health tracking ──────────────────────────────────────────────────
 
 async function fetchMediaInfo(
   url: string,
@@ -71,10 +70,12 @@ async function fetchMediaInfo(
         const cl = headResp.headers.get('Content-Length');
         if (cl) {
           const n = parseInt(cl, 10);
-          if (!Number.isNaN(n) && n > 0) return n;
+          if (!Number.isNaN(n) && n > 0) {
+            return n;
+          }
         }
       } catch {
-        /* fall through to the Range probe below */
+        //
       }
 
       try {
@@ -87,11 +88,13 @@ async function fetchMediaInfo(
           const m = /\/\s*(\d+)\s*$/.exec(cr);
           if (m?.[1]) {
             const n = parseInt(m[1], 10);
-            if (!Number.isNaN(n) && n > 0) return n;
+            if (!Number.isNaN(n) && n > 0) {
+              return n;
+            }
           }
         }
       } catch {
-        /* ignore, return 0 */
+        //
       }
 
       return 0;
@@ -103,7 +106,9 @@ async function fetchMediaInfo(
       offset: number
     ): Promise<Uint8Array> => {
       if (fullBodyCache) {
-        if (offset >= fullBodyCache.length) return new Uint8Array(0);
+        if (offset >= fullBodyCache.length) {
+          return new Uint8Array(0);
+        }
         return fullBodyCache.subarray(offset, offset + chunkSize);
       }
       const response = await fetch(url, {
@@ -117,7 +122,9 @@ async function fetchMediaInfo(
       if (response.status === 200) {
         const buf = new Uint8Array(await response.arrayBuffer());
         fullBodyCache = buf;
-        if (offset >= buf.length) return new Uint8Array(0);
+        if (offset >= buf.length) {
+          return new Uint8Array(0);
+        }
         return buf.subarray(offset, offset + chunkSize);
       }
       if (!response.ok && response.status !== 206) {
@@ -135,7 +142,6 @@ async function fetchMediaInfo(
       try {
         parsed = JSON.parse(result);
       } catch {
-        // mediainfo sometimes produces non-strict JSON; on parse failure, drop that URL's metadata but keep the download unaffected
         mediaInfoFailCache.set(url, Date.now());
         return null;
       }
@@ -167,14 +173,15 @@ async function fetchMediaInfo(
       }
     }
   } catch (e) {
-    if (signal?.aborted || (e as Error)?.name === 'AbortError') return null;
+    if (signal?.aborted || (e as Error)?.name === 'AbortError') {
+      return null;
+    }
     console.warn(
       '[fetchMediaInfo] failed for',
       url,
       '-',
       (e as Error)?.message || e
     );
-    // Negative cache: don't retry the same URL within 60s, solving "task keeps downloading + repeated errors"
     mediaInfoFailCache.set(url, Date.now());
   }
   return null;
@@ -210,7 +217,9 @@ async function fetchContentLength(
     }
   }
   const parseContentRange = (value: string | null): number | null => {
-    if (!value) return null;
+    if (!value) {
+      return null;
+    }
     const match = value.match(/\/(\d+)$/);
     return match?.[1] ? parseInt(match[1], 10) : null;
   };
@@ -224,11 +233,15 @@ async function fetchContentLength(
     });
     if (headResponse.ok) {
       const contentLength = headResponse.headers.get('content-length');
-      if (contentLength) return { ok: true, size: parseInt(contentLength, 10) };
+      if (contentLength) {
+        return { ok: true, size: parseInt(contentLength, 10) };
+      }
       const contentRange = parseContentRange(
         headResponse.headers.get('content-range')
       );
-      if (contentRange) return { ok: true, size: contentRange };
+      if (contentRange) {
+        return { ok: true, size: contentRange };
+      }
     }
     const rangeResponse = await fetch(url, {
       method: 'GET',
@@ -241,7 +254,9 @@ async function fetchContentLength(
       const contentRange = parseContentRange(
         rangeResponse.headers.get('content-range')
       );
-      if (contentRange) return { ok: true, size: contentRange };
+      if (contentRange) {
+        return { ok: true, size: contentRange };
+      }
     }
     const contentLength = rangeResponse.headers.get('content-length');
     if (contentLength && rangeResponse.status === 200) {
@@ -281,8 +296,7 @@ async function mapWithConcurrency<T, R>(
   const isMobileBrowser = /Android|iPhone|iPad|iPod/i.test(
     (globalThis as any).navigator?.userAgent ?? ''
   );
-  // Firefox only accepts requestHeaders for onSendHeaders; Chromium also
-  // supports extraHeaders.
+  // Firefox lacks extraHeaders
   const sendHeadersExtraInfo = isFirefox
     ? ['requestHeaders']
     : ['requestHeaders', 'extraHeaders'];
@@ -295,24 +309,27 @@ async function mapWithConcurrency<T, R>(
     typeof chromeGlobal.sidePanel.open === 'function';
   const supportsFirefoxSidebar = isFirefox && !isMobileBrowser;
 
-  // Track open sidepanel ports per tab: tabId → Port (declared here, shared by isUiListening etc.)
   const sidePanelPorts = new Map<number, any>();
 
   const setSidePanelForAllTabs = async (
     enabled: boolean,
     path?: string
   ): Promise<void> => {
-    if (typeof chromeGlobal?.sidePanel?.setOptions !== 'function') return;
+    if (typeof chromeGlobal?.sidePanel?.setOptions !== 'function') {
+      return;
+    }
     const tabs = await browser.tabs.query({}).catch(() => []);
     for (const tab of tabs) {
-      if (tab.id === undefined) continue;
+      if (tab.id === undefined) {
+        continue;
+      }
       const options: any = { tabId: tab.id, enabled };
-      if (path) options.path = path;
+      if (path) {
+        options.path = path;
+      }
       try {
         await chromeGlobal.sidePanel.setOptions(options);
-      } catch {
-        /* ignore per-tab failures */
-      }
+      } catch {}
     }
   };
 
@@ -353,7 +370,9 @@ async function mapWithConcurrency<T, R>(
 
     if (canOpenSidepanel) {
       browser.runtime.onConnect.addListener((port) => {
-        if (port.name !== 'sidepanel') return;
+        if (port.name !== 'sidepanel') {
+          return;
+        }
         let registeredTabId: number | undefined;
 
         port.onMessage.addListener((msg: any) => {
@@ -363,10 +382,6 @@ async function mapWithConcurrency<T, R>(
           ) {
             registeredTabId = msg.tabId;
             sidePanelPorts.set(msg.tabId, port);
-            // Push the tab's current list straight to the freshly opened panel
-            // so it never sits empty when media was captured before the panel
-            // opened (a later broadcast may never come). Targeted to this port
-            // only — no cross-window side effects.
             const pushList = (mm?: Map<string, MediaEntry>) => {
               if (mm && mm.size > 0) {
                 try {
@@ -430,10 +445,14 @@ async function mapWithConcurrency<T, R>(
     let firefoxSidebarOpen = false;
 
     browser.runtime.onConnect.addListener((port) => {
-      if (port.name !== 'sidepanel') return;
+      if (port.name !== 'sidepanel') {
+        return;
+      }
       firefoxSidebarOpen = true;
       port.onMessage.addListener((msg: any) => {
-        if (msg?.type === 'SIDEPANEL_CLOSE_REQUEST') firefoxSidebarOpen = false;
+        if (msg?.type === 'SIDEPANEL_CLOSE_REQUEST') {
+          firefoxSidebarOpen = false;
+        }
       });
       port.onDisconnect.addListener(() => {
         firefoxSidebarOpen = false;
@@ -471,8 +490,6 @@ async function mapWithConcurrency<T, R>(
 
   browser.runtime.onStartup.addListener(() => {});
 
-  // browser.runtime.setUninstallURL('https://github.com/1337-ops/m3u8-downloader-ext')
-
   const tabMap = new Map<number, Map<string, MediaEntry>>();
   const bilibiliManagedUrls = new Map<number, Set<string>>();
   const platformManagedUrls = new Map<number, Set<string>>();
@@ -481,19 +498,12 @@ async function mapWithConcurrency<T, R>(
     number,
     Map<string, { title?: string; coverUrl?: string; duration?: number }>
   >();
-  // Native <video> preloads do not pass through the page's fetch/XHR hook.
   const douyinNativeTracks = new Map<
     number,
     Map<string, Array<{ url: string; role: 'video' | 'audio'; at: number }>>
   >();
   const tabPageUrls = new Map<number, string>();
-  // Track each tab's current page title (to record the "at-the-time" title during sniffing)
   const tabPageTitles = new Map<number, string>();
-  // In-flight same-site navigations whose outcome (F5 reload vs in-page
-  // navigation) can only be decided once the destination URL is known. The
-  // 'loading' event's URL is unreliable (changeInfo.url may be missing and
-  // tab.url may still hold the previous URL), so the decision is deferred to
-  // the 'complete' event.
   const pendingNavigationCheck = new Map<number, { prevUrl: string }>();
 
   const masterPrefixIndex = new Map<
@@ -504,7 +514,6 @@ async function mapWithConcurrency<T, R>(
   function bumpTabVersion(tabId: number) {
     tabMediaVersion.set(tabId, (tabMediaVersion.get(tabId) ?? 0) + 1);
   }
-  // Build the master prefix index for a tab (lazy; rebuilt when the version changes)
   function getMasterPrefixIndex(
     tabId: number,
     mediaMap: Map<string, MediaEntry>
@@ -512,7 +521,6 @@ async function mapWithConcurrency<T, R>(
     const curVersion = tabMediaVersion.get(tabId) ?? 0;
     let entry = masterPrefixIndex.get(tabId);
     if (!entry || entry.version !== curVersion) {
-      // Rebuild: scan mediaMap once and bucket by prefix
       const map = new Map<string, string[]>();
       for (const [mUrl, mEntry] of mediaMap) {
         if (
@@ -520,7 +528,9 @@ async function mapWithConcurrency<T, R>(
           (mEntry.groupRole === 'master' || !mEntry.groupRole)
         ) {
           const prefix = mUrl.substring(0, mUrl.lastIndexOf('/') + 1);
-          if (!prefix) continue;
+          if (!prefix) {
+            continue;
+          }
           let arr = map.get(prefix);
           if (!arr) {
             arr = [];
@@ -535,20 +545,26 @@ async function mapWithConcurrency<T, R>(
     return entry.map;
   }
 
+  // Match segment URLs to master playlists by shared URL prefix
   function findMasterBySegmentUrl(
     tabId: number,
     mediaMap: Map<string, MediaEntry>,
     segUrl: string
   ): string | undefined {
     const index = getMasterPrefixIndex(tabId, mediaMap);
-    if (index.size === 0) return undefined;
+    if (index.size === 0) {
+      return undefined;
+    }
     let probe = segUrl.substring(0, segUrl.lastIndexOf('/') + 1);
     while (probe) {
       const arr = index.get(probe);
-      if (arr && arr.length > 0) return arr[0];
-      // move up one directory level
+      if (arr && arr.length > 0) {
+        return arr[0];
+      }
       const idx = probe.lastIndexOf('/', probe.length - 2);
-      if (idx < 0) break;
+      if (idx < 0) {
+        break;
+      }
       probe = probe.substring(0, idx + 1);
     }
     return undefined;
@@ -564,9 +580,13 @@ async function mapWithConcurrency<T, R>(
   const uiListeningTabs = new Map<number, number>();
   const UI_LISTENING_TTL = 90_000;
   function isUiListening(tabId: number): boolean {
-    if (sidePanelPorts.has(tabId)) return true;
+    if (sidePanelPorts.has(tabId)) {
+      return true;
+    }
     const ts = uiListeningTabs.get(tabId);
-    if (ts === undefined) return false;
+    if (ts === undefined) {
+      return false;
+    }
     if (Date.now() - ts > UI_LISTENING_TTL) {
       uiListeningTabs.delete(tabId);
       return false;
@@ -574,18 +594,6 @@ async function mapWithConcurrency<T, R>(
     return true;
   }
 
-  // ── External downloader (OPEN_DOWNLOAD_PAGE) not deployed yet; fully commented out ──
-  // interface DownloadSession {
-  //   url: string;
-  //   format: string;
-  //   filename: string;
-  //   sourceUrl: string;
-  //   requestHeaders?: Record<string, string>;
-  //   audioUrl?: string;
-  // }
-  // const pendingDownloads = new Map<number, DownloadSession>();
-  // Track in-flight PROXY_FETCH proxy fetches so they can be aborted when the tab closes or the
-  // page cancels them, avoiding resource leaks where segments keep being fetched after the page is gone
   const pendingProxyFetches = new Map<
     string,
     { controller: AbortController; tabId?: number }
@@ -652,14 +660,6 @@ async function mapWithConcurrency<T, R>(
             }
           })
           .catch(() => {});
-        // Re-count toolbar badges so the red-dot number follows the newly
-        // enabled/disabled sniffing switches (images/docs/…). updateBadge
-        // already mirrors the popup by skipping disabled formats.
-        //
-        // The in-memory tabMap may be empty after an MV3 service-worker
-        // restart even though the snapshots are persisted (session storage).
-        // Restore them first, otherwise toggling a switch back on could never
-        // bring the numbers up again - the recount would simply see nothing.
         void (async () => {
           try {
             const restored = await loadAllTabData();
@@ -670,13 +670,13 @@ async function mapWithConcurrency<T, R>(
               }
             });
           } catch {
-            /* ignore restore errors */
+            //
           }
           tabMap.forEach((_entries, tabId) => {
             try {
               updateBadge(tabId);
             } catch {
-              /* tab may be closed - ignore */
+              //
             }
           });
         })();
@@ -684,8 +684,6 @@ async function mapWithConcurrency<T, R>(
     }
   });
 
-  // Remove all sniffed media for a tab (used on page refresh and manual clear).
-  // Page reloads keep the same tabId, so they never hit tabs.onRemoved.
   function clearTabMediaData(tabId: number): void {
     tabMap.delete(tabId);
     bilibiliManagedUrls.delete(tabId);
@@ -703,18 +701,13 @@ async function mapWithConcurrency<T, R>(
     }
   }
 
-  // Whether two page URLs belong to the same site. Same-site navigation (e.g.
-  // Douyin feed → a video page, or an in-place F5 reload) must keep previously
-  // sniffed media: wiping the list there makes the popup suddenly look empty or
-  // "reduced" the moment a video starts playing. Only cross-site navigation
-  // invalidates the old media (the old page's resources no longer apply).
   function isSameSite(a: string, b: string): boolean {
     try {
       const hostA = new URL(a).hostname.toLowerCase().replace(/^www\./, '');
       const hostB = new URL(b).hostname.toLowerCase().replace(/^www\./, '');
-      if (hostA === hostB) return true;
-      // Approximate registrable domain (last two labels), so subdomains like
-      // www.douyin.com / v.douyin.com still count as the same site.
+      if (hostA === hostB) {
+        return true;
+      }
       const regA = hostA.split('.').slice(-2).join('.');
       const regB = hostB.split('.').slice(-2).join('.');
       return regA === regB && regA.includes('.');
@@ -729,22 +722,11 @@ async function mapWithConcurrency<T, R>(
       browser.webNavigation.onHistoryStateUpdated.addListener(() => {});
     }
   } catch {
-    /* Firefox without the webNavigation permission */
+    // Firefox quirk
   }
 
   browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'loading') {
-      // A new document is loading. Decide what happens to the previously
-      // sniffed media:
-      //   - cross-site navigation        → wipe (old page's media is gone)
-      //   - F5 / Ctrl+R reload, URL kept → wipe and re-sniff the fresh page
-      //   - same-site navigation (e.g. Douyin feed → video modal) → keep +
-      //     append
-      // The loading event's URL is unreliable (changeInfo.url may be missing
-      // and tab.url may still hold the previous URL), so same-site cases are
-      // deferred to the 'complete' event where the real destination URL is
-      // known and F5 (URL unchanged) can be told apart from an in-page
-      // navigation (URL changed).
       const nextUrl = changeInfo.url || tab?.url || '';
       const prevUrl = tabPageUrls.get(tabId) || '';
       if (prevUrl && nextUrl && !isSameSite(prevUrl, nextUrl)) {
@@ -752,8 +734,6 @@ async function mapWithConcurrency<T, R>(
         try {
           updateBadge(tabId);
         } catch {}
-        // broadcastDebounced skips tabs without data; send an explicit empty
-        // list so an open popup/sidepanel clears its UI immediately.
         broadcast(tabId, []);
       } else if (prevUrl && nextUrl) {
         pendingNavigationCheck.set(tabId, { prevUrl });
@@ -766,12 +746,6 @@ async function mapWithConcurrency<T, R>(
         const finalUrl = tab?.url || changeInfo.url || '';
         const prevUrl = pending.prevUrl;
         if (prevUrl && finalUrl) {
-          // URL unchanged → this was an F5/reload, the document is brand new;
-          // cross-site → the tab left the old page. In both cases the
-          // previously sniffed media no longer matches, so clear and re-sniff.
-          // Same-site with a changed URL (Douyin modal open/close) keeps the
-          // list so existing items are not wiped on a plain in-page view
-          // switch.
           if (finalUrl === prevUrl || !isSameSite(prevUrl, finalUrl)) {
             clearTabMediaData(tabId);
             try {
@@ -784,8 +758,6 @@ async function mapWithConcurrency<T, R>(
     }
     if (changeInfo.url) {
       tabPageUrls.set(tabId, changeInfo.url);
-      // Persist the page URL so a service-worker restart can restore it and
-      // keep same-site navigations from being misread as cross-site.
       saveTabPageUrl(tabId, changeInfo.url).catch(() => {});
     } else if (tab.url) {
       tabPageUrls.set(tabId, tab.url);
@@ -799,8 +771,6 @@ async function mapWithConcurrency<T, R>(
 
   loadAllTabData()
     .then((data) => {
-      // Restore persisted page URLs so the same-site detection keeps working
-      // right after a service-worker restart (see saveTabPageUrl).
       loadTabPageUrls()
         .then((urls) => {
           urls.forEach((url, tabId) => {
@@ -811,8 +781,6 @@ async function mapWithConcurrency<T, R>(
         })
         .catch(() => {});
       data.forEach((mediaMap, tabId) => {
-        // Merge instead of replacing: media sniffed during the async restore
-        // (before it finished) must not be wiped out by the older snapshot.
         const existing = tabMap.get(tabId);
         if (existing && existing.size > 0) {
           for (const [url, entry] of mediaMap) {
@@ -824,8 +792,6 @@ async function mapWithConcurrency<T, R>(
         } else {
           tabMap.set(tabId, mediaMap);
         }
-        // Refresh the badge for every restored tab (not just the active one),
-        // so stale in-memory counts never linger on other tabs after a restart.
         try {
           updateBadge(tabId);
         } catch {}
@@ -837,8 +803,6 @@ async function mapWithConcurrency<T, R>(
       pendingMessages.length = 0;
     })
     .catch((error) => {
-      // A restore failure must never wedge message handling: flush the queue so
-      // GET_LIST etc. still resolve (possibly empty) instead of hanging forever.
       console.warn('[CoolHusky] Failed to restore sniffed media:', error);
       isDataLoaded = true;
       pendingMessages.forEach(({ msg, sender, sendResponse }) => {
@@ -847,39 +811,35 @@ async function mapWithConcurrency<T, R>(
       pendingMessages.length = 0;
     });
 
-  // Currently active tab ID, used as a fallback for tabId=-1
   let currentActiveTabId = -1;
   browser.tabs.onActivated.addListener(({ tabId }) => {
     currentActiveTabId = tabId;
-    // Refresh the toolbar badge for the newly activated tab so it never shows
-    // a stale count from a previous tab.
     try {
       updateBadge(tabId);
     } catch {}
-    // Push the newly activated tab's list to every UI page. A sidepanel /
-    // popup may have missed its own tabs.onActivated event (hidden by another
-    // window, re-shown after the switch), so this guarantees the list follows
-    // the active tab exactly like the badge does. UI pages ignore broadcasts
-    // for tabs they are not currently tracking.
     broadcast(tabId, serializeTabMediaList(tabMap.get(tabId)));
   });
   browser.tabs
     .query({ active: true, currentWindow: true })
     .then(([tab]) => {
-      if (tab?.id) currentActiveTabId = tab.id;
+      if (tab?.id) {
+        currentActiveTabId = tab.id;
+      }
     })
     .catch(() => {});
   void currentActiveTabId;
 
-  // Broadcast debounce (coalesces multiple updates of the same tab within 100ms, avoiding frequent popup re-renders under high concurrency)
   const broadcastDebounceTimers = new Map<
     number,
     ReturnType<typeof setTimeout>
   >();
 
+  // Debounce broadcast to UI: coalesce rapid media additions (150ms)
   function broadcastDebounced(tabId: number) {
     const existing = broadcastDebounceTimers.get(tabId);
-    if (existing) clearTimeout(existing);
+    if (existing) {
+      clearTimeout(existing);
+    }
     broadcastDebounceTimers.set(
       tabId,
       setTimeout(() => {
@@ -917,10 +877,9 @@ async function mapWithConcurrency<T, R>(
           isLiveStream?: boolean;
         }> = [];
         mediaMap.forEach((entry, url) => {
-          // Virtual group masters carry no real fetchable URL (their key is a
-          // synthetic group id); they only exist to group variants/audio, so
-          // they must not be exposed as downloadable list entries.
-          if (entry.contentType === 'virtual/group') return;
+          if (entry.contentType === 'virtual/group') {
+            return;
+          }
           list.push({
             url,
             format: entry.format,
@@ -994,20 +953,34 @@ async function mapWithConcurrency<T, R>(
       details.type === 'image' ||
       details.type === 'ping' ||
       details.type === 'csp_report'
-    )
+    ) {
       return;
-    if (!isPotentialMediaRequest(details.url)) return;
-    if (isMediaSegmentRequest(details.url)) return;
+    }
+    if (!isPotentialMediaRequest(details.url)) {
+      return;
+    }
+    if (isMediaSegmentRequest(details.url)) {
+      return;
+    }
     let effectiveTabId = details.tabId;
     if (effectiveTabId <= 0) {
-      if (currentActiveTabId > 0) effectiveTabId = currentActiveTabId;
-      else return;
+      if (currentActiveTabId > 0) {
+        effectiveTabId = currentActiveTabId;
+      } else {
+        return;
+      }
     }
     const requestKey = `${effectiveTabId}:${details.url}`;
-    if (processedRequests.has(requestKey)) return;
-    if (urlSniffPending.has(details.requestId)) return;
+    if (processedRequests.has(requestKey)) {
+      return;
+    }
+    if (urlSniffPending.has(details.requestId)) {
+      return;
+    }
     const format = detectMediaFromUrl(details.url);
-    if (!format) return;
+    if (!format) {
+      return;
+    }
 
     urlSniffPending.set(details.requestId, requestKey);
     addMedia(
@@ -1036,7 +1009,9 @@ async function mapWithConcurrency<T, R>(
   const isBilibiliSubtitleCatalogApi = (url: string): boolean => {
     try {
       const parsed = new URL(url);
-      if (!/(^|\.)bilibili\.com$/i.test(parsed.hostname)) return false;
+      if (!/(^|\.)bilibili\.com$/i.test(parsed.hostname)) {
+        return false;
+      }
       return /\/x\/player\/(?:wbi\/)?v2(?:\/|$)|\/x\/v2\/dm\/view(?:\/|$)/i.test(
         parsed.pathname
       );
@@ -1047,10 +1022,15 @@ async function mapWithConcurrency<T, R>(
 
   browser.webRequest.onSendHeaders.addListener(
     (details) => {
-      if (!details.requestHeaders?.length) return;
-      if (details.tabId <= 0 && !isPotentialMediaRequest(details.url)) return;
-      if (details.type === 'other' && !isPotentialMediaRequest(details.url))
+      if (!details.requestHeaders?.length) {
         return;
+      }
+      if (details.tabId <= 0 && !isPotentialMediaRequest(details.url)) {
+        return;
+      }
+      if (details.type === 'other' && !isPotentialMediaRequest(details.url)) {
+        return;
+      }
       const authHeaders: Record<string, string> = {};
       for (const h of details.requestHeaders) {
         const name = h.name.toLowerCase();
@@ -1085,7 +1065,7 @@ async function mapWithConcurrency<T, R>(
           try {
             updateBadge(tabId);
           } catch {
-            /* badge may not exist for this tab yet */
+            //
           }
           broadcastDebounced(tabId);
         }
@@ -1099,20 +1079,25 @@ async function mapWithConcurrency<T, R>(
   function addProcessedRequest(key: string) {
     if (processedRequests.size >= PROCESSED_REQUESTS_MAX) {
       const first = processedRequests.values().next().value;
-      if (first !== undefined) processedRequests.delete(first);
+      if (first !== undefined) {
+        processedRequests.delete(first);
+      }
     }
     processedRequests.add(key);
   }
 
-  // Detect the media format when response headers arrive (prefer Content-Type)
   browser.webRequest.onHeadersReceived.addListener(
     (details) => {
       let effectiveTabId = details.tabId;
       if (effectiveTabId <= 0) {
-        if (details.type !== 'media' && !isPotentialMediaRequest(details.url))
+        if (details.type !== 'media' && !isPotentialMediaRequest(details.url)) {
           return undefined;
-        if (currentActiveTabId > 0) effectiveTabId = currentActiveTabId;
-        else return undefined;
+        }
+        if (currentActiveTabId > 0) {
+          effectiveTabId = currentActiveTabId;
+        } else {
+          return undefined;
+        }
       }
       if (isMediaSegmentRequest(details.url)) {
         pendingRequestHeaders.delete(details.requestId);
@@ -1127,7 +1112,9 @@ async function mapWithConcurrency<T, R>(
       }
 
       const requestKey = `${effectiveTabId}:${details.url}`;
-      if (processedRequests.has(requestKey)) return undefined;
+      if (processedRequests.has(requestKey)) {
+        return undefined;
+      }
 
       if (details.statusCode === 416) {
         addProcessedRequest(requestKey);
@@ -1152,7 +1139,9 @@ async function mapWithConcurrency<T, R>(
           contentType = header.value;
         } else if (name === 'content-length' && header.value) {
           const n = parseInt(header.value, 10);
-          if (!isNaN(n)) contentLength = n;
+          if (!isNaN(n)) {
+            contentLength = n;
+          }
         } else if (name === 'content-disposition' && header.value) {
           contentDisposition = header.value;
         } else if (name === 'content-range' && header.value) {
@@ -1165,7 +1154,6 @@ async function mapWithConcurrency<T, R>(
         }
       }
 
-      // For Range responses, use the total instead of Content-Length
       if (hasContentRange && rangeTotal !== undefined) {
         contentLength = rangeTotal;
       }
@@ -1189,14 +1177,18 @@ async function mapWithConcurrency<T, R>(
             detectMediaFromUrl(details.url) ??
             mediaFallback)
           : (detectMediaFromUrl(details.url) ?? mediaFallback);
-        if (!detectedMediaFormat) return undefined;
+        if (!detectedMediaFormat) {
+          return undefined;
+        }
         detectedFormat = detectedMediaFormat;
         const settings = currentSettings;
         const pageUrl = tabPageUrls.get(effectiveTabId);
-        if (settings && pageUrl && isDomainExcluded(pageUrl, settings))
+        if (settings && pageUrl && isDomainExcluded(pageUrl, settings)) {
           return undefined;
-        if (settings && !isFormatAllowed(detectedFormat, settings))
+        }
+        if (settings && !isFormatAllowed(detectedFormat, settings)) {
           return undefined;
+        }
         addMedia(
           details.url,
           effectiveTabId,
@@ -1223,20 +1215,21 @@ async function mapWithConcurrency<T, R>(
         detectedFormat = mediaFmt;
       } else {
         const doc = detectDoc(details.url, contentType, contentDisposition);
-        if (!doc) return undefined;
+        if (!doc) {
+          return undefined;
+        }
         detectedFormat = doc.format;
         category = doc.category;
       }
 
       const settings = currentSettings;
       const pageUrl = tabPageUrls.get(effectiveTabId);
-      if (settings && pageUrl && isDomainExcluded(pageUrl, settings))
+      if (settings && pageUrl && isDomainExcluded(pageUrl, settings)) {
         return undefined;
-      if (settings && !isFormatAllowed(detectedFormat, settings))
+      }
+      if (settings && !isFormatAllowed(detectedFormat, settings)) {
         return undefined;
-      // An explicit audio/* or video/* Content-Type already confirms media, so
-      // the size threshold only guards ambiguous types (octet-stream etc.).
-      // Otherwise short clips played via fetch + Web Audio would be dropped.
+      }
       const isExplicitMediaType = contentType
         ? /^(audio|video)\//i.test(contentType.trim())
         : false;
@@ -1246,11 +1239,10 @@ async function mapWithConcurrency<T, R>(
         detectedFormat !== 'm3u8' &&
         detectedFormat !== 'mpd' &&
         !isSizeAllowed(detectedFormat, contentLength, settings)
-      )
+      ) {
         return undefined;
+      }
 
-      // Player resources fetched via XHR/fetch must also keep their response Content-Type.
-      // Douyin often fetches separated audio/video as XHR; missing it breaks the later pairing logic.
       addMedia(
         details.url,
         effectiveTabId,
@@ -1284,6 +1276,7 @@ async function mapWithConcurrency<T, R>(
     'warning',
   ]);
 
+  // Firefox uses webRequest blocking; Chromium uses declarativeNetRequest
   const proxyHeaderExtraInfoSpec = (
     isFirefox ? ['blocking', 'requestHeaders'] : ['requestHeaders']
   ) as any[];
@@ -1293,8 +1286,7 @@ async function mapWithConcurrency<T, R>(
         (h) => h.name.toLowerCase() === 'x-coolhusky-proxy'
       );
       let playbackRule:
-        | { referer: string; authHeaders?: Record<string, string> }
-        | undefined;
+        { referer: string; authHeaders?: Record<string, string> } | undefined;
       if (isFirefox && !proxyHeader) {
         try {
           playbackRule = playbackHeaderHosts.get(new URL(details.url).host);
@@ -1302,24 +1294,27 @@ async function mapWithConcurrency<T, R>(
           playbackRule = undefined;
         }
       }
-      if (!proxyHeader && !playbackRule) return {};
+      if (!proxyHeader && !playbackRule) {
+        return {};
+      }
 
       const refererHeader = details.requestHeaders?.find(
         (h) => h.name.toLowerCase() === 'x-coolhusky-referer'
       );
       const newHeaders = (details.requestHeaders || []).filter((h) => {
         const name = h.name.toLowerCase();
-        // Remove Origin (CDNs reject chrome-extension:// origins)
-        if (name === 'origin') return false;
-        // Remove custom marker headers
-        if (name === 'x-coolhusky-proxy' || name === 'x-coolhusky-referer')
+        if (name === 'origin') {
           return false;
-        // Remove browser-attached cache/conditional headers so the proxy doesn't hit the cache and get partial 206 content
-        if (CACHE_HEADER_NAMES.has(name)) return false;
+        }
+        if (name === 'x-coolhusky-proxy' || name === 'x-coolhusky-referer') {
+          return false;
+        }
+        if (CACHE_HEADER_NAMES.has(name)) {
+          return false;
+        }
         return true;
       });
 
-      // Inject Referer
       const referer = refererHeader?.value || playbackRule?.referer;
       if (referer) {
         newHeaders.push({ name: 'Referer', value: referer });
@@ -1336,7 +1331,6 @@ async function mapWithConcurrency<T, R>(
     proxyHeaderExtraInfoSpec
   );
 
-  // DNR session rule cache for proxy requests (deduped by host)
   const DNR_RULES_MAX = 5000;
   const DNR_RULES_EVICT = 100;
   const dnlRefererRules = new Map<
@@ -1361,10 +1355,6 @@ async function mapWithConcurrency<T, R>(
     } catch {
       return;
     }
-
-    // Firefox cannot use Chromium's session DNR header rules here. Keep the
-    // same per-host state for the blocking webRequest listener instead, so
-    // direct <video>/<audio>/<img> requests also receive the captured headers.
     if (isFirefox || !dnr) {
       playbackHeaderHosts.set(host, { referer, authHeaders });
       return;
@@ -1398,8 +1388,6 @@ async function mapWithConcurrency<T, R>(
       { operation: 'remove', header: 'If-Unmodified-Since' },
     ];
 
-    // Inject CORS response headers so <video>/<audio> in the popup can load media CDN resources cross-origin
-    // Domestic CDNs (Douyin/Kuaishou/Bilibili etc.) often omit Access-Control-Allow-Origin, breaking playback
     const responseHeaders: any[] = [
       { operation: 'set', header: 'Access-Control-Allow-Origin', value: '*' },
       { operation: 'set', header: 'Access-Control-Allow-Headers', value: '*' },
@@ -1410,16 +1398,12 @@ async function mapWithConcurrency<T, R>(
       },
     ];
 
-    // Inject auth headers (Cookie is a forbidden header for fetch and can only
-    // be injected via DNR)
     if (authHeaders) {
       for (const [k, v] of Object.entries(authHeaders)) {
         requestHeaders.push({ operation: 'set', header: k, value: v });
       }
     }
 
-    // LRU eviction: when the cap is exceeded, batch-remove the oldest session rules first,
-    // then add new ones, avoiding jitter from a single updateSessionRules that both removes and adds many rules.
     const evictIds: number[] = [];
     if (dnlRefererRules.size >= DNR_RULES_MAX && !cached) {
       const sorted = [...dnlRefererRules.entries()]
@@ -1459,22 +1443,19 @@ async function mapWithConcurrency<T, R>(
     playbackHeaderHosts.set(host, { referer, authHeaders });
   }
 
-  // Clean up handled request records (when the tab closes)
   browser.tabs.onRemoved.addListener((tabId) => {
     for (const key of processedRequests) {
       if (key.startsWith(`${tabId}:`)) {
         processedRequests.delete(key);
       }
     }
-    // Abort proxy fetches (segment downloads / preview playback) started by this tab that are still running,
-    // otherwise the Service Worker keeps requesting segments after the tab is closed, leaking resources
+
     for (const [rid, entry] of pendingProxyFetches) {
       if (entry.tabId === tabId) {
         entry.controller.abort();
         pendingProxyFetches.delete(rid);
       }
     }
-    // pendingDownloads.delete(tabId); // external-link download session is commented out
     tabMap.delete(tabId);
     bilibiliManagedUrls.delete(tabId);
     platformManagedUrls.delete(tabId);
@@ -1494,13 +1475,14 @@ async function mapWithConcurrency<T, R>(
 
   const notifyPages = new Map<string, string>();
 
-  // Notification click: jump back to the matching download page (focus an existing tab or create one), then tell the page to trigger a save
   browser.notifications.onClicked.addListener((notificationId) => {
     handleNotificationClick(String(notificationId));
   });
 
   async function handleNotificationClick(tag: string) {
-    if (tag !== 'download-complete' && tag !== 'download-error') return;
+    if (tag !== 'download-complete' && tag !== 'download-error') {
+      return;
+    }
     const target = notifyPages.get(tag) || 'https://192.168.1.3:3001/';
     let tabId: number | undefined;
     try {
@@ -1531,8 +1513,6 @@ async function mapWithConcurrency<T, R>(
   browser.runtime.onMessage.addListener(
     (msg: any, sender: any, sendResponse: any) => {
       const asyncTypes = [
-        // 'OPEN_DOWNLOAD_PAGE', // external-link downloader not yet deployed
-        // 'COOLHUSKY_DOWNLOAD_READY',
         'GET_VIDEO_DIMENSIONS',
         'GET_AUDIO_DURATION',
         'GET_MEDIA_INFO',
@@ -1559,15 +1539,6 @@ async function mapWithConcurrency<T, R>(
         pendingMessages.push({ msg, sender, sendResponse });
         return true;
       }
-      // CRITICAL: never return the async `handleMessage` promise to the
-      // polyfill. Every branch of handleMessage calls `sendResponse` itself,
-      // but if we returned the promise the polyfill would ALSO call
-      // `sendResponse` with the promise's resolve value (`true`) — and since
-      // Chrome only honors the FIRST sendResponse on a channel, a
-      // fast-resolving branch (e.g. GET_LIST) would get its real
-      // `{ tabId, list }` payload overwritten by `true`, leaving the
-      // sidepanel/popup with an empty list until some later broadcast
-      // happened to re-deliver the data.
       handleMessage(msg, sender, sendResponse);
       return true;
     }
@@ -1674,8 +1645,6 @@ async function mapWithConcurrency<T, R>(
         sendResponse({ ok: false });
         return;
       }
-      // The page adapter may suggest a referer, but the sender tab is the only
-      // authoritative origin for a cross-page download session.
       upsertPlatformMediaTask(
         tabId,
         { ...msg.task, referer: sender.tab?.url },
@@ -1702,95 +1671,6 @@ async function mapWithConcurrency<T, R>(
       return;
     }
 
-    // ── The external downloader page feature is not deployed yet (coolhusky.net / localhost:3001); fully commented out ──
-    // if (msg.type === 'OPEN_DOWNLOAD_PAGE') {
-    //   const { url, format, filename, requestHeaders } = msg;
-    //   let sourceUrl = sender.tab?.url || '';
-    //   if (!sourceUrl) {
-    //     const [activeTab] = await browser.tabs.query({
-    //       active: true,
-    //       currentWindow: true,
-    //     });
-    //     sourceUrl = activeTab?.url || '';
-    //   }
-    //
-    //   // If the caller didn't pass requestHeaders directly, try to find them in the current tab's media entries
-    //   let resolvedHeaders = requestHeaders as
-    //     | Record<string, string>
-    //     | undefined;
-    //   if (!resolvedHeaders && sender.tab?.id) {
-    //     const tabMedia = tabMap.get(sender.tab.id);
-    //     if (tabMedia) {
-    //       const entry = tabMedia.get(url);
-    //       if (entry?.requestHeaders) resolvedHeaders = entry.requestHeaders;
-    //     }
-    //   }
-    //   const suppliedReferer =
-    //     resolvedHeaders?.referer || resolvedHeaders?.Referer;
-    //   if (typeof suppliedReferer === 'string' && suppliedReferer)
-    //     sourceUrl = suppliedReferer;
-    //
-    //   let downloaderPage: string;
-    //   if (format === 'mpd') {
-    //     downloaderPage = 'dash-downloader';
-    //   } else if (format === 'm3u8') {
-    //     downloaderPage = 'm3u8-downloader';
-    //   } else {
-    //     downloaderPage = 'video-downloader';
-    //   }
-    //
-    //   const languageMapping: Record<string, string> = {
-    //     'zh-CN': 'zh-Hans',
-    //     'zh-SG': 'zh-Hans',
-    //     'zh-TW': 'zh-Hant',
-    //     'zh-HK': 'zh-Hant',
-    //     ja: 'ja',
-    //     ko: 'ko',
-    //     de: 'de',
-    //     es: 'es',
-    //     ru: 'ru',
-    //   };
-    //
-    //   const browserLang = browser.i18n.getUILanguage();
-    //   const langSuffix = languageMapping[browserLang];
-    //   const targetUrl = langSuffix
-    //     ? `http://localhost:3001/${langSuffix}/${downloaderPage}`
-    //     : `http://localhost:3001/${downloaderPage}`;
-    //   const tab = await browser.tabs.create({ url: targetUrl });
-    //   if (tab.id) {
-    //     pendingDownloads.set(tab.id, {
-    //       url,
-    //       format,
-    //       filename,
-    //       sourceUrl,
-    //       requestHeaders: resolvedHeaders,
-    //       audioUrl: msg.audioUrl as string | undefined,
-    //     });
-    //   }
-    //   sendResponse({ ok: true });
-    //   return true;
-    // }
-    //
-    // if (msg.type === 'COOLHUSKY_DOWNLOAD_READY') {
-    //   const tabId = sender.tab?.id;
-    //   if (tabId && pendingDownloads.has(tabId)) {
-    //     const session = pendingDownloads.get(tabId)!;
-    //     pendingDownloads.delete(tabId);
-    //     sendResponse({
-    //       ok: true,
-    //       url: session.url,
-    //       format: session.format,
-    //       filename: session.filename,
-    //       sourceUrl: session.sourceUrl,
-    //       requestHeaders: session.requestHeaders,
-    //       audioUrl: session.audioUrl,
-    //     });
-    //   } else {
-    //     sendResponse({ ok: false });
-    //   }
-    //   return true;
-    // }
-
     if (msg.type === 'CLEAR_LIST') {
       const tabId = msg.tabId as number;
       clearTabMediaData(tabId);
@@ -1802,12 +1682,6 @@ async function mapWithConcurrency<T, R>(
     }
 
     if (msg.type === 'GET_LIST') {
-      // Resolve the tab here in the background: embedded pages (sidepanel /
-      // popup) must not derive the active tab from `tabs.query` themselves —
-      // from that context it can return a stale/other window, which left the
-      // list empty when media had been captured before the panel opened.
-      // Callers that already know the exact tabId (tab switch, broadcast
-      // follow-up) pass it explicitly; otherwise the real active tab is used.
       (async () => {
         let tabId =
           typeof msg.tabId === 'number' && msg.tabId >= 0
@@ -1847,10 +1721,6 @@ async function mapWithConcurrency<T, R>(
           sendList(mediaMap);
           return;
         }
-        // In-memory map is empty: the service worker may have restarted and the
-        // async restore either raced with this message or failed. Read the
-        // persisted snapshot directly so the popup never shows an empty list
-        // while the toolbar badge still counts entries.
         loadTabList(tabId)
           .then((saved) => {
             if (saved.size > 0) {
@@ -1871,11 +1741,6 @@ async function mapWithConcurrency<T, R>(
     }
 
     if (msg.type === 'GET_ACTIVE_TAB') {
-      // Embedded pages (sidepanel/popup) must not resolve the active tab via
-      // `tabs.query` themselves — from that context it can return a stale /
-      // other window (e.g. the list staying empty when media was captured
-      // before the panel opened). The background tracks the real active tab,
-      // so resolve it here and also return its title.
       (async () => {
         let tabId = currentActiveTabId >= 0 ? currentActiveTabId : undefined;
         let title = '';
@@ -1966,9 +1831,6 @@ async function mapWithConcurrency<T, R>(
                   : Promise.resolve(null),
               ]);
               controller.signal.throwIfAborted();
-              // Metadata is best-effort enrichment: a URL may be playable in-page
-              // while extension-side probes fail (CORS / hotlink protection), so a
-              // fetch failure NEVER removes the sniffed item (reference Media-Extractor).
               return {
                 key: item.key,
                 url: item.url,
@@ -1979,7 +1841,9 @@ async function mapWithConcurrency<T, R>(
                 removed: false,
               };
             } catch (error) {
-              if (controller.signal.aborted) throw error;
+              if (controller.signal.aborted) {
+                throw error;
+              }
               return {
                 key: item.key,
                 url: item.url,
@@ -2024,26 +1888,29 @@ async function mapWithConcurrency<T, R>(
                 changed = true;
               }
             }
-            if (changed) await saveTabList(tabId, mediaMap);
+            if (changed) {
+              await saveTabList(tabId, mediaMap);
+            }
           }
           sendResponse({ ok: true, items: results });
         } catch (error) {
-          if (controller.signal.aborted)
+          if (controller.signal.aborted) {
             sendResponse({ ok: false, cancelled: true, items: [] });
-          else
+          } else {
             sendResponse({
               ok: false,
               error: (error as Error).message,
               items: [],
             });
+          }
         } finally {
-          if (metadataBatchControllers.get(taskId) === controller)
+          if (metadataBatchControllers.get(taskId) === controller) {
             metadataBatchControllers.delete(taskId);
+          }
         }
       })();
       return true;
     }
-    // After the popup obtains duration / width / height / size, write them back into MediaEntry for persistence (kept across popup sessions)
     if (msg.type === 'UPDATE_MEDIA_META') {
       const tabId = msg.tabId as number;
       const url = msg.url as string;
@@ -2083,7 +1950,6 @@ async function mapWithConcurrency<T, R>(
 
     if (msg.type === 'SAVE_SETTINGS') {
       saveSettings(msg.settings).then(() => {
-        // Re-apply size rules to already-collected media across all tabs.
         pruneTooSmallMedia(msg.settings);
         sendResponse({ ok: true });
       });
@@ -2123,8 +1989,12 @@ async function mapWithConcurrency<T, R>(
           }
 
           const headers: Record<string, string> = { 'X-CoolHusky-Proxy': '1' };
-          if (referrer) headers['X-CoolHusky-Referer'] = referrer;
-          if (authHeaders) Object.assign(headers, authHeaders);
+          if (referrer) {
+            headers['X-CoolHusky-Referer'] = referrer;
+          }
+          if (authHeaders) {
+            Object.assign(headers, authHeaders);
+          }
           const response = await fetch(url, { headers, cache: 'no-store' });
           if (!response.ok) {
             sendResponse({
@@ -2139,11 +2009,10 @@ async function mapWithConcurrency<T, R>(
             /<ContentProtection\b|widevine|playready|com\.microsoft\.playready|urn:uuid:edef8ba9|cenc:pssh/i.test(
               manifest
             );
-
-          // Install the same temporary rules for cross-host BaseURL/resource URLs explicitly present in the MPD.
           const candidates = new Set<string>([url]);
-          for (const match of manifest.matchAll(/https?:\/\/[^\s"'<>]+/gi))
+          for (const match of manifest.matchAll(/https?:\/\/[^\s"'<>]+/gi)) {
             candidates.add(match[0]);
+          }
           for (const match of manifest.matchAll(
             /<BaseURL[^>]*>([^<]+)<\/BaseURL>/gi
           )) {
@@ -2185,7 +2054,9 @@ async function mapWithConcurrency<T, R>(
           }
           if (options?.authHeaders) {
             for (const [k, v] of Object.entries(options.authHeaders)) {
-              if (!headers[k]) headers[k] = v as string;
+              if (!headers[k]) {
+                headers[k] = v as string;
+              }
             }
           }
           const useProxyHeader = options?.proxyHeader !== false;
@@ -2195,7 +2066,6 @@ async function mapWithConcurrency<T, R>(
               headers['X-CoolHusky-Referer'] = options.referrer;
             }
           }
-          // On Chrome, register DNR rules in advance to carry Referer and auth headers (forbidden headers like cookie can only be injected via DNR)
           if (options?.referrer || options?.authHeaders) {
             try {
               await ensureProxyHeaderRule(
@@ -2257,10 +2127,11 @@ async function mapWithConcurrency<T, R>(
       return true;
     }
 
-    // Dispatch system notifications from the extension process
     if (msg.type === 'COOLHUSKY_NOTIFY') {
       const { title, body, tag, pageUrl } = msg;
-      if (pageUrl) notifyPages.set(tag, pageUrl);
+      if (pageUrl) {
+        notifyPages.set(tag, pageUrl);
+      }
       try {
         await browser.notifications.create(String(tag), {
           type: 'basic',
@@ -2279,12 +2150,6 @@ async function mapWithConcurrency<T, R>(
       fetchContentLength(msg.url, msg.requestHeaders).then(sendResponse);
       return true;
     }
-    // Unknown message type. The onMessage wrapper always returns `true`
-    // (it must not hand the async handleMessage promise to the polyfill), so
-    // any branch that skips sendResponse would keep the response channel
-    // hanging until the browser times it out. Fire-and-forget messages such
-    // as SIDEPANEL_OPENED / SIDEPANEL_CLOSED fall through to here — respond
-    // so the channel closes immediately instead of lingering.
     sendResponse(false);
     return false;
   }
@@ -2300,21 +2165,13 @@ async function mapWithConcurrency<T, R>(
     contentType?: string,
     tabTitle?: string
   ) {
-    // Respect domain exclusion on every ingestion path (webRequest, ContentScript
-    // messages, MSE streams): resources from excluded pages must not be stored.
     const pageUrlForCheck = tabPageUrls.get(tabId);
     if (pageUrlForCheck && isDomainExcluded(pageUrlForCheck, currentSettings)) {
       return;
     }
-    // Respect per-type sniffing switches: disabled types should not be stored or counted at all.
     if (!isFormatAllowed(format, currentSettings)) {
       return;
     }
-    // Respect per-type minSizeKB thresholds. Formats whose size is not meaningful
-    // (HLS/DASH playlists, segments, synthetic MSE streams) are exempt: their size
-    // does not reflect the final media size. An explicit audio/* or video/*
-    // Content-Type likewise confirms the browser actually received media, so
-    // short preview clips (e.g. Ximalaya AIGC ~96KB mp3 samples) are kept.
     const isExplicitMediaType = contentType
       ? /^(audio|video)\//i.test(contentType.trim())
       : false;
@@ -2342,7 +2199,6 @@ async function mapWithConcurrency<T, R>(
     const mediaMap = tabMap.get(tabId)!;
     const effectiveTabTitle = tabTitle ?? tabPageTitles.get(tabId);
 
-    // Auto-associate ts/.m4s segments with the same tab's m3u8 master (longest URL path-prefix match)
     if ((format === 'ts' || format === 'm4s') && !extra?.captureId) {
       const bestMaster = findMasterBySegmentUrl(tabId, mediaMap, url);
       if (bestMaster) {
@@ -2394,8 +2250,9 @@ async function mapWithConcurrency<T, R>(
           size: upgradedSize,
           tabTitle: upgradedTitle,
         });
-        if (upgradedContentType)
+        if (upgradedContentType) {
           tryGroupVideoAudio(url, tabId, upgradedContentType, upgradedSize);
+        }
         saveTabList(tabId, mediaMap).catch(() => {});
         broadcastDebounced(tabId);
       }
@@ -2408,12 +2265,10 @@ async function mapWithConcurrency<T, R>(
         bumpTabVersion(tabId);
       }
     }
-    // m3u8/mpd Content-Length is the manifest text size (a few KB), not the video size — don't store it
     const effectiveSize =
       format === 'm3u8' || format === 'mpd'
         ? undefined
         : (size ?? existing?.size);
-    // FLV/MPEG-TS without Content-Length is treated as a live stream (typical of HTTP-FLV live)
     const isLiveStream =
       format === 'flv' || format === 'ts'
         ? effectiveSize === undefined && !existing?.size
@@ -2431,21 +2286,20 @@ async function mapWithConcurrency<T, R>(
       tabTitle: effectiveTabTitle ?? existing?.tabTitle,
       isLiveStream,
     });
-    // m3u8/mpd is a potential master; bump the version so the prefix index rebuilds on the next segment lookup
-    if (format === 'm3u8' || format === 'mpd') bumpTabVersion(tabId);
+    if (format === 'm3u8' || format === 'mpd') {
+      bumpTabVersion(tabId);
+    }
     saveTabList(tabId, mediaMap).catch(() => {});
     try {
       updateBadge(tabId);
     } catch {}
 
-    // Audio/video separated-stream grouping (Bilibili/YouTube/Douyin etc.)
     if (contentType) {
       tryGroupVideoAudio(url, tabId, contentType, size);
     }
 
     broadcastDebounced(tabId);
 
-    // Asynchronously parse the m3u8/mpd master manifest and build variant groups
     if (
       (format === 'm3u8' || format === 'mpd') &&
       !manifestParseCache.has(url)
@@ -2464,7 +2318,6 @@ async function mapWithConcurrency<T, R>(
     const countedGroups = new Set<string>();
     let count = 0;
     mediaMap?.forEach((entry, url) => {
-      // Skip disabled sniffing types so the toolbar badge matches the popup.
       if (
         !isMediaAllowed(
           entry.format,
@@ -2475,8 +2328,7 @@ async function mapWithConcurrency<T, R>(
       ) {
         return;
       }
-      // Mirror the popup list: with hideStreamSegments on, HLS/DASH variants
-      // and segments are hidden, so they must not inflate the badge.
+
       if (
         currentSettings?.hideStreamSegments &&
         (entry.groupRole === 'variant' || entry.groupRole === 'segment')
@@ -2486,11 +2338,11 @@ async function mapWithConcurrency<T, R>(
       const groupKey =
         entry.groupId ||
         entry.groupMasterId ||
-        // A master without a groupId shares its url with the variants' groupId,
-        // so dedupe by url to avoid counting the same group twice.
         (entry.groupRole === 'master' ? url : undefined);
       if (groupKey) {
-        if (countedGroups.has(groupKey)) return;
+        if (countedGroups.has(groupKey)) {
+          return;
+        }
         countedGroups.add(groupKey);
       } else if (
         entry.groupRole === 'variant' ||
@@ -2502,7 +2354,9 @@ async function mapWithConcurrency<T, R>(
       count++;
     });
     const action = (browser as any).action || (browser as any).browserAction;
-    if (!action) return;
+    if (!action) {
+      return;
+    }
     action.setBadgeText({ text: count > 0 ? count.toString() : '', tabId });
     if (action.setBadgeTextColor) {
       action.setBadgeTextColor({ color: '#FFFFFF', tabId });
@@ -2510,14 +2364,13 @@ async function mapWithConcurrency<T, R>(
     action.setBadgeBackgroundColor({ color: '#EF4444', tabId });
   }
 
-  // Remove already-collected media entries that fall below the per-type minSizeKB
-  // thresholds. Formats whose size is not meaningful (HLS/DASH playlists,
-  // segments, synthetic MSE streams) are exempt. Returns the number of removals.
   function pruneTooSmallMedia(settings: Settings, tabId?: number): number {
     let removedTotal = 0;
     const pruneTab = (id: number): void => {
       const mediaMap = tabMap.get(id);
-      if (!mediaMap) return;
+      if (!mediaMap) {
+        return;
+      }
       let removed = 0;
       for (const [url, entry] of mediaMap) {
         if (
@@ -2545,12 +2398,13 @@ async function mapWithConcurrency<T, R>(
     if (tabId !== undefined) {
       pruneTab(tabId);
     } else {
-      for (const id of tabMap.keys()) pruneTab(id);
+      for (const id of tabMap.keys()) {
+        pruneTab(id);
+      }
     }
     return removedTotal;
   }
 
-  /** Shared shape of a serialized list entry sent to the UI. */
   type ListEntry = {
     url: string;
     format: string;
@@ -2576,16 +2430,14 @@ async function mapWithConcurrency<T, R>(
     isLiveStream?: boolean;
   };
 
-  /** Build the serializable list payload for a tab's media map (shared by
-   *  GET_LIST responses and active-tab broadcasts). Virtual group masters are
-   *  synthetic grouping entries without a real URL and are never exposed as
-   *  downloadable items. */
   function serializeTabMediaList(
     mediaMap?: Map<string, MediaEntry>
   ): ListEntry[] {
     const list: ListEntry[] = [];
     mediaMap?.forEach((entry, url) => {
-      if (entry.contentType === 'virtual/group') return;
+      if (entry.contentType === 'virtual/group') {
+        return;
+      }
       list.push({
         url,
         format: entry.format,
@@ -2620,16 +2472,21 @@ async function mapWithConcurrency<T, R>(
       .catch(() => {});
   }
 
-  /** Convert Bilibili's playurl response into one virtual stream group. */
   function upsertBilibiliDashTask(tabId: number, task: any, tabTitle?: string) {
-    // Platform tasks must respect the same display rules: domain exclusion,
-    // per-type sniff switches and the max-items cap.
     const pageUrl = tabPageUrls.get(tabId);
-    if (pageUrl && isDomainExcluded(pageUrl, currentSettings)) return;
-    if (!isFormatAllowed('mpd', currentSettings)) return;
-    if (!tabMap.has(tabId)) tabMap.set(tabId, new Map());
+    if (pageUrl && isDomainExcluded(pageUrl, currentSettings)) {
+      return;
+    }
+    if (!isFormatAllowed('mpd', currentSettings)) {
+      return;
+    }
+    if (!tabMap.has(tabId)) {
+      tabMap.set(tabId, new Map());
+    }
     const mediaMap = tabMap.get(tabId)!;
-    if (mediaMap.size >= (currentSettings.maxItems ?? 1000)) return;
+    if (mediaMap.size >= (currentSettings.maxItems ?? 1000)) {
+      return;
+    }
     const taskKey = String(task.key || 'current').replace(
       /[^a-zA-Z0-9_-]/g,
       '_'
@@ -2641,7 +2498,9 @@ async function mapWithConcurrency<T, R>(
     const audios = Array.isArray(task.audios)
       ? task.audios.filter((a: any) => typeof a?.url === 'string')
       : [];
-    if (!videos.length) return;
+    if (!videos.length) {
+      return;
+    }
     const requestHeaders =
       typeof task.referer === 'string' && task.referer
         ? { Referer: task.referer }
@@ -2659,13 +2518,15 @@ async function mapWithConcurrency<T, R>(
     };
     const previousVariantSizes = new Map<string, number>();
     for (const [url, entry] of mediaMap) {
-      if (entry.groupMasterId === masterUrl && entry.size)
+      if (entry.groupMasterId === masterUrl && entry.size) {
         previousVariantSizes.set(url, entry.size);
+      }
     }
 
     for (const [url, entry] of mediaMap) {
-      if (entry.groupMasterId === masterUrl && !entry.contentType)
+      if (entry.groupMasterId === masterUrl && !entry.contentType) {
         mediaMap.delete(url);
+      }
     }
     const managed = bilibiliManagedUrls.get(tabId) || new Set<string>();
     const audioUrls = new Set(audios.map((a: any) => a.url));
@@ -2729,18 +2590,15 @@ async function mapWithConcurrency<T, R>(
     broadcastDebounced(tabId);
   }
 
-  // ── Audio/video separated-stream grouping (Bilibili/YouTube etc.)
-  // ByteDance short-video platforms: Douyin (domestic) and TikTok (overseas).
-  // TikTok shares the same aweme API shape and CDN layout, so page JSON
-  // (SIGI_STATE etc.) and native player preloads are handled through the same
-  // provider. The media-host list must cover TikTok CDNs for playback to work.
   const DOUYIN_PAGE_HOST =
     /(^|\.)(douyin\.com|iesdouyin\.com|tiktok\.com|musical\.ly)$/i;
   const DOUYIN_MEDIA_HOST =
     /(^|\.)(douyinvod|douyincdn|bytecdn|bytego|byteimg|bytedance|amemv|iesdouyin|snssdk|pstatp|toutiaovod|ixigua|tiktokcdn|tiktokcdn-us|tiktokcdn-eu|tiktokcdn-in|tiktokv|muscdn|musical|byteoversea)\.(com|cn|net|us|eu|in|gg|io|ly)$/i;
 
   function isAllowedDouyinMediaUrl(value: unknown): value is string {
-    if (typeof value !== 'string') return false;
+    if (typeof value !== 'string') {
+      return false;
+    }
     try {
       const url = new URL(value);
       return (
@@ -2756,10 +2614,14 @@ async function mapWithConcurrency<T, R>(
     task: unknown,
     senderUrl?: string
   ): task is PlatformMediaTask {
-    if (!task || typeof task !== 'object' || !senderUrl) return false;
+    if (!task || typeof task !== 'object' || !senderUrl) {
+      return false;
+    }
     const value = task as PlatformMediaTask;
     try {
-      if (!DOUYIN_PAGE_HOST.test(new URL(senderUrl).hostname)) return false;
+      if (!DOUYIN_PAGE_HOST.test(new URL(senderUrl).hostname)) {
+        return false;
+      }
     } catch {
       return false;
     }
@@ -2767,8 +2629,9 @@ async function mapWithConcurrency<T, R>(
       value.provider !== 'douyin' ||
       typeof value.key !== 'string' ||
       !Array.isArray(value.candidates)
-    )
+    ) {
       return false;
+    }
     return (
       value.candidates.length > 0 &&
       value.candidates.every(
@@ -2777,21 +2640,26 @@ async function mapWithConcurrency<T, R>(
     );
   }
 
-  /** Provider-neutral grouping for candidates emitted by a platform adapter. */
   function upsertPlatformMediaTask(
     tabId: number,
     task: PlatformMediaTask,
     tabTitle?: string
   ) {
-    // Platform tasks must respect the same display rules: domain exclusion,
-    // per-type sniff switches and the max-items cap.
     const pageUrl = tabPageUrls.get(tabId);
-    if (pageUrl && isDomainExcluded(pageUrl, currentSettings)) return;
+    if (pageUrl && isDomainExcluded(pageUrl, currentSettings)) {
+      return;
+    }
     const masterFormat = (task.candidates?.[0]?.format || 'mp4').toLowerCase();
-    if (!isFormatAllowed(masterFormat, currentSettings)) return;
-    if (!tabMap.has(tabId)) tabMap.set(tabId, new Map());
+    if (!isFormatAllowed(masterFormat, currentSettings)) {
+      return;
+    }
+    if (!tabMap.has(tabId)) {
+      tabMap.set(tabId, new Map());
+    }
     const mediaMap = tabMap.get(tabId)!;
-    if (mediaMap.size >= (currentSettings.maxItems ?? 1000)) return;
+    if (mediaMap.size >= (currentSettings.maxItems ?? 1000)) {
+      return;
+    }
     const key =
       task.key.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100) || 'current';
     const masterUrl = `vid_grp_${task.provider}_${key}`;
@@ -2813,8 +2681,6 @@ async function mapWithConcurrency<T, R>(
     const audioCandidates = candidates.filter(
       (candidate) => candidate.role === 'audio'
     );
-    // A provider may not be able to classify a legacy payload. In that case
-    // retain the previous direct-video behavior instead of creating an empty group.
     const videoCandidates = candidates.filter(
       (candidate) => candidate.role !== 'audio'
     );
@@ -2859,7 +2725,9 @@ async function mapWithConcurrency<T, R>(
           ? mediaMap.get(existingVariantUrl)
           : undefined;
         const existingMasterId = existingVariant?.groupMasterId;
-        if (!existingMasterId || existingMasterId === masterUrl) continue;
+        if (!existingMasterId || existingMasterId === masterUrl) {
+          continue;
+        }
         const existingMaster = mediaMap.get(existingMasterId);
         if (existingMaster) {
           mediaMap.set(existingMasterId, {
@@ -2882,8 +2750,9 @@ async function mapWithConcurrency<T, R>(
     const previousMaster = mediaMap.get(masterUrl);
     const managed = platformManagedUrls.get(tabId) || new Set<string>();
     for (const [url, entry] of mediaMap) {
-      if (entry.groupMasterId === masterUrl && !entry.contentType)
+      if (entry.groupMasterId === masterUrl && !entry.contentType) {
         mediaMap.delete(url);
+      }
     }
     for (const candidate of candidates) {
       managed.add(candidate.url);
@@ -2951,15 +2820,16 @@ async function mapWithConcurrency<T, R>(
     broadcastDebounced(tabId);
   }
 
-  /**
-   * Catch native player preloads (including Douyin's next-card prefetch).
-   */
   function collectNativeDouyinTrack(tabId: number, value: string) {
     try {
       const pageUrl = tabPageUrls.get(tabId);
-      if (!pageUrl || !DOUYIN_PAGE_HOST.test(new URL(pageUrl).hostname)) return;
+      if (!pageUrl || !DOUYIN_PAGE_HOST.test(new URL(pageUrl).hostname)) {
+        return;
+      }
       const url = new URL(value);
-      if (!DOUYIN_MEDIA_HOST.test(url.hostname)) return;
+      if (!DOUYIN_MEDIA_HOST.test(url.hostname)) {
+        return;
+      }
       const role = /(?:^|[-_/])media-audio(?:[-_/]|$)|\/audio[-_/]/i.test(
         url.pathname
       )
@@ -2971,11 +2841,10 @@ async function mapWithConcurrency<T, R>(
         url.searchParams.get('l') ||
         url.searchParams.get('video_id') ||
         url.searchParams.get('aweme_id');
-      if (!role || !key) return;
+      if (!role || !key) {
+        return;
+      }
 
-      // Do not hard-code 'mp4': the native player may stream HLS (video/audio
-      // m3u8 playlists) or FLV (live), which must be detected so the popup
-      // player picks hls.js/mpegts.js instead of a bare <video> element.
       const buildTask = (
         videoUrl: string,
         audioUrl: string | undefined,
@@ -3035,10 +2904,9 @@ async function mapWithConcurrency<T, R>(
       );
       const oppositeIndex = pending.findIndex((track) => track.role !== role);
       if (oppositeIndex < 0) {
-        // A video preload may never meet its audio counterpart (cached audio
-        // responses, muxed streams, prefetch cancelled mid-flight). Surface
-        // the card immediately and let the paired audio upgrade it later.
-        if (role === 'video') buildTask(value, undefined, 3);
+        if (role === 'video') {
+          buildTask(value, undefined, 3);
+        }
         pending.push({ url: value, role, at: now });
         byToken.set(key, pending);
         douyinNativeTracks.set(tabId, byToken);
@@ -3055,22 +2923,22 @@ async function mapWithConcurrency<T, R>(
 
   browser.webRequest.onBeforeRequest.addListener(
     (details) => {
-      if (details.tabId > 0)
+      if (details.tabId > 0) {
         collectNativeDouyinTrack(details.tabId, details.url);
+      }
       return undefined;
     },
     { urls: ['<all_urls>'], types: ['media', 'xmlhttprequest', 'other'] }
   );
 
-  /** A card key is based on the video resource, never on the reusable `l` token. */
   function getDouyinTrackGroupKey(url: string): string {
     let hash = 2166136261;
-    for (let i = 0; i < url.length; i++)
+    for (let i = 0; i < url.length; i++) {
       hash = Math.imul(hash ^ url.charCodeAt(i), 16777619);
+    }
     return `track_${(hash >>> 0).toString(36)}`;
   }
 
-  /** Playback URLs rotate hosts and query signatures; their CDN path is stable. */
   function getDouyinMediaResourceKey(value: string): string {
     try {
       return new URL(value).pathname;
@@ -3081,37 +2949,40 @@ async function mapWithConcurrency<T, R>(
 
   function isVideoOnlyContentType(ct: string): boolean {
     const c = ct.toLowerCase();
-    if (!c.startsWith('video/')) return false;
-    // If codecs explicitly include an audio codec, this is a muxed stream
+    if (!c.startsWith('video/')) {
+      return false;
+    }
     const codecsMatch = /codecs="([^"]+)"/.exec(c);
     if (codecsMatch) {
       const codecs = codecsMatch[1]!.toLowerCase();
-      // mp4a / opus / vorbis / flac / ac-3 are all audio codecs
-      if (/mp4a|opus|vorbis|flac|ac-3|ec-3/.test(codecs)) return false;
-      // Video-only codecs (avc1, hev1, hvc1, vp8, vp9, av01)
-      if (/avc1|hev1|hvc1|vp[89]|av01/.test(codecs)) return true;
+      if (/mp4a|opus|vorbis|flac|ac-3|ec-3/.test(codecs)) {
+        return false;
+      }
+      if (/avc1|hev1|hvc1|vp[89]|av01/.test(codecs)) {
+        return true;
+      }
     }
     return false;
   }
 
   function isAudioOnlyContentType(ct: string): boolean {
     const c = ct.toLowerCase();
-    if (c.startsWith('audio/')) return true;
-    // video/mp4 with audio-only codecs (rarely seen on Bilibili)
+    if (c.startsWith('audio/')) {
+      return true;
+    }
     const codecsMatch = /codecs="([^"]+)"/.exec(c);
     if (codecsMatch) {
       const codecs = codecsMatch[1]!.toLowerCase();
       if (
         /mp4a|opus|vorbis/.test(codecs) &&
         !/avc1|hev1|vp[89]|av01/.test(codecs)
-      )
+      ) {
         return true;
+      }
     }
     return false;
   }
 
-  // Extract a grouping key from the URL: drop mime/itag/quality/range params
-  // and keep the core id params.
   function extractVideoGroupKey(url: string): string {
     try {
       const u = new URL(url);
@@ -3125,8 +2996,6 @@ async function mapWithConcurrency<T, R>(
         const pathSeg = path.split('/').filter(Boolean)[0] ?? '';
         return `${host}/${pathSeg}`;
       }
-      // YouTube/Bilibili: keep all param names, drop known resolution/format
-      // params, then sort the remaining ones to form the key
       const EXCLUDE_PARAMS = new Set([
         'itag',
         'mime',
@@ -3146,19 +3015,18 @@ async function mapWithConcurrency<T, R>(
       ]);
       const kept: string[] = [];
       u.searchParams.forEach((v, k) => {
-        if (!EXCLUDE_PARAMS.has(k.toLowerCase())) kept.push(`${k}=${v}`);
+        if (!EXCLUDE_PARAMS.has(k.toLowerCase())) {
+          kept.push(`${k}=${v}`);
+        }
       });
       kept.sort();
       return `${host}${path}|${kept.join('&')}`;
     } catch {
-      // When parsing fails, use the URL without its query string
       return url.split('?')[0] ?? url;
     }
   }
 
-  // Extract a resolution label from the URL or Content-Type
   function extractQualityLabel(url: string, contentType: string): string {
-    // YouTube itag → resolution mapping
     const itagMap: Record<string, string> = {
       '137': '1080p',
       '248': '1080p',
@@ -3186,49 +3054,58 @@ async function mapWithConcurrency<T, R>(
     try {
       const u = new URL(url);
       const itag = u.searchParams.get('itag') ?? u.searchParams.get('itagid');
-      if (itag && itagMap[itag]) return itagMap[itag]!;
+      if (itag && itagMap[itag]) {
+        return itagMap[itag]!;
+      }
       const quality =
         u.searchParams.get('quality_label') ??
         u.searchParams.get('quality') ??
         u.searchParams.get('qlt');
-      if (quality) return quality;
+      if (quality) {
+        return quality;
+      }
     } catch {}
-    // Infer rough quality from Content-Type codecs (not exact)
     if (
       /avc1\.640034|avc1\.640032|hev1\.1.*L153|vp9.*profile2/i.test(contentType)
-    )
+    ) {
       return '1080p+';
-    if (/avc1\.640028|hev1\.1.*L120/i.test(contentType)) return '1080p';
-    if (/avc1\.64001f/i.test(contentType)) return '720p';
-    if (/avc1\.64001e/i.test(contentType)) return '480p';
+    }
+    if (/avc1\.640028|hev1\.1.*L120/i.test(contentType)) {
+      return '1080p';
+    }
+    if (/avc1\.64001f/i.test(contentType)) {
+      return '720p';
+    }
+    if (/avc1\.64001e/i.test(contentType)) {
+      return '480p';
+    }
     return '';
   }
 
-  // Try to pair a newly added URL with an existing video/audio entry in the same tab
   const VIDEO_AUDIO_GROUP_WINDOW_MS = 8000;
 
-  // For known media CDN URLs served as application/octet-stream, infer
-  // video-only / audio-only from URL features. Douyin/ByteDance CDNs return
-  // octet-stream without codecs, so the normal content-type check does not work.
   function detectStreamRoleFromUrl(url: string): 'video' | 'audio' | null {
     try {
       const u = new URL(url);
       const host = u.host.toLowerCase();
       const path = u.pathname.toLowerCase();
       const full = (host + path).toLowerCase();
-      // Known media CDN domains
       const isMediaCdn =
         /\.(douyinvod|douyinpic|douyincdn|amemv|iesdouyin|snssdk|bytecdn|byteimg|bytego|bytedns|byteoss|bytedance|pstatp|toutiaovod|ixigua|tiktokcdn|tiktokcdn-us|tiktokcdn-eu|tiktokcdn-in|tiktokv|muscdn|musical|byteoversea|ks-yxcdn|kwaixiaodian)\.(?:com|cn|net|us|eu|in|gg|io|ly)\b/i.test(
           host
         );
-      if (!isMediaCdn) return null;
-      // URL path/params contain an audio keyword → audio-only
-      if (/audio|aud|sound|\.m4a\b|\.aac\b/.test(full)) return 'audio';
-      // URL path/params contain a video keyword → video-only
-      if (/video|vid|\.mp4\b|\.flv\b/.test(full)) return 'video';
-      // No explicit keyword: fall back to the ratio/quality params in the URL
-      // (video carries resolution params, audio does not)
-      if (/[?&](ratio|quality|qlt|resolution|vq)=/.test(url)) return 'video';
+      if (!isMediaCdn) {
+        return null;
+      }
+      if (/audio|aud|sound|\.m4a\b|\.aac\b/.test(full)) {
+        return 'audio';
+      }
+      if (/video|vid|\.mp4\b|\.flv\b/.test(full)) {
+        return 'video';
+      }
+      if (/[?&](ratio|quality|qlt|resolution|vq)=/.test(url)) {
+        return 'video';
+      }
       return null;
     } catch {
       return null;
@@ -3241,55 +3118,65 @@ async function mapWithConcurrency<T, R>(
     contentType: string,
     newSize?: number
   ) {
-    // Standard content-type detection (Bilibili/YouTube: explicit codecs)
     let isVideo = isVideoOnlyContentType(contentType);
     let isAudio = isAudioOnlyContentType(contentType);
 
-    // application/octet-stream fallback: identify Douyin/ByteDance CDN URLs
-    // via URL features
     if (!isVideo && !isAudio) {
       const role = detectStreamRoleFromUrl(newUrl);
-      if (role === 'video') isVideo = true;
-      else if (role === 'audio') isAudio = true;
+      if (role === 'video') {
+        isVideo = true;
+      } else if (role === 'audio') {
+        isAudio = true;
+      }
     }
-    if (!isVideo && !isAudio) return;
+    if (!isVideo && !isAudio) {
+      return;
+    }
 
     const mediaMap = tabMap.get(tabId);
-    if (!mediaMap) return;
+    if (!mediaMap) {
+      return;
+    }
 
     const newEntry = mediaMap.get(newUrl);
-    if (!newEntry) return;
+    if (!newEntry) {
+      return;
+    }
 
     const now = newEntry.detectedAt ?? Date.now();
     const newKey = extractVideoGroupKey(newUrl);
     const newLabel = extractQualityLabel(newUrl, contentType);
 
-    // Search for pairing candidates within the time window in the same tab
     for (const [candidateUrl, candidateEntry] of mediaMap) {
-      if (candidateUrl === newUrl) continue;
-      if (!candidateEntry.contentType) continue;
+      if (candidateUrl === newUrl) {
+        continue;
+      }
+      if (!candidateEntry.contentType) {
+        continue;
+      }
       const age = Math.abs((candidateEntry.detectedAt ?? 0) - now);
-      if (age > VIDEO_AUDIO_GROUP_WINDOW_MS) continue;
-
-      // Try standard content-type for the candidate first, then the octet-stream fallback
-      let candidateIsVideo = isVideoOnlyContentType(candidateEntry.contentType);
-      let candidateIsAudio = isAudioOnlyContentType(candidateEntry.contentType);
-      // Douyin can label both isolated tracks as `video/mp4` without codecs.
-      // For a known Byte CDN URL, its media-audio/media-video path is then the
-      // only reliable track signal; do not reserve this fallback for octet-stream.
-      if (!candidateIsVideo && !candidateIsAudio) {
-        const role = detectStreamRoleFromUrl(candidateUrl);
-        if (role === 'video') candidateIsVideo = true;
-        else if (role === 'audio') candidateIsAudio = true;
+      if (age > VIDEO_AUDIO_GROUP_WINDOW_MS) {
+        continue;
       }
 
-      // Need one video-only and one audio-only entry to pair
-      if (isVideo && !candidateIsAudio) continue;
-      if (isAudio && !candidateIsVideo) continue;
+      let candidateIsVideo = isVideoOnlyContentType(candidateEntry.contentType);
+      let candidateIsAudio = isAudioOnlyContentType(candidateEntry.contentType);
+      if (!candidateIsVideo && !candidateIsAudio) {
+        const role = detectStreamRoleFromUrl(candidateUrl);
+        if (role === 'video') {
+          candidateIsVideo = true;
+        } else if (role === 'audio') {
+          candidateIsAudio = true;
+        }
+      }
 
-      // octet-stream fallback scenario: double-check with the Content-Length
-      // ratio. Video streams are usually much larger than audio streams
-      // (>3:1); skip pairing if the sizes are close.
+      if (isVideo && !candidateIsAudio) {
+        continue;
+      }
+      if (isAudio && !candidateIsVideo) {
+        continue;
+      }
+
       if (
         contentType === 'application/octet-stream' &&
         candidateEntry.contentType === 'application/octet-stream'
@@ -3297,16 +3184,14 @@ async function mapWithConcurrency<T, R>(
         const vSize = isVideo ? newSize : candidateEntry.size;
         const aSize = isVideo ? candidateEntry.size : newSize;
         if (vSize && aSize) {
-          if (vSize < aSize * 3) continue; // video should be at least 3x larger than audio
+          if (vSize < aSize * 3) {
+            continue;
+          } // video >= 3x audio
         }
       }
 
       const candidateKey = extractVideoGroupKey(candidateUrl);
 
-      // URL similarity check: share ratio of common params between the two keys.
-      // Douyin/ByteDance CDN: keys are simplified host/pathSeg where video and
-      // audio pathSegs differ. Skip the similarity check and pair by time
-      // window + URL features + size ratio instead.
       const isDouyinCdn =
         /\.(douyinvod|douyinpic|douyincdn|amemv|iesdouyin|snssdk|bytecdn|byteimg|bytego|bytedns|byteoss|bytedance|pstatp|toutiaovod|ixigua|tiktokcdn|tiktokcdn-us|tiktokcdn-eu|tiktokcdn-in|tiktokv|muscdn|musical|byteoversea)\.(?:com|cn|net|us|eu|in|gg|io|ly)\b/i.test(
           newUrl
@@ -3316,34 +3201,34 @@ async function mapWithConcurrency<T, R>(
         );
       if (!isDouyinCdn) {
         const keySimilarity = computeKeySimilarity(newKey, candidateKey);
-        if (keySimilarity < 0.5) continue;
+        if (keySimilarity < 0.5) {
+          continue;
+        }
       } else {
-        // Douyin domain: require the same host
         try {
-          if (new URL(newUrl).host !== new URL(candidateUrl).host) continue;
+          if (new URL(newUrl).host !== new URL(candidateUrl).host) {
+            continue;
+          }
         } catch {
           continue;
         }
       }
 
-      // Pair confirmed: create the group
       const videoUrl = isVideo ? newUrl : candidateUrl;
       const audioUrl_g = isAudio ? newUrl : candidateUrl;
       const videoEntry = mediaMap.get(videoUrl)!;
       const audioEntry = mediaMap.get(audioUrl_g)!;
 
-      // Skip if both are already grouped into the same group
-      if (videoEntry.groupId && videoEntry.groupId === audioEntry.groupId)
+      if (videoEntry.groupId && videoEntry.groupId === audioEntry.groupId) {
         continue;
+      }
 
-      // Generate groupId from the core key of the video URL
       const groupId = `vid_grp_${extractVideoGroupKey(videoUrl).substring(0, 60)}`;
       const label =
         newLabel ||
         extractQualityLabel(videoUrl, videoEntry.contentType ?? '') ||
         '未知清晰度';
 
-      // Update the video entry: act as a variant holding audioUrl
       mediaMap.set(videoUrl, {
         ...videoEntry,
         groupId,
@@ -3353,7 +3238,6 @@ async function mapWithConcurrency<T, R>(
         audioUrl: audioUrl_g,
       });
 
-      // Update the audio entry: mark it as audio and link it to the group
       mediaMap.set(audioUrl_g, {
         ...audioEntry,
         groupId,
@@ -3361,9 +3245,7 @@ async function mapWithConcurrency<T, R>(
         groupMasterId: groupId,
       });
 
-      // Check whether the groupId already has a master entry (virtual master)
       if (!mediaMap.has(groupId)) {
-        // Create a virtual master entry
         mediaMap.set(groupId, {
           format: videoEntry.format,
           detectedAt: Math.min(
@@ -3385,23 +3267,25 @@ async function mapWithConcurrency<T, R>(
   }
 
   function computeKeySimilarity(a: string, b: string): number {
-    // Compare the similarity of two keys (host+path|params)
     const aParts = a.split('|');
     const bParts = b.split('|');
-    // host+path must be identical
-    if (aParts[0] !== bParts[0]) return 0;
-    // Compare params
+    if (aParts[0] !== bParts[0]) {
+      return 0;
+    }
     const aParams = new Set((aParts[1] ?? '').split('&').filter(Boolean));
     const bParams = new Set((bParts[1] ?? '').split('&').filter(Boolean));
-    if (aParams.size === 0 && bParams.size === 0) return 1;
+    if (aParams.size === 0 && bParams.size === 0) {
+      return 1;
+    }
     let common = 0;
     for (const p of aParams) {
-      if (bParams.has(p)) common++;
+      if (bParams.has(p)) {
+        common++;
+      }
     }
     return common / Math.max(aParams.size, bParams.size);
   }
 
-  // ── Manifest parse cache and grouping ─────────────────────────────
   const manifestParseCache = new Set<string>();
   const manifestFailCache = new Map<string, number>();
   const MANIFEST_PARSE_FAIL_TTL = 60_000;
@@ -3412,9 +3296,13 @@ async function mapWithConcurrency<T, R>(
     masterFormat: 'm3u8' | 'mpd',
     requestHeaders?: Record<string, string>
   ) {
-    if (manifestParseCache.has(masterUrl)) return;
+    if (manifestParseCache.has(masterUrl)) {
+      return;
+    }
     const lastFail = manifestFailCache.get(masterUrl);
-    if (lastFail && Date.now() - lastFail < MANIFEST_PARSE_FAIL_TTL) return;
+    if (lastFail && Date.now() - lastFail < MANIFEST_PARSE_FAIL_TTL) {
+      return;
+    }
 
     const fetchHeaders: Record<string, string> = {};
     if (requestHeaders) {
@@ -3437,7 +3325,9 @@ async function mapWithConcurrency<T, R>(
         cache: 'no-store',
         credentials: 'omit',
       });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}`);
+      }
       return resp.text();
     };
 
@@ -3474,9 +3364,6 @@ async function mapWithConcurrency<T, R>(
             }
           }
         }
-        // Single-bitrate media playlist: duration and size have been attempted;
-        // cache to avoid duplicate requests. If size is still missing, allow a
-        // retry after 60s (the segment server may be temporarily unavailable).
         if (parsed.estimatedSize || parsed.duration) {
           manifestParseCache.add(masterUrl);
         } else {
@@ -3486,15 +3373,16 @@ async function mapWithConcurrency<T, R>(
       }
 
       const mediaMap = tabMap.get(tabId);
-      if (!mediaMap) return;
+      if (!mediaMap) {
+        return;
+      }
       const masterEntry = mediaMap.get(masterUrl);
-      if (!masterEntry) return;
+      if (!masterEntry) {
+        return;
+      }
 
       const groupId = masterUrl;
 
-      // Estimate the total size from the highest-bandwidth variant + duration
-      // (bandwidth bps / 8 * duration = bytes). Without bandwidth, fall back to
-      // the segment-sampled size estimated by stream-parser.
       const topBandwidth = parsed.variants.reduce(
         (max, v) => Math.max(max, v.bandwidth ?? 0),
         0
@@ -3504,7 +3392,6 @@ async function mapWithConcurrency<T, R>(
           ? Math.round((topBandwidth / 8) * parsed.duration)
           : parsed.estimatedSize;
 
-      // Mark the master entry and write the parsed duration and estimated size
       mediaMap.set(masterUrl, {
         ...masterEntry,
         groupId,
@@ -3515,8 +3402,13 @@ async function mapWithConcurrency<T, R>(
 
       for (const variant of parsed.variants) {
         const existing = mediaMap.get(variant.uri);
-        if (existing && existing.groupRole && existing.groupRole !== 'segment')
+        if (
+          existing &&
+          existing.groupRole &&
+          existing.groupRole !== 'segment'
+        ) {
           continue;
+        }
 
         mediaMap.set(variant.uri, {
           format: masterFormat === 'mpd' ? 'mpd' : 'm3u8',

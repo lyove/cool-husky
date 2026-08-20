@@ -1,6 +1,6 @@
 {
     "extName": {
-        "message": "酷哈 - 万能网页视频/音频/图片下载器"
+        "message": "酷哈 - 智能网页媒体嗅探与下载工具"
     },
     "extDescription": {
         "message": "自动嗅探网页中的 M3U8/HLS 流媒体、视频、音频和图片，内置播放预览，支持批量下载，全程本地运行，隐私安全。"
@@ -152,6 +152,30 @@
     "resetConfirm":{
         "message": "再次点击确认重置"
     },
+    "welcome":{
+        "message": "欢迎"
+    },
+    "welcomeTitle":{
+        "message": "欢迎使用 CoolHusky"
+    },
+    "welcomeIntro":{
+        "message": "CoolHusky（酷哈）是一款智能的浏览器媒体嗅探与下载工具，帮你轻松捕获网页中的视频、音频和图片资源。\n\n它会在你浏览网页时自动检测页面上的媒体资源，并以清晰的列表呈现。你可以按类型（流媒体、视频、音频、图片）筛选，也可以按格式和大小精确查找，还支持批量下载与一键复制资源地址。\n\n无论是日常学习、资料留存还是内容创作，CoolHusky 都能让你更高效地获取所需的媒体资源。"
+    },
+    "welcomeFeaturesTitle":{
+        "message": "核心特性"
+    },
+    "featureAutoSniff":{
+        "message": "自动嗅探：浏览网页时实时检测页面中的视频、音频和图片资源，无需手动操作。"
+    },
+    "featureFilter":{
+        "message": "智能筛选：按类型、格式和大小精确过滤，快速定位你想要的资源。"
+    },
+    "featureBatchDownload":{
+        "message": "批量下载：支持一次性下载多个资源，高效留存所需素材。"
+    },
+    "featureCopyUrl":{
+        "message": "一键复制：轻松复制资源地址，方便在其他工具中直接使用。"
+    },
     "welcomeSubtitle":{
         "message": "智能媒体嗅探与下载工具"
     },
@@ -250,12 +274,6 @@
     },
     "faq9A":{
         "message": "某些网站使用了特殊的加密、DRM 保护或混淆加载技术，导致无法捕获媒体 URL。视频也可能通过带有跨域限制的嵌入式 iframe 提供。请尝试刷新页面并先播放视频来触发检测。"
-    },
-    "needMoreHelp":{
-        "message": "需要更多帮助？"
-    },
-    "needMoreHelpDesc":{
-        "message": "如果以上内容未能解决你的问题，欢迎通过以下方式获取支持"
     },
     "subtitle":{
         "message": "智能嗅探，一键下载"

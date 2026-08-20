@@ -36,17 +36,20 @@ function createStats(): LoaderStats {
   };
 }
 
+// Chunked base64 decode to avoid call stack overflow on large responses
 function decodeBase64(value: string): ArrayBuffer {
   const binary = atob(value);
   const bytes = new Uint8Array(binary.length);
   for (let offset = 0; offset < binary.length; offset += 32768) {
     const end = Math.min(offset + 32768, binary.length);
-    for (let index = offset; index < end; index++)
+    for (let index = offset; index < end; index++) {
       bytes[index] = binary.charCodeAt(index);
+    }
   }
   return bytes.buffer;
 }
 
+// Custom hls.js loader routing requests through background proxy
 export function createHlsProxyLoader(
   options: HlsProxyOptions
 ): new (config: HlsConfig) => Loader<LoaderContext> {
@@ -81,7 +84,9 @@ export function createHlsProxyLoader(
       const maxLoadTime =
         config.loadPolicy?.maxLoadTimeMs || config.timeout || 20_000;
       this.timeoutId = setTimeout(() => {
-        if (this.requestId !== requestId || !this.context) return;
+        if (this.requestId !== requestId || !this.context) {
+          return;
+        }
         this.cancelRequest(requestId);
         this.requestId = null;
         this.stats.loading.end = performance.now();
@@ -101,7 +106,9 @@ export function createHlsProxyLoader(
           },
         })
         .then((response: unknown) => {
-          if (this.requestId !== requestId || this.stats.aborted) return;
+          if (this.requestId !== requestId || this.stats.aborted) {
+            return;
+          }
           this.clearTimer();
           this.requestId = null;
           this.stats.loading.first =
@@ -143,7 +150,9 @@ export function createHlsProxyLoader(
           callbacks.onSuccess(result, this.stats, context, null);
         })
         .catch((error: Error) => {
-          if (this.requestId !== requestId || this.stats.aborted) return;
+          if (this.requestId !== requestId || this.stats.aborted) {
+            return;
+          }
           this.clearTimer();
           this.requestId = null;
           this.stats.loading.end = performance.now();
@@ -157,14 +166,20 @@ export function createHlsProxyLoader(
     }
 
     abort(): void {
-      if (this.stats.aborted) return;
+      if (this.stats.aborted) {
+        return;
+      }
       this.stats.aborted = true;
       const context = this.context;
       const requestId = this.requestId;
       this.requestId = null;
       this.clearTimer();
-      if (requestId) this.cancelRequest(requestId);
-      if (context) this.callbacks?.onAbort?.(this.stats, context, null);
+      if (requestId) {
+        this.cancelRequest(requestId);
+      }
+      if (context) {
+        this.callbacks?.onAbort?.(this.stats, context, null);
+      }
     }
 
     destroy(): void {
@@ -184,7 +199,9 @@ export function createHlsProxyLoader(
     }
 
     private clearTimer(): void {
-      if (this.timeoutId) clearTimeout(this.timeoutId);
+      if (this.timeoutId) {
+        clearTimeout(this.timeoutId);
+      }
       this.timeoutId = null;
     }
 

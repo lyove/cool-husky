@@ -1,12 +1,7 @@
 import browser from 'webextension-polyfill';
 
 export type SniffingGroup =
-  | 'streaming'
-  | 'video'
-  | 'audio'
-  | 'image'
-  | 'document'
-  | 'subtitle';
+  'streaming' | 'video' | 'audio' | 'image' | 'document' | 'subtitle';
 
 export interface SniffingRule {
   enabled: boolean;
@@ -22,13 +17,9 @@ export interface Settings {
   excludeDomains: string[];
   maxItems: number;
   enableMseCapture: boolean;
-  /** Hide HLS/DASH segments (e.g. .ts/.m4s), showing only parent playlists (m3u8/mpd). */
   hideStreamSegments: boolean;
-  /** Capture data: URL embedded images (only <img src="data:image/...">), off by default. */
   captureDataImages: boolean;
-  /** Minimum byte threshold (KB) for data: images, filtering out tiny 1x1 pixel trackers. */
   dataImageMinSizeKB: number;
-  /** How the toolbar icon opens the UI: 'sidepanel' (right dock) or 'popup' (floating). */
   openMode: OpenMode;
 }
 
@@ -64,9 +55,12 @@ export const DEFAULT_SETTINGS: Settings = {
 const SETTINGS_KEY = 'coolhusky_settings';
 
 function toStringArray(val: any): string[] {
-  if (Array.isArray(val)) return val.filter((v) => typeof v === 'string');
-  if (val && typeof val === 'object')
+  if (Array.isArray(val)) {
+    return val.filter((v) => typeof v === 'string');
+  }
+  if (val && typeof val === 'object') {
     return Object.values(val).filter((v) => typeof v === 'string') as string[];
+  }
   return [];
 }
 
@@ -212,31 +206,38 @@ export const SUBTITLE_FORMATS = ['srt', 'vtt', 'ass', 'ssa'];
 
 export function getFormatGroup(format: string): SniffingGroup | null {
   const f = format.toLowerCase();
-  // Synthetic MSE streams are surfaced as streaming resources so the
-  // streaming sniff switch and minSizeKB rule apply to them as well.
-  if (f === 'mse') return 'streaming';
-  if (STREAMING_FORMATS.includes(f)) return 'streaming';
-  if (VIDEO_FORMATS.includes(f)) return 'video';
-  if (AUDIO_FORMATS.includes(f)) return 'audio';
-  if (IMAGE_FORMATS.includes(f)) return 'image';
-  if (DOCUMENT_FORMATS.includes(f)) return 'document';
-  if (SUBTITLE_FORMATS.includes(f)) return 'subtitle';
+  if (f === 'mse') {
+    return 'streaming';
+  }
+  if (STREAMING_FORMATS.includes(f)) {
+    return 'streaming';
+  }
+  if (VIDEO_FORMATS.includes(f)) {
+    return 'video';
+  }
+  if (AUDIO_FORMATS.includes(f)) {
+    return 'audio';
+  }
+  if (IMAGE_FORMATS.includes(f)) {
+    return 'image';
+  }
+  if (DOCUMENT_FORMATS.includes(f)) {
+    return 'document';
+  }
+  if (SUBTITLE_FORMATS.includes(f)) {
+    return 'subtitle';
+  }
   return null;
 }
 
 export function isFormatAllowed(format: string, settings: Settings): boolean {
   const group = getFormatGroup(format.toLowerCase());
-  if (!group) return false;
+  if (!group) {
+    return false;
+  }
   return settings.sniffingRules[group].enabled;
 }
 
-/**
- * Whether an already-captured item should be shown / counted.
- * Unlike `isFormatAllowed`, this also respects the UI display type:
- * entries with `category: 'stream'` (e.g. grouped Douyin/Bilibili tasks)
- * are shown under the Stream tab and must therefore obey the streaming
- * switch, even though their underlying format is a plain mp4/webm.
- */
 export function isMediaAllowed(
   format: string,
   settings: Settings,
@@ -245,9 +246,6 @@ export function isMediaAllowed(
 ): boolean {
   const f = format.toLowerCase();
 
-  // UI-type gate: items displayed as streams must obey the streaming switch.
-  // Must mirror getType(): flv is grouped under the Stream tab as well, even
-  // though it also lives in the video format list.
   const isStreamUi =
     category === 'stream' ||
     f === 'mse' ||
@@ -257,9 +255,10 @@ export function isMediaAllowed(
     return false;
   }
 
-  // Underlying format gate: mp4 still needs video switch, m4a needs audio, etc.
   const group = getFormatGroup(f);
-  if (!group) return false;
+  if (!group) {
+    return false;
+  }
   return settings.sniffingRules[group].enabled;
 }
 
@@ -268,23 +267,32 @@ export function isSizeAllowed(
   contentLength: number | undefined,
   settings: Settings
 ): boolean {
-  if (contentLength === undefined) return true;
+  if (contentLength === undefined) {
+    return true;
+  }
   const group = getFormatGroup(format.toLowerCase());
-  if (!group) return true;
+  if (!group) {
+    return true;
+  }
   const minSizeKB = settings.sniffingRules[group].minSizeKB;
-  if (minSizeKB <= 0) return true;
+  if (minSizeKB <= 0) {
+    return true;
+  }
   return contentLength >= minSizeKB * 1024;
 }
 
+// Hardcoded exclusions not exposed in user settings
 const _HIDDEN_EXCLUDED_DOMAINS = ['youtube.com'];
 
 function matchesExcludedDomain(hostname: string, domain: string): boolean {
-  const d = domain.trim().toLowerCase().replace(/^www\./, '');
-  if (!d) return false;
+  const d = domain
+    .trim()
+    .toLowerCase()
+    .replace(/^www\./, '');
+  if (!d) {
+    return false;
+  }
   const host = hostname.toLowerCase().replace(/^www\./, '');
-  // Match the registrable domain itself (youtube.com) or any of its subdomains
-  // (www. / m. / music.youtube.com). A plain equality check would miss
-  // www.youtube.com, making the exclusion silently ineffective.
   return host === d || host.endsWith(`.${d}`);
 }
 
@@ -294,7 +302,9 @@ export function isDomainExcluded(url: string, settings: Settings): boolean {
     const userExcluded = settings.excludeDomains.some((domain) =>
       matchesExcludedDomain(hostname, domain)
     );
-    if (userExcluded) return true;
+    if (userExcluded) {
+      return true;
+    }
     return _HIDDEN_EXCLUDED_DOMAINS.some((domain) =>
       matchesExcludedDomain(hostname, domain)
     );
