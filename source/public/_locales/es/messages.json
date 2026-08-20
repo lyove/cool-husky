@@ -275,6 +275,9 @@
     "faq9A":{
         "message": "Algunos sitios web utilizan cifrado especial, protección DRM o técnicas de carga ofuscadas que impiden la captura de URLs multimedia. Los vídeos también pueden servirse desde iframes embebidos con restricciones de origen cruzado. Intenta actualizar la página y reproducir el vídeo primero para activar la detección."
     },
+    "siteName":{
+        "message": "Sitio web:"
+    },
     "subtitle":{
         "message": "Detección Inteligente, Descarga con Un Clic"
     },

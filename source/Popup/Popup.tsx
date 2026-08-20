@@ -2096,7 +2096,7 @@ export default function Popup({
                   </div>
                 </div>
                 <p className={styles.greeting} title={currentTabTitle}>
-                  {currentTabTitle}
+                  {t('siteName')} {currentTabTitle}
                 </p>
                 {isMobileBrowser && !hideMobileTip && (
                   <div className={styles.mobileBanner}>

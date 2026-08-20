@@ -275,6 +275,9 @@
     "faq9A":{
         "message": "Einige Websites verwenden spezielle Verschlüsselung, DRM-Schutz oder verschleierte Lade-Techniken, die die Medien-URL-Erfassung verhindern. Videos können auch über eingebettete iframes mit Cross-Origin-Einschränkungen bereitgestellt werden. Versuchen Sie, die Seite zu aktualisieren und das Video zuerst abzuspielen, um die Erkennung auszulösen."
     },
+    "siteName":{
+        "message": "Website:"
+    },
     "subtitle":{
         "message": "Intelligentes Sniffing, Einklick-Download"
     },

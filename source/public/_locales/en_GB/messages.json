@@ -275,6 +275,9 @@
     "faq9A":{
         "message": "Some websites use special encryption, DRM protection, or obfuscated loading techniques that prevent media URL capture. Videos may also be served from embedded iframes with cross-origin restrictions. Try refreshing the page and playing the video first to trigger detection."
     },
+    "siteName":{
+        "message": "Website:"
+    },
     "subtitle":{
         "message": "Smart Sniff, One-Click Download"
     },
