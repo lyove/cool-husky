@@ -299,6 +299,15 @@ const DownloadIconSvg = (): ReactNode => (
   </svg>
 );
 
+const RenameDownloadIconSvg = (): ReactNode => (
+  <svg width="1em" height="1em" viewBox="0 0 1024 1024">
+    <path
+      d="M812.869818 414.068364L553.797818 150.900364v236.823272c0 18.618182 7.261091 26.344727 26.344727 26.344728h232.727273z m-257.861818 308.596363l-2.606545 75.031273 48.686545-49.524364 37.701818-38.632727a26.717091 26.717091 0 0 1 20.014546-8.192c14.522182 0 26.344727 10.426182 26.344727 25.879273a26.437818 26.437818 0 0 1-10.426182 20.945454L547.374545 867.234909c-7.261091 7.261091-13.591273 10.053818-20.48 10.053818-7.168 0-13.125818-2.792727-20.852363-10.053818L378.786909 748.171636a26.065455 26.065455 0 0 1-10.053818-20.945454c0-15.453091 10.984727-25.879273 25.972364-25.879273 7.261091 0 14.894545 2.699636 20.014545 8.192l37.701818 38.632727 48.593455 49.524364-2.792728-75.031273V550.912c0-14.987636 13.312-27.275636 28.765091-27.275636 14.894545 0 28.113455 12.288 28.113455 27.275636v171.752727z m197.818182 215.505455c47.290182 0 71.866182-25.506909 71.866182-71.400727V470.016h-251.345455c-49.524364 0-75.496727-24.576-75.496727-75.962182V139.077818h-197.352727c-47.197091 0-71.68 26.344727-71.68 71.773091v655.918546c0 45.893818 24.482909 71.400727 71.68 71.400727h452.328727z m-583.68-70.469818v-658.152728c0-85.922909 43.752727-129.582545 128.744727-129.582545h204.986182c44.497455 0 68.608 6.795636 98.210909 36.864L847.406545 366.778182c30.906182 31.371636 36.864 53.154909 36.864 103.237818v397.684364c0 85.922909-43.194182 130.048-128.651636 130.048H297.890909c-85.457455 0-128.651636-43.659636-128.651636-130.048z"
+      fill="#currentColor"
+    />
+  </svg>
+);
+
 const MergeIconSvg = (): ReactNode => (
   <svg viewBox="0 0 1024 1024" width="1em" height="1em">
     <path
@@ -1081,6 +1090,19 @@ export default function Popup({
     actions,
     customNames,
   ]);
+
+  const handleDownloadBatchRenamed = useCallback((): void => {
+    const selectedItems = mediaList.filter((i) =>
+      selectedUrls.has(getMediaKey(i))
+    );
+    if (!selectedItems.length) {
+      return;
+    }
+    showToast(t('downloadBatchRenamedStarted') || '已开始重命名下载');
+    void actions
+      .downloadBatchRenamed(selectedItems, tabIdRef.current)
+      .catch(() => {});
+  }, [mediaList, selectedUrls, showToast, t, actions]);
 
   const handleMergeDownload = useCallback((): void => {
     const audioItems = mediaList.filter(
@@ -2119,6 +2141,15 @@ export default function Popup({
                     data-tooltip={t('downloadSelected')}
                   >
                     <DownloadIconSvg />
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.iconBtn}
+                    onClick={() => void handleDownloadBatchRenamed()}
+                    disabled={!selectedCount || actions.downloading}
+                    data-tooltip={t('downloadBatchRenamed')}
+                  >
+                    <RenameDownloadIconSvg />
                   </button>
                   {activeTab === 'audio' && (
                     <button

@@ -362,6 +362,12 @@
     "batchDownloadStarted":{
         "message": "已开始下载 $1 个文件"
     },
+    "downloadBatchRenamed":{
+        "message": "重命名下载"
+    },
+    "downloadBatchRenamedStarted":{
+        "message": "已开始重命名下载 $1 个文件"
+    },
     "open":{
         "message": "打开"
     },

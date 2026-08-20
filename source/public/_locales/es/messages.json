@@ -362,6 +362,12 @@
     "batchDownloadStarted":{
         "message": "Descarga de $1 archivo(s) iniciada"
     },
+    "downloadBatchRenamed":{
+        "message": "Descargar con renombrado"
+    },
+    "downloadBatchRenamedStarted":{
+        "message": "Descarga renombrada iniciada ($1 archivo(s))"
+    },
     "open":{
         "message": "Abrir"
     },

@@ -362,6 +362,12 @@
     "batchDownloadStarted":{
         "message": "Загрузка началась: $1 файл(ов)"
     },
+    "downloadBatchRenamed":{
+        "message": "Скачать с переименованием"
+    },
+    "downloadBatchRenamedStarted":{
+        "message": "Загрузка с переименованием: $1 файл(ов)"
+    },
     "open":{
         "message": "Открыть"
     },

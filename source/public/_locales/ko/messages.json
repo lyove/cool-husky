@@ -362,6 +362,12 @@
     "batchDownloadStarted":{
         "message": "$1개 파일 다운로드 시작"
     },
+    "downloadBatchRenamed":{
+        "message": "이름 바꿔 다운로드"
+    },
+    "downloadBatchRenamedStarted":{
+        "message": "$1개 파일 이름을 바꿔 다운로드 시작"
+    },
     "open":{
         "message": "열기"
     },

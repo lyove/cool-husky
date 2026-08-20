@@ -6,6 +6,8 @@ import {
   isImageFormat,
   getDownloadFilename,
   getBatchDownloadFilename,
+  getDatePrefix,
+  getRenamedBatchFilename,
   getMediaKey,
 } from '../utils/formats';
 import {
@@ -40,6 +42,10 @@ export function useMediaActions(onToast?: (message: string) => void): {
     subDir?: string,
     tabId?: number,
     customNames?: Map<string, string>
+  ) => Promise<void>;
+  downloadBatchRenamed: (
+    items: MediaListItem[],
+    tabId?: number
   ) => Promise<void>;
   mergeAndDownload: (items: MediaListItem[], tabId?: number) => Promise<void>;
   downloading: boolean;
@@ -353,6 +359,41 @@ export function useMediaActions(onToast?: (message: string) => void): {
     [downloadItem, toggleLiveRecording]
   );
 
+  // Downloads selected items in sniffing order with
+  // renamed files: YYYY-MM-DD-index.ext
+  const downloadBatchRenamed = useCallback(
+    async (items: MediaListItem[], tabId?: number): Promise<void> => {
+      setDownloading(true);
+      try {
+        const total = items.length;
+        const datePrefix = getDatePrefix();
+        for (let i = 0; i < total; i++) {
+          const item = items[i];
+          if (!item) {
+            continue;
+          }
+          if (
+            item.isLiveStream &&
+            (item.format === 'flv' || item.format === 'ts')
+          ) {
+            toggleLiveRecording(item);
+            continue;
+          }
+          const filename = getRenamedBatchFilename(
+            datePrefix,
+            i + 1,
+            total,
+            item.format
+          );
+          await downloadItem({ item, tabId, filename });
+        }
+      } finally {
+        setDownloading(false);
+      }
+    },
+    [downloadItem, toggleLiveRecording]
+  );
+
   const mergeAndDownload = useCallback(
     async (items: MediaListItem[], tabId?: number): Promise<void> => {
       const mergeable: MergeableAudioItem[] = items
@@ -410,6 +451,7 @@ export function useMediaActions(onToast?: (message: string) => void): {
     downloadItem,
     copyUrl,
     downloadBatch,
+    downloadBatchRenamed,
     mergeAndDownload,
     downloading,
     merging,

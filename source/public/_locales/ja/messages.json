@@ -362,6 +362,12 @@
     "batchDownloadStarted":{
         "message": "$1 ファイルのダウンロードを開始しました"
     },
+    "downloadBatchRenamed":{
+        "message": "名前を付けてダウンロード"
+    },
+    "downloadBatchRenamedStarted":{
+        "message": "$1 件のファイルをリネームしてダウンロード中"
+    },
     "open":{
         "message": "開く"
     },

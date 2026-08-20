@@ -1,7 +1,12 @@
 import { t } from '../../utils/i18n';
 
 export type MediaType =
-  'stream' | 'video' | 'audio' | 'image' | 'doc' | 'other';
+  | 'stream'
+  | 'video'
+  | 'audio'
+  | 'image'
+  | 'doc'
+  | 'other';
 
 export const STREAM_FORMATS = ['m3u8', 'mpd', 'mse', 'flv'];
 export const VIDEO_DOWNLOAD_FORMATS = [
@@ -360,4 +365,24 @@ export function getBatchDownloadFilename(
   const baseName = customName || getFileName(url) || 'download';
   const filename = ensureFileExtension(baseName, format);
   return subDir ? `${subDir}/${filename}` : filename;
+}
+
+// Current date prefix for renamed downloads, e.g. 2026-08-21
+export function getDatePrefix(date: Date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// Renamed download filename in sniffing order: YYYY-MM-DD-index.ext
+export function getRenamedBatchFilename(
+  datePrefix: string,
+  index: number,
+  total: number,
+  format: string
+): string {
+  const width = Math.max(2, String(total).length);
+  const seq = String(index).padStart(width, '0');
+  return `${datePrefix}-${seq}.${format.toLowerCase()}`;
 }

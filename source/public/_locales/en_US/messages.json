@@ -362,6 +362,12 @@
     "batchDownloadStarted":{
         "message": "Started downloading $1 file(s)"
     },
+    "downloadBatchRenamed":{
+        "message": "Download with Rename"
+    },
+    "downloadBatchRenamedStarted":{
+        "message": "Started renamed download of $1 file(s)"
+    },
     "open":{
         "message": "Open"
     },
