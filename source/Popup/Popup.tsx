@@ -46,6 +46,7 @@ import type {
 import MediaPlayerModal from './components/MediaPlayerModal/MediaPlayerModal';
 import InlineMediaPlayer from './components/InlineMediaPlayer/InlineMediaPlayer';
 import SettingsView from './components/SettingsView/SettingsView';
+import TooltipProvider from './components/Tooltip/Tooltip';
 import styles from './Popup.module.scss';
 
 const METADATA_BATCH_SIZE = 200;
@@ -1473,7 +1474,7 @@ export default function Popup({
                 type="button"
                 className={styles.actionBtnCopy}
                 onClick={() => void handleCopyUrl(item.url)}
-                title={t('copyUrl')}
+                data-tooltip={t('copyUrl')}
               >
                 <CopyIconSvg />
               </button>
@@ -1494,7 +1495,7 @@ export default function Popup({
                     setPreviewItem(item);
                   }
                 }}
-                title={
+                data-tooltip={
                   isImageFormat(fmt)
                     ? t('preview')
                     : playingItem?.url === item.url
@@ -1515,7 +1516,9 @@ export default function Popup({
                   type="button"
                   className={`${styles.actionBtnSuccess} ${isRecording ? styles.actionBtnRecording : ''}`}
                   onClick={() => actions.toggleLiveRecording(item)}
-                  title={isRecording ? t('stopRecording') : t('startRecording')}
+                  data-tooltip={
+                    isRecording ? t('stopRecording') : t('startRecording')
+                  }
                 >
                   {isRecording ? '⏹' : '⏺'}
                 </button>
@@ -1524,7 +1527,7 @@ export default function Popup({
                   type="button"
                   className={styles.actionBtnSuccess}
                   onClick={() => void handleDownloadItem(item)}
-                  title={t('download')}
+                  data-tooltip={t('download')}
                 >
                   <DownloadIconSvg />
                 </button>
@@ -1672,7 +1675,7 @@ export default function Popup({
                 type="button"
                 className={styles.actionBtnCopy}
                 onClick={() => void handleCopyUrl(item.url)}
-                title={t('copyUrl')}
+                data-tooltip={t('copyUrl')}
               >
                 <CopyIconSvg />
               </button>
@@ -1688,7 +1691,9 @@ export default function Popup({
                     setPreviewItem(item);
                   }
                 }}
-                title={playingItem?.url === item.url ? t('pause') : t('play')}
+                data-tooltip={
+                  playingItem?.url === item.url ? t('pause') : t('play')
+                }
               >
                 {playingItem?.url === item.url ? (
                   <PauseIconSvg />
@@ -1700,7 +1705,7 @@ export default function Popup({
                 type="button"
                 className={styles.actionBtnSuccess}
                 onClick={() => void handleDownloadItem(item)}
-                title={t('download')}
+                data-tooltip={t('download')}
               >
                 <DownloadIconSvg />
               </button>
@@ -1820,7 +1825,7 @@ export default function Popup({
                       setPreviewItem(masterSource);
                     }
                   }}
-                  title={
+                  data-tooltip={
                     playingItem?.url === masterSource.url
                       ? t('pause')
                       : t('play')
@@ -1836,7 +1841,7 @@ export default function Popup({
                   type="button"
                   className={styles.actionBtnSuccess}
                   onClick={() => void handleDownloadItem(masterSource)}
-                  title={t('download')}
+                  data-tooltip={t('download')}
                 >
                   <DownloadIconSvg />
                 </button>
@@ -2032,393 +2037,400 @@ export default function Popup({
         showSettings ? styles.popupSettings : ''
       } ${density === 'comfortable' ? styles.densityComfortable : ''}`}
     >
-      {showSettings ? (
-        <SettingsView
-          settings={settings}
-          onSave={saveSettings}
-          onBack={() => setShowSettings(false)}
-          onOpenShortcuts={() => void actions.openShortcuts()}
-        />
-      ) : (
-        <>
-          {!embedded && (
-            <header className={styles.header}>
-              <div className={styles.headerTop}>
-                <div>
-                  <h1 className={styles.title}>CoolHusky</h1>
-                  <p className={styles.subtitle}>{t('subtitle')}</p>
+      <TooltipProvider>
+        {showSettings ? (
+          <SettingsView
+            settings={settings}
+            onSave={saveSettings}
+            onBack={() => setShowSettings(false)}
+            onOpenShortcuts={() => void actions.openShortcuts()}
+          />
+        ) : (
+          <>
+            {!embedded && (
+              <header className={styles.header}>
+                <div className={styles.headerTop}>
+                  <div>
+                    <h1 className={styles.title}>CoolHusky</h1>
+                    <p className={styles.subtitle}>{t('subtitle')}</p>
+                  </div>
                 </div>
+                <p className={styles.greeting} title={currentTabTitle}>
+                  {currentTabTitle}
+                </p>
+                {isMobileBrowser && !hideMobileTip && (
+                  <div className={styles.mobileBanner}>
+                    <span>{mobileCapabilityTip}</span>
+                    <button
+                      type="button"
+                      onClick={() => setHideMobileTip(true)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </header>
+            )}
+
+            <div className={styles.toolbar}>
+              <div className={styles.tabs}>
+                {visibleTabs.map((tab) => (
+                  <button
+                    type="button"
+                    key={tab.key}
+                    data-tab={tab.key}
+                    className={`${styles.tab} ${activeTab === tab.key ? styles.tabActive : ''}`}
+                    onClick={() => setActiveTab(tab.key)}
+                  >
+                    {tab.label}({tabCounts[tab.key] ?? 0})
+                  </button>
+                ))}
               </div>
-              <p className={styles.greeting} title={currentTabTitle}>
-                {currentTabTitle}
-              </p>
-              {isMobileBrowser && !hideMobileTip && (
-                <div className={styles.mobileBanner}>
-                  <span>{mobileCapabilityTip}</span>
-                  <button type="button" onClick={() => setHideMobileTip(true)}>
-                    ✕
+              <div className={styles.actionToolbar}>
+                <div className={styles.actionToolbarLeft}>
+                  <button
+                    type="button"
+                    className={`${styles.iconBtn} ${
+                      allVisibleSelected || someVisibleSelected
+                        ? styles.selectAllActive
+                        : ''
+                    }`}
+                    onClick={toggleSelectAll}
+                    disabled={!visibleItemKeys.length}
+                    data-tooltip={
+                      allVisibleSelected ? t('deselectAll') : t('selectAll')
+                    }
+                  >
+                    <SelectAllIconSvg
+                      state={
+                        allVisibleSelected
+                          ? 'all'
+                          : someVisibleSelected
+                            ? 'some'
+                            : 'none'
+                      }
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.iconBtn}
+                    onClick={() => void handleDownloadBatch()}
+                    disabled={!selectedCount || actions.downloading}
+                    data-tooltip={t('downloadSelected')}
+                  >
+                    <DownloadIconSvg />
+                  </button>
+                  {activeTab === 'audio' && (
+                    <button
+                      type="button"
+                      className={styles.iconBtn}
+                      onClick={() => void handleMergeDownload()}
+                      disabled={
+                        !selectedCount || actions.downloading || actions.merging
+                      }
+                      data-tooltip={t('mergeDownload')}
+                    >
+                      <MergeIconSvg />
+                    </button>
+                  )}
+                  <span className={styles.toolbarDivider} />
+                  <button
+                    type="button"
+                    className={styles.iconBtn}
+                    onClick={() =>
+                      setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')
+                    }
+                    data-tooltip={t('sort')}
+                  >
+                    <SortIconSvg desc={sortOrder === 'desc'} />
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.iconBtn}
+                    onClick={() => void clearList()}
+                    data-tooltip={t('clear')}
+                  >
+                    <TrashIconSvg />
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.iconBtn}
+                    onClick={() => void refreshPage()}
+                    data-tooltip={t('refresh')}
+                  >
+                    <RefreshIconSvg />
                   </button>
                 </div>
-              )}
-            </header>
-          )}
-
-          <div className={styles.toolbar}>
-            <div className={styles.tabs}>
-              {visibleTabs.map((tab) => (
-                <button
-                  type="button"
-                  key={tab.key}
-                  data-tab={tab.key}
-                  className={`${styles.tab} ${activeTab === tab.key ? styles.tabActive : ''}`}
-                  onClick={() => setActiveTab(tab.key)}
-                >
-                  {tab.label}({tabCounts[tab.key] ?? 0})
-                </button>
-              ))}
-            </div>
-            <div className={styles.actionToolbar}>
-              <div className={styles.actionToolbarLeft}>
                 <button
                   type="button"
                   className={`${styles.iconBtn} ${
-                    allVisibleSelected || someVisibleSelected
-                      ? styles.selectAllActive
-                      : ''
+                    showFilters ? styles.filterToolbarBtnActive : ''
                   }`}
-                  onClick={toggleSelectAll}
-                  disabled={!visibleItemKeys.length}
-                  title={allVisibleSelected ? t('deselectAll') : t('selectAll')}
+                  onClick={() => setShowFilters(!showFilters)}
+                  data-tooltip={t('filter')}
                 >
-                  <SelectAllIconSvg
-                    state={
-                      allVisibleSelected
-                        ? 'all'
-                        : someVisibleSelected
-                          ? 'some'
-                          : 'none'
-                    }
-                  />
-                </button>
-                <button
-                  type="button"
-                  className={styles.iconBtn}
-                  onClick={() => void handleDownloadBatch()}
-                  disabled={!selectedCount || actions.downloading}
-                  title={t('downloadSelected')}
-                >
-                  <DownloadIconSvg />
-                </button>
-                {activeTab === 'audio' && (
-                  <button
-                    type="button"
-                    className={styles.iconBtn}
-                    onClick={() => void handleMergeDownload()}
-                    disabled={
-                      !selectedCount || actions.downloading || actions.merging
-                    }
-                    title={t('mergeDownload')}
-                  >
-                    <MergeIconSvg />
-                  </button>
-                )}
-                <span className={styles.toolbarDivider} />
-                <button
-                  type="button"
-                  className={styles.iconBtn}
-                  onClick={() =>
-                    setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')
-                  }
-                  title={t('sort')}
-                >
-                  <SortIconSvg desc={sortOrder === 'desc'} />
-                </button>
-                <button
-                  type="button"
-                  className={styles.iconBtn}
-                  onClick={() => void clearList()}
-                  title={t('clear')}
-                >
-                  <TrashIconSvg />
-                </button>
-                <button
-                  type="button"
-                  className={styles.iconBtn}
-                  onClick={() => void refreshPage()}
-                  title={t('refresh')}
-                >
-                  <RefreshIconSvg />
+                  <FilterIconSvg active={showFilters} />
                 </button>
               </div>
-              <button
-                type="button"
-                className={`${styles.iconBtn} ${
-                  showFilters ? styles.filterToolbarBtnActive : ''
-                }`}
-                onClick={() => setShowFilters(!showFilters)}
-                title={t('filter')}
-              >
-                <FilterIconSvg active={showFilters} />
-              </button>
-            </div>
 
-            <div
-              className={`${styles.searchFilter} ${
-                showFilters ? styles.searchFilterExpanded : ''
-              }`}
-            >
-              <div className={styles.searchRow}>
-                <input
-                  className={styles.searchInput}
-                  type="search"
-                  placeholder={t('searchPlaceholder')}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className={`${styles.iconBtn} ${useRegex ? styles.iconBtnActive : ''}`}
-                  onClick={() => setUseRegex(!useRegex)}
-                  title={t('regexToggle')}
-                >
-                  .*
-                </button>
-                {searchQuery && (
+              <div
+                className={`${styles.searchFilter} ${
+                  showFilters ? styles.searchFilterExpanded : ''
+                }`}
+              >
+                <div className={styles.searchRow}>
+                  <input
+                    className={styles.searchInput}
+                    type="search"
+                    placeholder={t('searchPlaceholder')}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
                   <button
                     type="button"
-                    className={styles.iconBtn}
-                    onClick={clearSearch}
-                    title={t('clearSearch')}
+                    className={`${styles.iconBtn} ${useRegex ? styles.iconBtnActive : ''}`}
+                    onClick={() => setUseRegex(!useRegex)}
+                    data-tooltip={t('searchRegexTitle')}
                   >
-                    ✕
+                    .*
                   </button>
-                )}
-              </div>
-              {!regexValid && searchError && (
-                <p className={styles.searchError}>{searchError}</p>
-              )}
-              {showFilters && (
-                <div className={styles.filterRow}>
-                  {activeTab === 'video' && typeOptions.length > 1 && (
-                    <select
-                      className={styles.select}
-                      value={typeFilter}
-                      onChange={(e) => setTypeFilter(e.target.value as never)}
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      className={styles.iconBtn}
+                      onClick={clearSearch}
+                      data-tooltip={t('searchClear')}
                     >
-                      {typeOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {(activeTab === 'all' ||
-                    activeTab === 'video' ||
-                    activeTab === 'audio' ||
-                    activeTab === 'doc') && (
-                    <div className={styles.sizeFilter}>
-                      <input
-                        className={styles.sizeInput}
-                        type="number"
-                        min={0}
-                        placeholder={t('min')}
-                        value={sizeFilter.min || ''}
-                        onChange={(e) =>
-                          setSizeFilter({
-                            ...sizeFilter,
-                            min: Number(e.target.value) || 0,
-                          })
-                        }
-                      />
-                      <span className={styles.sizeUnit}>-</span>
-                      <input
-                        className={styles.sizeInput}
-                        type="number"
-                        min={0}
-                        placeholder={t('max')}
-                        value={sizeFilter.max || ''}
-                        onChange={(e) =>
-                          setSizeFilter({
-                            ...sizeFilter,
-                            max: Number(e.target.value) || 0,
-                          })
-                        }
-                      />
-                      <span className={styles.sizeUnit}>KB</span>
-                    </div>
-                  )}
-                  {activeTab === 'image' && (
-                    <div className={styles.sizeFilter}>
-                      <input
-                        className={styles.sizeInput}
-                        type="number"
-                        min={0}
-                        placeholder={t('width')}
-                        value={dimensionFilter.minWidth || ''}
-                        onChange={(e) =>
-                          setDimensionFilter({
-                            ...dimensionFilter,
-                            minWidth: Number(e.target.value) || 0,
-                          })
-                        }
-                      />
-                      <span className={styles.sizeUnit}>×</span>
-                      <input
-                        className={styles.sizeInput}
-                        type="number"
-                        min={0}
-                        placeholder={t('height')}
-                        value={dimensionFilter.minHeight || ''}
-                        onChange={(e) =>
-                          setDimensionFilter({
-                            ...dimensionFilter,
-                            minHeight: Number(e.target.value) || 0,
-                          })
-                        }
-                      />
-                      <span className={styles.sizeUnit}>px</span>
-                    </div>
-                  )}
-                  {activeTab === 'video' && (
-                    <select
-                      className={styles.select}
-                      value={resolutionFilter}
-                      onChange={(e) => setResolutionFilter(e.target.value)}
-                    >
-                      <option value="any">{t('any')}</option>
-                      {resolutionOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
+                      ✕
+                    </button>
                   )}
                 </div>
-              )}
+                {!regexValid && searchError && (
+                  <p className={styles.searchError}>{searchError}</p>
+                )}
+                {showFilters && (
+                  <div className={styles.filterRow}>
+                    {activeTab === 'video' && typeOptions.length > 1 && (
+                      <select
+                        className={styles.select}
+                        value={typeFilter}
+                        onChange={(e) => setTypeFilter(e.target.value as never)}
+                      >
+                        {typeOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {(activeTab === 'all' ||
+                      activeTab === 'video' ||
+                      activeTab === 'audio' ||
+                      activeTab === 'doc') && (
+                      <div className={styles.sizeFilter}>
+                        <input
+                          className={styles.sizeInput}
+                          type="number"
+                          min={0}
+                          placeholder={t('min')}
+                          value={sizeFilter.min || ''}
+                          onChange={(e) =>
+                            setSizeFilter({
+                              ...sizeFilter,
+                              min: Number(e.target.value) || 0,
+                            })
+                          }
+                        />
+                        <span className={styles.sizeUnit}>-</span>
+                        <input
+                          className={styles.sizeInput}
+                          type="number"
+                          min={0}
+                          placeholder={t('max')}
+                          value={sizeFilter.max || ''}
+                          onChange={(e) =>
+                            setSizeFilter({
+                              ...sizeFilter,
+                              max: Number(e.target.value) || 0,
+                            })
+                          }
+                        />
+                        <span className={styles.sizeUnit}>KB</span>
+                      </div>
+                    )}
+                    {activeTab === 'image' && (
+                      <div className={styles.sizeFilter}>
+                        <input
+                          className={styles.sizeInput}
+                          type="number"
+                          min={0}
+                          placeholder={t('width')}
+                          value={dimensionFilter.minWidth || ''}
+                          onChange={(e) =>
+                            setDimensionFilter({
+                              ...dimensionFilter,
+                              minWidth: Number(e.target.value) || 0,
+                            })
+                          }
+                        />
+                        <span className={styles.sizeUnit}>×</span>
+                        <input
+                          className={styles.sizeInput}
+                          type="number"
+                          min={0}
+                          placeholder={t('height')}
+                          value={dimensionFilter.minHeight || ''}
+                          onChange={(e) =>
+                            setDimensionFilter({
+                              ...dimensionFilter,
+                              minHeight: Number(e.target.value) || 0,
+                            })
+                          }
+                        />
+                        <span className={styles.sizeUnit}>px</span>
+                      </div>
+                    )}
+                    {activeTab === 'video' && (
+                      <select
+                        className={styles.select}
+                        value={resolutionFilter}
+                        onChange={(e) => setResolutionFilter(e.target.value)}
+                      >
+                        <option value="any">{t('any')}</option>
+                        {resolutionOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
 
-          {listBody}
+            {listBody}
 
-          <footer className={styles.footer}>
-            <div className={styles.footerLeft}>
-              <button
-                type="button"
-                className={styles.settingsBtn}
-                onClick={() => setShowSettings(true)}
-                title={t('settings')}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
-                  className={styles.settingsIcon}
+            <footer className={styles.footer}>
+              <div className={styles.footerLeft}>
+                <button
+                  type="button"
+                  className={styles.settingsBtn}
+                  onClick={() => setShowSettings(true)}
+                  data-tooltip={t('settings')}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-                  />
-                </svg>
-              </button>
-            </div>
-            <div className={styles.footerRight}>
-              <span className={styles.listSummary}>
-                {t('found')} {mediaCatalog.all.length} {t('item')}
-              </span>
-              {selectedCount > 0 && (
-                <span className={styles.listSummarySelected}>
-                  {' '}
-                  · {selectedCount} {t('selected')}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                    className={styles.settingsIcon}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div className={styles.footerRight}>
+                <span className={styles.listSummary}>
+                  {t('found')} {mediaCatalog.all.length} {t('item')}
                 </span>
-              )}
-            </div>
-          </footer>
-        </>
-      )}
+                {selectedCount > 0 && (
+                  <span className={styles.listSummarySelected}>
+                    {' '}
+                    · {selectedCount} {t('selected')}
+                  </span>
+                )}
+              </div>
+            </footer>
+          </>
+        )}
 
-      {showMergeConfirm && (
-        <div
-          className={styles.overlay}
-          onClick={() => setShowMergeConfirm(false)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              setShowMergeConfirm(false);
-            }
-          }}
-          role="presentation"
-        >
+        {showMergeConfirm && (
           <div
-            className={styles.confirmDialog}
-            role="dialog"
-            aria-modal="true"
-            onClick={(e) => e.stopPropagation()}
+            className={styles.overlay}
+            onClick={() => setShowMergeConfirm(false)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 setShowMergeConfirm(false);
               }
             }}
+            role="presentation"
           >
-            <div className={styles.confirmTitle}>
-              {t('mergeDownloadConfirm')}
-            </div>
-            <div className={styles.confirmDesc}>
-              {t('mergeDownloadConfirmDesc', [String(mergeConfirmCount)])}
-            </div>
-            <div className={styles.confirmActions}>
-              <button
-                type="button"
-                className={styles.confirmCancelBtn}
-                onClick={() => setShowMergeConfirm(false)}
-              >
-                {t('cancel')}
-              </button>
-              <button
-                type="button"
-                className={styles.confirmOkBtn}
-                onClick={() => void confirmMergeDownload()}
-              >
-                {t('mergeDownloadOk')}
-              </button>
+            <div
+              className={styles.confirmDialog}
+              role="dialog"
+              aria-modal="true"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setShowMergeConfirm(false);
+                }
+              }}
+            >
+              <div className={styles.confirmTitle}>
+                {t('mergeDownloadConfirm')}
+              </div>
+              <div className={styles.confirmDesc}>
+                {t('mergeDownloadConfirmDesc', [String(mergeConfirmCount)])}
+              </div>
+              <div className={styles.confirmActions}>
+                <button
+                  type="button"
+                  className={styles.confirmCancelBtn}
+                  onClick={() => setShowMergeConfirm(false)}
+                >
+                  {t('cancel')}
+                </button>
+                <button
+                  type="button"
+                  className={styles.confirmOkBtn}
+                  onClick={() => void confirmMergeDownload()}
+                >
+                  {t('mergeDownloadOk')}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {toast && (
-        <div key={toast.id} className={styles.toast}>
-          {toast.msg}
-        </div>
-      )}
+        {toast && (
+          <div key={toast.id} className={styles.toast}>
+            {toast.msg}
+          </div>
+        )}
 
-      {previewItem && (
-        <MediaPlayerModal
-          item={previewItem as MediaItem}
-          currentTabId={currentTabId}
-          onClose={() => setPreviewItem(null)}
-        />
-      )}
+        {previewItem && (
+          <MediaPlayerModal
+            item={previewItem as MediaItem}
+            currentTabId={currentTabId}
+            onClose={() => setPreviewItem(null)}
+          />
+        )}
 
-      {lightboxIndex >= 0 && (
-        <Lightbox
-          images={filteredImageList}
-          index={lightboxIndex}
-          onNavigate={navigateLightbox}
-          onClose={() => setLightboxIndex(-1)}
-          onDownload={(item) => void handleDownloadItem(item)}
-          onCopy={(url) => void handleCopyUrl(url)}
-          t={t}
-        />
-      )}
+        {lightboxIndex >= 0 && (
+          <Lightbox
+            images={filteredImageList}
+            index={lightboxIndex}
+            onNavigate={navigateLightbox}
+            onClose={() => setLightboxIndex(-1)}
+            onDownload={(item) => void handleDownloadItem(item)}
+            onCopy={(url) => void handleCopyUrl(url)}
+            t={t}
+          />
+        )}
 
-      <HoverPreview state={hoverPreview} />
+        <HoverPreview state={hoverPreview} />
+      </TooltipProvider>
     </div>
   );
 }

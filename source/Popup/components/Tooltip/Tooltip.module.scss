@@ -1,0 +1,25 @@
+.tooltip {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--fp-text);
+  color: var(--fp-bg);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  pointer-events: none;
+  z-index: 99999;
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: calc(50% + var(--arrow-offset, 0px));
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--fp-text);
+    border-bottom: 0;
+  }
+}
