@@ -1,10 +1,11 @@
 .tooltip {
+  --fp-tooltip-bg: var(--fp-text);
   position: fixed;
   transform: translate(-50%, -100%);
   white-space: nowrap;
   padding: 4px 8px;
   border-radius: 6px;
-  background: var(--fp-text);
+  background: var(--fp-tooltip-bg);
   color: var(--fp-bg);
   font-size: 12px;
   font-weight: 500;
@@ -18,8 +19,9 @@
     bottom: -4px;
     left: calc(50% + var(--arrow-offset, 0px));
     transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-top-color: var(--fp-text);
-    border-bottom: 0;
+    width: 8px;
+    height: 4px;
+    background: var(--fp-tooltip-bg);
+    clip-path: polygon(50% 100%, 0 0, 100% 0);
   }
 }

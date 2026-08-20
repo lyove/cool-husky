@@ -72,10 +72,14 @@ const InlineMediaPlayer: FC<InlineMediaPlayerProps> = ({
   item,
   currentTabId,
 }) => {
-  const { audioRef, videoRef, spectrumCanvasRef, error } = useMediaPlayback(
-    item,
-    currentTabId
-  );
+  const {
+    audioRef,
+    videoRef,
+    spectrumCanvasRef,
+    error,
+    setMediaVolume,
+    toggleMuted,
+  } = useMediaPlayback(item, currentTabId);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -90,61 +94,61 @@ const InlineMediaPlayer: FC<InlineMediaPlayerProps> = ({
   const isMse = format === 'mse';
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) {
+    const media = isAudio ? audioRef.current : videoRef.current;
+    if (!media) {
       return;
     }
 
     const handlePlay = (): void => setIsPlaying(true);
     const handlePause = (): void => setIsPlaying(false);
-    const handleTimeUpdate = (): void => setCurrentTime(video.currentTime);
+    const handleTimeUpdate = (): void => setCurrentTime(media.currentTime);
     const handleLoadedMetadata = (): void => {
-      setDuration(video.duration);
-      setVolume(video.volume);
-      setIsMuted(video.muted);
+      setDuration(media.duration);
+      setVolume(media.volume);
+      setIsMuted(media.muted);
     };
     const handleVolumeChange = (): void => {
-      setVolume(video.volume);
-      setIsMuted(video.muted);
+      setVolume(media.volume);
+      setIsMuted(media.muted);
     };
 
-    video.addEventListener('play', handlePlay);
-    video.addEventListener('pause', handlePause);
-    video.addEventListener('timeupdate', handleTimeUpdate);
-    video.addEventListener('loadedmetadata', handleLoadedMetadata);
-    video.addEventListener('volumechange', handleVolumeChange);
+    media.addEventListener('play', handlePlay);
+    media.addEventListener('pause', handlePause);
+    media.addEventListener('timeupdate', handleTimeUpdate);
+    media.addEventListener('loadedmetadata', handleLoadedMetadata);
+    media.addEventListener('volumechange', handleVolumeChange);
 
-    if (video.readyState >= 1) {
-      setDuration(video.duration);
+    if (media.readyState >= 1) {
+      setDuration(media.duration);
     }
-    setVolume(video.volume);
-    setIsMuted(video.muted);
+    setVolume(media.volume);
+    setIsMuted(media.muted);
 
     return (): void => {
-      video.removeEventListener('play', handlePlay);
-      video.removeEventListener('pause', handlePause);
-      video.removeEventListener('timeupdate', handleTimeUpdate);
-      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      video.removeEventListener('volumechange', handleVolumeChange);
+      media.removeEventListener('play', handlePlay);
+      media.removeEventListener('pause', handlePause);
+      media.removeEventListener('timeupdate', handleTimeUpdate);
+      media.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      media.removeEventListener('volumechange', handleVolumeChange);
     };
-  }, [videoRef]);
+  }, [isAudio, audioRef, videoRef]);
 
   const togglePlay = (): void => {
-    const video = videoRef.current;
-    if (!video) {
+    const media = isAudio ? audioRef.current : videoRef.current;
+    if (!media) {
       return;
     }
-    if (video.paused || video.ended) {
-      video.play().catch(() => {});
+    if (media.paused || media.ended) {
+      media.play().catch(() => {});
     } else {
-      video.pause();
+      media.pause();
     }
   };
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>): void => {
-    const video = videoRef.current;
+    const media = isAudio ? audioRef.current : videoRef.current;
     const track = progressRef.current;
-    if (!video || !track || !Number.isFinite(video.duration)) {
+    if (!media || !track || !Number.isFinite(media.duration)) {
       return;
     }
     const rect = track.getBoundingClientRect();
@@ -152,25 +156,44 @@ const InlineMediaPlayer: FC<InlineMediaPlayerProps> = ({
       1,
       Math.max(0, (e.clientX - rect.left) / rect.width)
     );
-    video.currentTime = ratio * video.duration;
+    media.currentTime = ratio * media.duration;
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
-    const video = videoRef.current;
-    if (!video) {
+    setMediaVolume(Number(e.target.value));
+  };
+
+  const handleVolumeSliderClick = (
+    e: React.MouseEvent<HTMLDivElement>
+  ): void => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(
+      1,
+      Math.max(0, (e.clientX - rect.left) / rect.width)
+    );
+    handleVolumeChange({
+      target: { value: String(ratio) },
+    } as React.ChangeEvent<HTMLInputElement>);
+  };
+
+  const handleVolumeSliderKeyDown = (
+    e: React.KeyboardEvent<HTMLDivElement>
+  ): void => {
+    const isIncrease = e.key === 'ArrowRight' || e.key === 'ArrowUp';
+    const isDecrease = e.key === 'ArrowLeft' || e.key === 'ArrowDown';
+    if (!isIncrease && !isDecrease) {
       return;
     }
-    const next = Number(e.target.value);
-    video.volume = next;
-    video.muted = next === 0;
+    e.preventDefault();
+    const delta = isIncrease ? 0.05 : -0.05;
+    const next = Math.min(1, Math.max(0, (isMuted ? 0 : volume) + delta));
+    handleVolumeChange({
+      target: { value: String(next) },
+    } as React.ChangeEvent<HTMLInputElement>);
   };
 
   const toggleMute = (): void => {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-    video.muted = !video.muted;
+    toggleMuted();
   };
 
   const handleDownload = (): void => {
@@ -209,11 +232,102 @@ const InlineMediaPlayer: FC<InlineMediaPlayerProps> = ({
           />
           <audio
             ref={audioRef}
-            controls
             autoPlay
             src={item.url}
-            className={styles.audio}
+            className={styles.hiddenMedia}
           />
+          <div className={styles.customControls}>
+            <button
+              type="button"
+              className={styles.controlBtn}
+              onClick={togglePlay}
+              aria-label={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? <PauseIcon /> : <PlayIcon />}
+            </button>
+
+            <span className={styles.time}>
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </span>
+
+            <div
+              ref={progressRef}
+              className={styles.progressWrap}
+              onClick={handleSeek}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  const media = audioRef.current;
+                  if (!media || !Number.isFinite(media.duration)) {
+                    return;
+                  }
+                  const step = media.duration * 0.05;
+                  const nextTime =
+                    e.key === ' '
+                      ? media.currentTime + step
+                      : media.currentTime;
+                  media.currentTime = Math.min(
+                    media.duration,
+                    Math.max(0, nextTime)
+                  );
+                }
+              }}
+              role="slider"
+              tabIndex={0}
+              aria-label="Audio progress"
+              aria-valuenow={currentTime}
+              aria-valuemin={0}
+              aria-valuemax={duration}
+            >
+              <div className={styles.progressTrack}>
+                <div
+                  className={styles.progressFill}
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className={styles.controlBtn}
+              onClick={toggleMute}
+              aria-label={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {isMuted || volume === 0 ? <MuteIcon /> : <VolumeIcon />}
+            </button>
+
+            <div
+              className={styles.volumeSlider}
+              onClick={handleVolumeSliderClick}
+              role="slider"
+              tabIndex={0}
+              aria-label="Volume"
+              aria-valuemin={0}
+              aria-valuemax={1}
+              aria-valuenow={isMuted ? 0 : volume}
+              onKeyDown={handleVolumeSliderKeyDown}
+            >
+              <div className={styles.volumeTrack}>
+                <div
+                  className={styles.volumeFill}
+                  style={{ width: `${(isMuted ? 0 : volume) * 100}%` }}
+                />
+              </div>
+              <div
+                className={styles.volumeHandle}
+                style={{ left: `${(isMuted ? 0 : volume) * 100}%` }}
+              />
+            </div>
+
+            <button
+              type="button"
+              className={styles.controlBtn}
+              onClick={handleDownload}
+              aria-label="Download"
+            >
+              <DownloadIcon />
+            </button>
+          </div>
         </div>
       )}
 
@@ -280,16 +394,28 @@ const InlineMediaPlayer: FC<InlineMediaPlayerProps> = ({
               {isMuted || volume === 0 ? <MuteIcon /> : <VolumeIcon />}
             </button>
 
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={isMuted ? 0 : volume}
-              onChange={handleVolumeChange}
+            <div
               className={styles.volumeSlider}
+              onClick={handleVolumeSliderClick}
+              role="slider"
+              tabIndex={0}
               aria-label="Volume"
-            />
+              aria-valuemin={0}
+              aria-valuemax={1}
+              aria-valuenow={isMuted ? 0 : volume}
+              onKeyDown={handleVolumeSliderKeyDown}
+            >
+              <div className={styles.volumeTrack}>
+                <div
+                  className={styles.volumeFill}
+                  style={{ width: `${(isMuted ? 0 : volume) * 100}%` }}
+                />
+              </div>
+              <div
+                className={styles.volumeHandle}
+                style={{ left: `${(isMuted ? 0 : volume) * 100}%` }}
+              />
+            </div>
 
             <button
               type="button"

@@ -60,6 +60,8 @@ export interface UseMediaPlaybackResult {
   isRecording: boolean;
   startLiveRecording: () => void;
   stopLiveRecording: () => void;
+  setMediaVolume: (volume: number) => void;
+  toggleMuted: () => void;
 }
 
 export function useMediaPlayback(
@@ -684,6 +686,33 @@ export function useMediaPlayback(
     }
   }, []);
 
+  // Applies volume/mute to the active media element and the separated
+  // audio track (if any) so the slider always affects audible output.
+  const setMediaVolume = useCallback((next: number): void => {
+    const clamped = Math.min(1, Math.max(0, next));
+    const primary = videoRef.current ?? audioRef.current;
+    if (primary) {
+      primary.volume = clamped;
+      primary.muted = clamped === 0;
+    }
+    if (separatedAudioRef.current) {
+      separatedAudioRef.current.volume = clamped;
+      separatedAudioRef.current.muted = clamped === 0;
+    }
+  }, []);
+
+  const toggleMuted = useCallback((): void => {
+    const primary = videoRef.current ?? audioRef.current;
+    if (!primary) {
+      return;
+    }
+    const next = !primary.muted;
+    primary.muted = next;
+    if (separatedAudioRef.current) {
+      separatedAudioRef.current.muted = next;
+    }
+  }, []);
+
   return {
     audioRef,
     videoRef,
@@ -695,5 +724,7 @@ export function useMediaPlayback(
     isRecording,
     startLiveRecording,
     stopLiveRecording,
+    setMediaVolume,
+    toggleMuted,
   };
 }

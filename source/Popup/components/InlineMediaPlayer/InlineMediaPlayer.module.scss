@@ -11,7 +11,6 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 6px;
   width: 100%;
 }
 
@@ -20,7 +19,7 @@
   max-width: 100%;
   height: 72px;
   display: block;
-  border-radius: 6px;
+  border-radius: 6px 6px 0 0;
   background: rgba(0, 0, 0, 0.2);
 }
 
@@ -31,41 +30,27 @@
   outline: none;
 }
 
-.audio {
-  height: 32px;
-  display: block;
-}
-
-.audio::-webkit-media-controls-panel {
-  height: 32px;
-  padding: 0 6px;
-}
-
-.audio::-webkit-media-controls-enclosure {
-  height: 32px;
-  border-radius: 6px;
-}
-
-.audio::-webkit-media-controls {
-  height: 32px;
-  min-height: 32px;
+.hiddenMedia {
+  width: 0;
+  height: 0;
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .videoWrap {
-  position: relative;
   width: 100%;
-  min-height: 140px;
-  max-height: 220px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
   border-radius: 10px;
   overflow: hidden;
+  background: rgba(0, 0, 0, 0.72);
 }
 
 .video {
   width: 100%;
-  height: 100%;
+  height: auto;
   max-height: 220px;
   min-height: 140px;
   background: #000;
@@ -73,20 +58,17 @@
 }
 
 .customControls {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  width: 100%;
   height: 32px;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 0 8px;
   background: rgba(0, 0, 0, 0.72);
-  border-radius: 0 0 10px 10px;
   color: #fff;
   font-size: 12px;
   box-sizing: border-box;
+  border-radius: 0 0 6px 6px;
 }
 
 .controlBtn {
@@ -123,7 +105,7 @@
 .progressWrap {
   flex: 1;
   min-width: 0;
-  height: 12px;
+  height: 20px;
   display: flex;
   align-items: center;
   cursor: pointer;
@@ -131,25 +113,54 @@
 
 .progressTrack {
   width: 100%;
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.25);
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.4);
   position: relative;
   overflow: hidden;
 }
 
 .progressFill {
   height: 100%;
-  border-radius: 2px;
-  background: #3b82f6;
+  border-radius: 3px;
+  background: #60a5fa;
   pointer-events: none;
 }
 
 .volumeSlider {
   width: 52px;
-  height: 4px;
+  height: 12px;
+  display: flex;
+  align-items: center;
   cursor: pointer;
-  accent-color: #3b82f6;
+  position: relative;
+}
+
+.volumeTrack {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.volumeFill {
+  height: 100%;
+  border-radius: 2px;
+  background: #60a5fa;
+  pointer-events: none;
+}
+
+.volumeHandle {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #60a5fa;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 
 .error {
