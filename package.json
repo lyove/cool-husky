@@ -29,6 +29,7 @@
     "hls.js": "^1.7.0",
     "mediainfo.js": "^0.3.7",
     "mpegts.js": "^1.8.2",
+    "mux.js": "^7.1.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "webextension-polyfill": "^0.12.0"
