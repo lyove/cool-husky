@@ -13,7 +13,7 @@ export interface ParsedManifest {
   estimatedSize?: number;
 }
 
-function resolveUrl(base: string, rel: string): string {
+export function resolveUrl(base: string, rel: string): string {
   if (!rel) {
     return base;
   }
@@ -73,7 +73,7 @@ function sumExtinf(text: string): number | undefined {
   return found ? total : undefined;
 }
 
-function extractSegmentUrls(text: string, baseUrl: string): string[] {
+export function extractSegmentUrls(text: string, baseUrl: string): string[] {
   const urls: string[] = [];
   for (const line of text.split('\n')) {
     const t = line.trim();

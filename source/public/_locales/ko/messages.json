@@ -308,7 +308,13 @@
     "downloadSelected":{
         "message": "선택 항목 다운로드"
     },
-    "clearList":{
+    "toggleEnable":{
+        "message": "Toggle Sniffing On/Off"
+    },
+    "deepSearch":{
+        "message": "Deep Search"
+    },
+"clearList":{
         "message": "현재 페이지 미디어 목록 지우기"
     },
     "refresh":{

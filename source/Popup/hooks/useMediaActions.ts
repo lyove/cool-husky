@@ -15,6 +15,8 @@ import {
   mergeAudioItemsToWav,
   type MergeableAudioItem,
 } from '../../utils/audio-merge';
+import { downloadM3u8ToMp4 } from '../../utils/m3u8-downloader';
+import { saveBlob, supportsFileSystemAccess } from '../../utils/stream-saver';
 import type { MediaListItem } from './useMediaList';
 
 export interface DownloadOptions {
@@ -274,6 +276,71 @@ export function useMediaActions(onToast?: (message: string) => void): {
           captureId,
           tabId,
         });
+        return;
+      }
+      // M3U8/HLS: download all segments and transmux to a single MP4.
+      if (format === 'm3u8' && !isLiveStream) {
+        setDownloading(true);
+        try {
+          const tabUrl =
+            tabId === undefined
+              ? ''
+              : (await browser.tabs.get(tabId).catch(() => undefined))?.url ||
+                '';
+          const referrer =
+            requestHeaders?.Referer || requestHeaders?.referer || tabUrl;
+          showToast(t('m3u8DownloadStarted') || '正在下载并合并 M3U8…');
+          const result = await downloadM3u8ToMp4(
+            url,
+            requestHeaders,
+            referrer,
+            (p) => {
+              if (p.phase === 'downloading') {
+                showToast(
+                  t('m3u8DownloadProgress', `${p.current}/${p.total}`) ||
+                    `下载分片 ${p.current}/${p.total}`
+                );
+              }
+            }
+          );
+          const blobUrl = URL.createObjectURL(result.blob);
+          try {
+            const mp4Name =
+              (filename ?? getDownloadFilename(url, format)).replace(
+                /\.m3u8$/i,
+                '.mp4'
+              ) || `m3u8-${Date.now().toString(36)}.mp4`;
+            // Stream large MP4 results directly to disk when the File System
+            // Access API is available, avoiding blob-in-memory overhead.
+            const usePicker =
+              supportsFileSystemAccess() &&
+              result.blob.size > 256 * 1024 * 1024;
+            const saved = await saveBlob(
+              result.blob,
+              { filename: mp4Name, mime: result.mime },
+              usePicker
+            );
+            if (saved) {
+              showToast(
+                t('m3u8DownloadComplete', String(result.segmentCount)) ||
+                  `M3U8 下载完成（${result.segmentCount} 个分片）`
+              );
+            } else {
+              showToast(t('docDownloadFailed'));
+            }
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+          } catch {
+            URL.revokeObjectURL(blobUrl);
+            showToast(t('docDownloadFailed'));
+          }
+        } catch (e: unknown) {
+          const reason = (e as Error)?.message || 'unknown';
+          showToast(
+            t('m3u8DownloadFailed', reason) || `M3U8 下载失败: ${reason}`
+          );
+        } finally {
+          setDownloading(false);
+        }
         return;
       }
       if (isLiveStream && (format === 'flv' || format === 'ts')) {

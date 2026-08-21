@@ -20,7 +20,8 @@
     "webRequest",
     "downloads",
     "declarativeNetRequest",
-    "notifications"
+    "notifications",
+    "contextMenus"
   ],
 
   "__chrome__permissions": [
@@ -31,7 +32,8 @@
     "declarativeNetRequest",
     "notifications",
     "sidePanel",
-    "webNavigation"
+    "webNavigation",
+    "contextMenus"
   ],
 
   "__firefox__permissions": [
@@ -41,10 +43,27 @@
     "downloads",
     "declarativeNetRequest",
     "notifications",
+    "contextMenus",
     "webRequestBlocking"
   ],
 
   "host_permissions": ["<all_urls>"],
+
+  "commands": {
+    "_execute_action": {},
+    "toggle_enable": {
+      "description": "__MSG_toggleEnable__"
+    },
+    "deep_search": {
+      "description": "__MSG_deepSearch__"
+    },
+    "clear_list": {
+      "description": "__MSG_clearList__"
+    },
+    "preview": {
+      "description": "__MSG_preview__"
+    }
+  },
 
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"

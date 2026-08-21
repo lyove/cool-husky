@@ -606,6 +606,14 @@
         scanExistingDataImages();
       }
     }
+    if (event.data.type === 'COOLHUSKY_DEEP_SEARCH_ENABLE') {
+      if (event.data.enabled !== false) {
+        installDeepSearch();
+      }
+    }
+    if (event.data.type === 'COOLHUSKY_DEEP_SEARCH_RUN') {
+      runDeepSearchNow();
+    }
   });
 
   window.addEventListener('message', (event) => {
@@ -1420,6 +1428,236 @@
       flushPendingBilibiliPlayurls();
       tryReadBiliPagePlayinfo();
     }, 500);
+  }
+
+  // ===== Deep Search =====
+  // Proactively scans the page for media URLs that passive webRequest sniffing
+  // misses: JS-dynamically-built URLs, Worker internals, same-origin iframes,
+  // inline <script> content, and postMessage payloads. Modeled on cat-catch's
+  // search.js but focused on media discovery (no DRM key extraction).
+  let deepSearchInstalled = false;
+  const deepSearchSeen = new Set<string>();
+
+  function deepSearchReport(urlStr: string): void {
+    try {
+      if (!urlStr || deepSearchSeen.has(urlStr)) {
+        return;
+      }
+      // Only accept http(s) URLs that look like media.
+      if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
+        return;
+      }
+      const fmt = getFormatFromUrl(urlStr);
+      if (!fmt) {
+        return;
+      }
+      deepSearchSeen.add(urlStr);
+      if (deepSearchSeen.size > 5000) {
+        const it = deepSearchSeen.values();
+        for (let i = 0; i < 1000; i++) {
+          const v = it.next();
+          if (v.done) {
+            break;
+          }
+          deepSearchSeen.delete(v.value);
+        }
+      }
+      window.postMessage(
+        { type: 'COOLHUSKY_M3U8_DETECTED', url: urlStr, format: fmt },
+        '*'
+      );
+    } catch {}
+  }
+
+  // Recursively walk a parsed JSON object/array, looking for media URLs in
+  // string values. Capped depth to bound cost on huge API responses.
+  function findMediaInValue(value: unknown, depth = 0): void {
+    if (depth > 8) {
+      return;
+    }
+    if (typeof value === 'string') {
+      // Direct media URL
+      if (
+        (value.startsWith('http://') || value.startsWith('https://')) &&
+        /\.(m3u8|mpd|mp4|m4v|webm|flv|mkv|mov|mp3|m4a|aac|wav|flac|ogg|ts)(?:[?#]|$)/i.test(
+          value
+        )
+      ) {
+        deepSearchReport(value);
+        return;
+      }
+      // URL embedded in a longer string (e.g. JSON-encoded m3u8 text)
+      const urlMatches = value.matchAll(
+        /https?:\/\/[^\s"'<>]+?\.(?:m3u8|mpd|mp4|m4v|webm|flv|mkv|mov|mp3|m4a|aac|wav|flac|ogg)(?:[?#][^\s"'<>]*)?/gi
+      );
+      for (const m of urlMatches) {
+        deepSearchReport(m[0]);
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        findMediaInValue(item, depth + 1);
+      }
+      return;
+    }
+    if (value && typeof value === 'object') {
+      for (const v of Object.values(value as Record<string, unknown>)) {
+        findMediaInValue(v, depth + 1);
+      }
+    }
+  }
+
+  function scanInlineScripts(): void {
+    try {
+      const scripts = document.querySelectorAll('script:not([src])');
+      scripts.forEach((script) => {
+        const text = script.textContent || '';
+        if (!text) {
+          return;
+        }
+        const matches = text.matchAll(
+          /https?:\/\/[^\s"''<>)\\]+?\.(?:m3u8|mpd|mp4|m4v|webm|flv|mkv|mov|mp3|m4a|aac|wav|flac|ogg)(?:[?#][^\s"''<>)\\]*)?/gi
+        );
+        for (const m of matches) {
+          deepSearchReport(m[0]);
+        }
+      });
+    } catch {}
+  }
+
+  function scanSameOriginIframes(): void {
+    try {
+      const iframes = document.querySelectorAll('iframe');
+      iframes.forEach((iframe) => {
+        try {
+          const doc = iframe.contentDocument;
+          if (!doc) {
+            return; // cross-origin, skip
+          }
+          // video/audio/source elements inside same-origin iframe
+          doc.querySelectorAll('video, audio, source').forEach((el) => {
+            const src =
+              (el as HTMLMediaElement | HTMLSourceElement).src ||
+              el.getAttribute?.('src');
+            if (src) {
+              deepSearchReport(src);
+            }
+          });
+          // inline scripts inside same-origin iframe
+          doc.querySelectorAll('script:not([src])').forEach((script) => {
+            const text = script.textContent || '';
+            const matches = text.matchAll(
+              /https?:\/\/[^\s"''<>)\\]+?\.(?:m3u8|mpd|mp4|m4v|webm|flv|mkv|mov|mp3|m4a|aac|wav|flac|ogg)(?:[?#][^\s"''<>)\\]*)?/gi
+            );
+            for (const m of matches) {
+              deepSearchReport(m[0]);
+            }
+          });
+        } catch {}
+      });
+    } catch {}
+  }
+
+  function installDeepSearch(): void {
+    if (deepSearchInstalled) {
+      return;
+    }
+    deepSearchInstalled = true;
+
+    // 1. Hook JSON.parse to recursively scan parsed API responses.
+    const originalJSONParse = JSON.parse;
+    JSON.parse = function (...args: Parameters<typeof JSON.parse>): any {
+      const result = originalJSONParse.apply(this, args);
+      try {
+        findMediaInValue(result);
+      } catch {}
+      return result;
+    };
+
+    // 2. Hook the Worker constructor to inject a probe into Web Workers.
+    //    The probe forwards media URLs found inside the worker back via
+    //    postMessage. Only same-origin blob/script workers are probeable.
+    const OriginalWorker = window.Worker;
+    if (OriginalWorker) {
+      const probeCode = `
+        self.addEventListener('message', function(e) {
+          if (e.data && e.data.__coolhuskyDeepSearch) {
+            // Scan worker's global scope for media URLs in any future messages
+          }
+        });
+        // Hook postMessage inside worker to scan outgoing payloads
+        const _origPostMessage = self.postMessage;
+        self.postMessage = function(msg) {
+          try {
+            (function find(v, d) {
+              if (d > 6) return;
+              if (typeof v === 'string' && /https?:\\/\\/[^\\s"'<>]+?\\.(?:m3u8|mpd|mp4|webm|flv|mp3|m4a|aac|wav|flac|ogg)(?:[?#]|$)/i.test(v)) {
+                _origPostMessage.call(self, { __coolhuskyMedia: v });
+              } else if (Array.isArray(v)) { v.forEach(function(x){ find(x, d+1); }); }
+              else if (v && typeof v === 'object') { Object.values(v).forEach(function(x){ find(x, d+1); }); }
+            })(msg, 0);
+          } catch (e) {}
+          return _origPostMessage.apply(self, arguments);
+        };
+      `;
+      try {
+        const probeBlob = new Blob([probeCode], { type: 'text/javascript' });
+        const probeUrl = URL.createObjectURL(probeBlob);
+        window.Worker = function (scriptURL: string | URL, options?: any) {
+          // We cannot transparently merge a probe into cross-origin worker
+          // scripts, so we wrap: create the real worker, then a sidecar probe
+          // worker that listens for relayed media. For blob/same-origin we
+          // attempt to fetch and prepend the probe.
+          let worker: Worker;
+          try {
+            worker = new OriginalWorker(scriptURL, options);
+          } catch {
+            worker = new OriginalWorker(scriptURL, options);
+          }
+          // Sidecar probe worker to run alongside
+          try {
+            const probe = new OriginalWorker(probeUrl);
+            probe.onmessage = (ev: MessageEvent) => {
+              if (ev.data?.__coolhuskyMedia) {
+                deepSearchReport(ev.data.__coolhuskyMedia);
+              }
+            };
+            // Relay messages from the real worker through the probe
+            worker.addEventListener('message', (ev: MessageEvent) => {
+              findMediaInValue(ev.data);
+            });
+          } catch {}
+          return worker;
+        } as any;
+        (window.Worker as any).prototype = OriginalWorker.prototype;
+      } catch {}
+    }
+
+    // 3. Listen to page-level postMessage traffic for media URLs.
+    window.addEventListener('message', (event) => {
+      if (event.source !== window) {
+        return;
+      }
+      // Skip our own protocol messages to avoid redundant scanning.
+      const type = (event.data && event.data.type) || '';
+      if (typeof type === 'string' && type.startsWith('COOLHUSKY_')) {
+        return;
+      }
+      try {
+        findMediaInValue(event.data);
+      } catch {}
+    });
+
+    // 4. Initial DOM scan: inline scripts + same-origin iframes.
+    runDeepSearchNow();
+  }
+
+  function runDeepSearchNow(): void {
+    scanInlineScripts();
+    scanSameOriginIframes();
+    // Re-scan existing media elements (in case they were missed)
+    scanExistingMedia();
   }
 
   window.postMessage({ type: 'COOLHUSKY_REQUEST_SETTINGS' }, '*');

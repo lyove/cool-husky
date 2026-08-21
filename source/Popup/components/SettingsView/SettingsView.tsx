@@ -94,6 +94,8 @@ const SettingsView: FC<SettingsViewProps> = ({
     useI18n();
   const [draft, setDraft] = useState<Settings | null>(null);
   const [excludeDomainsText, setExcludeDomainsText] = useState('');
+  const [regexRulesText, setRegexRulesText] = useState('');
+  const [formatOverridesText, setFormatOverridesText] = useState('');
   const [saved, setSaved] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -101,11 +103,40 @@ const SettingsView: FC<SettingsViewProps> = ({
   draftRef.current = draft;
   const excludeTextRef = useRef(excludeDomainsText);
   excludeTextRef.current = excludeDomainsText;
+  const regexTextRef = useRef(regexRulesText);
+  regexTextRef.current = regexRulesText;
+  const formatOverridesTextRef = useRef(formatOverridesText);
+  formatOverridesTextRef.current = formatOverridesText;
 
   useEffect(() => {
     if (settings && !draft) {
       setDraft({ ...settings });
       setExcludeDomainsText(settings.excludeDomains.join('\n'));
+      setRegexRulesText(
+        (settings.regexRules || [])
+          .map((r) => {
+            const target = r.action === 'block' ? 'block' : r.format || 'mp4';
+            return `/${r.pattern}/${r.flags} => ${target}`;
+          })
+          .join('\n')
+      );
+      setFormatOverridesText(
+        Object.entries(settings.formatOverrides || {})
+          .map(([fmt, o]) => {
+            const parts: string[] = [fmt];
+            if (typeof o.enabled === 'boolean') {
+              parts.push(`enabled=${o.enabled}`);
+            }
+            if (typeof o.minSizeKB === 'number') {
+              parts.push(`minSizeKB=${o.minSizeKB}`);
+            }
+            if (o.operator) {
+              parts.push(`operator=${o.operator}`);
+            }
+            return parts.join(', ');
+          })
+          .join('\n')
+      );
     }
   }, [settings, draft]);
 
@@ -132,7 +163,74 @@ const SettingsView: FC<SettingsViewProps> = ({
           .replace(/^www\./, '')
       )
       .filter(Boolean);
-    const patch: Partial<Settings> = { ...snapshot, excludeDomains: domains };
+    // Parse regex rules text: one rule per line, format: /pattern/flags => ext|block
+    const regexRules = regexTextRef.current
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const m = line.match(/^\/(.+)\/([gimsuy]*)\s*=>\s*(\S+)\s*$/);
+        if (!m) {
+          return null;
+        }
+        const [, pattern, flags, target] = m;
+        if (target === 'block') {
+          return {
+            pattern: pattern || '',
+            flags: flags || 'i',
+            action: 'block' as const,
+            enabled: true,
+          };
+        }
+        return {
+          pattern: pattern || '',
+          flags: flags || 'i',
+          action: 'match' as const,
+          format: target || 'mp4',
+          enabled: true,
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+    // Parse format overrides text: one per line, e.g. "mp4, enabled=false, minSizeKB=100, operator=>="
+    const formatOverrides: Record<string, any> = {};
+    formatOverridesTextRef.current
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line) => {
+        const tokens = line.split(',').map((s) => s.trim());
+        const fmt = tokens[0]?.toLowerCase();
+        if (!fmt) {
+          return;
+        }
+        const o: Record<string, unknown> = {};
+        for (const tok of tokens.slice(1)) {
+          const m = tok.match(/^(\w+)\s*=\s*(.+)$/);
+          if (!m) {
+            continue;
+          }
+          const [, key, val] = m;
+          if (key === 'enabled') {
+            o.enabled = val === 'true';
+          } else if (key === 'minSizeKB') {
+            const n = Number(val);
+            if (!isNaN(n)) {
+              o.minSizeKB = n;
+            }
+          } else if (key === 'operator') {
+            o.operator = val;
+          }
+        }
+        if (Object.keys(o).length > 0) {
+          formatOverrides[fmt] = o;
+        }
+      });
+    const patch: Partial<Settings> = {
+      ...snapshot,
+      excludeDomains: domains,
+      regexRules,
+      formatOverrides,
+    };
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
@@ -183,6 +281,8 @@ const SettingsView: FC<SettingsViewProps> = ({
     const next = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as Settings;
     setDraft(next);
     setExcludeDomainsText('');
+    setRegexRulesText('');
+    setFormatOverridesText('');
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
@@ -390,6 +490,17 @@ const SettingsView: FC<SettingsViewProps> = ({
               color="rose"
             />
           </div>
+          <div className={styles.switchRow}>
+            <div>
+              <p className={styles.rowTitle}>{t('deepSearch')}</p>
+              <p className={styles.desc}>{t('deepSearchStarted')}</p>
+            </div>
+            <Switch
+              checked={draft.enableDeepSearch}
+              onChange={(next) => patchDraft({ enableDeepSearch: next })}
+              color="rose"
+            />
+          </div>
           {draft.captureDataImages && (
             <div className={styles.minSizeRow}>
               <span>{t('dataImageMinSizeKB')}</span>
@@ -427,6 +538,38 @@ const SettingsView: FC<SettingsViewProps> = ({
             }}
           />
           <p className={styles.desc}>{t('excludeDomainsDesc')}</p>
+        </Card>
+
+        {/* Regex Rules */}
+        <Card color="#10b981" title={t('regexRules')}>
+          <textarea
+            className={styles.textarea}
+            rows={4}
+            placeholder={t('regexRulesPlaceholder')}
+            value={regexRulesText}
+            onChange={(e) => {
+              setRegexRulesText(e.target.value);
+              autoSave();
+            }}
+          />
+          <p className={styles.desc}>{t('regexRulesDesc')}</p>
+        </Card>
+
+        {/* Advanced Format Overrides */}
+        <Card color="#0ea5e9" title={t('advancedFormatOverrides')}>
+          <textarea
+            className={styles.textarea}
+            rows={3}
+            placeholder={
+              'mp4, enabled=true, minSizeKB=100, operator=>=\nm3u8, enabled=true'
+            }
+            value={formatOverridesText}
+            onChange={(e) => {
+              setFormatOverridesText(e.target.value);
+              autoSave();
+            }}
+          />
+          <p className={styles.desc}>{t('advancedFormatOverridesDesc')}</p>
         </Card>
 
         {/* Keyboard Shortcuts */}

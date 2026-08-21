@@ -35,6 +35,12 @@ import {
         },
         '*'
       );
+      if (s?.enableDeepSearch) {
+        window.postMessage(
+          { type: 'COOLHUSKY_DEEP_SEARCH_ENABLE', enabled: true },
+          '*'
+        );
+      }
     })
     .catch(() => {});
 
@@ -66,6 +72,17 @@ import {
     }
     if (msg.type === 'COOLHUSKY_NOTIFY_CLICK') {
       window.postMessage({ type: 'COOLHUSKY_NOTIFY_CLICK', tag: msg.tag }, '*');
+    }
+    if (msg.type === 'COOLHUSKY_SETTINGS_CHANGED') {
+      if (msg.enableDeepSearch) {
+        window.postMessage(
+          { type: 'COOLHUSKY_DEEP_SEARCH_ENABLE', enabled: true },
+          '*'
+        );
+      }
+    }
+    if (msg.type === 'COOLHUSKY_RUN_DEEP_SEARCH') {
+      window.postMessage({ type: 'COOLHUSKY_DEEP_SEARCH_RUN' }, '*');
     }
     if (msg.type === 'COOLHUSKY_MSE_DOWNLOAD_TRIGGER') {
       const { captureId } = msg as { captureId: string };

@@ -308,7 +308,13 @@
     "downloadSelected":{
         "message": "Ausgewählte herunterladen"
     },
-    "clearList":{
+    "toggleEnable":{
+        "message": "Toggle Sniffing On/Off"
+    },
+    "deepSearch":{
+        "message": "Deep Search"
+    },
+"clearList":{
         "message": "Aktuelle Seiten-Medienliste löschen"
     },
     "refresh":{

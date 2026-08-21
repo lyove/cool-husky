@@ -308,7 +308,13 @@
     "downloadSelected":{
         "message": "選択をダウンロード"
     },
-    "clearList":{
+    "toggleEnable":{
+        "message": "スニッフィングのオン/オフ"
+    },
+    "deepSearch":{
+        "message": "ディープサーチ"
+    },
+"clearList":{
         "message": "現在のページのメディアリストをクリア"
     },
     "refresh":{

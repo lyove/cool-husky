@@ -308,7 +308,13 @@
     "downloadSelected":{
         "message": "下载所选"
     },
-    "clearList":{
+    "toggleEnable":{
+        "message": "开启/关闭嗅探"
+    },
+    "deepSearch":{
+        "message": "深度搜索"
+    },
+"clearList":{
         "message": "清理当前页面媒体列表"
     },
     "refresh":{

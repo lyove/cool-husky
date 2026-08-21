@@ -12,6 +12,49 @@ export type SniffingRules = Record<SniffingGroup, SniffingRule>;
 
 export type OpenMode = 'sidepanel' | 'popup';
 
+/**
+ * A user-defined regex rule for matching or blocking URLs.
+ * - action 'match': capture the URL as the given format (overrides detection)
+ * - action 'block': never capture this URL
+ */
+export interface RegexRule {
+  /** Raw regex source string, e.g. "https://.*\.example\.com/video". */
+  pattern: string;
+  /** Regex flags, e.g. "i". */
+  flags: string;
+  /** 'match' to force-capture as `format`, 'block' to suppress. */
+  action: 'match' | 'block';
+  /** Output format when action === 'match' (e.g. 'mp4', 'm3u8'). */
+  format?: string;
+  /** Whether the rule is active. */
+  enabled: boolean;
+}
+
+export type RegexRules = RegexRule[];
+
+/**
+ * Per-format override layer. Keys are concrete format strings (e.g. 'mp4',
+ * 'm3u8', 'mp3'). When a key is present, its values override the 6-group
+ * defaults for that specific format. Missing fields fall back to the group.
+ */
+export interface FormatOverride {
+  enabled?: boolean;
+  minSizeKB?: number;
+  /** Comparison operator for size filtering. Defaults to '>='. */
+  operator?: '>=' | '>' | '<=' | '<' | '==' | '!=';
+}
+
+export type FormatOverrides = Record<string, FormatOverride>;
+
+const SIZE_OPERATORS: Record<string, (a: number, b: number) => boolean> = {
+  '>=': (a, b) => a >= b,
+  '>': (a, b) => a > b,
+  '<=': (a, b) => a <= b,
+  '<': (a, b) => a < b,
+  '==': (a, b) => a === b,
+  '!=': (a, b) => a !== b,
+};
+
 export interface Settings {
   sniffingRules: SniffingRules;
   excludeDomains: string[];
@@ -21,6 +64,9 @@ export interface Settings {
   captureDataImages: boolean;
   dataImageMinSizeKB: number;
   openMode: OpenMode;
+  enableDeepSearch: boolean;
+  regexRules: RegexRules;
+  formatOverrides: FormatOverrides;
 }
 
 export const DEFAULT_MAX_ITEMS = 1000;
@@ -50,6 +96,9 @@ export const DEFAULT_SETTINGS: Settings = {
   captureDataImages: false,
   dataImageMinSizeKB: 50,
   openMode: 'sidepanel',
+  enableDeepSearch: false,
+  regexRules: [],
+  formatOverrides: {},
 };
 
 const SETTINGS_KEY = 'coolhusky_settings';
@@ -105,6 +154,9 @@ export async function loadSettings(): Promise<Settings> {
       captureDataImages: DEFAULT_SETTINGS.captureDataImages,
       dataImageMinSizeKB: DEFAULT_SETTINGS.dataImageMinSizeKB,
       openMode: DEFAULT_SETTINGS.openMode,
+      enableDeepSearch: DEFAULT_SETTINGS.enableDeepSearch,
+      regexRules: [],
+      formatOverrides: {},
     };
   }
   const rawMax = stored.maxItems;
@@ -138,6 +190,41 @@ export async function loadSettings(): Promise<Settings> {
       stored.openMode === 'popup' || stored.openMode === 'sidepanel'
         ? stored.openMode
         : DEFAULT_SETTINGS.openMode,
+    enableDeepSearch:
+      typeof stored.enableDeepSearch === 'boolean'
+        ? stored.enableDeepSearch
+        : false,
+    regexRules: Array.isArray(stored.regexRules)
+      ? stored.regexRules
+          .filter((r: any) => r && typeof r === 'object')
+          .map((r: any) => {
+            return {
+              pattern: typeof r.pattern === 'string' ? r.pattern : '',
+              flags: typeof r.flags === 'string' ? r.flags : 'i',
+              action: r.action === 'block' ? 'block' : 'match',
+              format: typeof r.format === 'string' ? r.format : undefined,
+              enabled: typeof r.enabled === 'boolean' ? r.enabled : true,
+            };
+          })
+      : [],
+    formatOverrides:
+      stored.formatOverrides && typeof stored.formatOverrides === 'object'
+        ? Object.entries(stored.formatOverrides).reduce((acc, [key, val]) => {
+            if (val && typeof val === 'object') {
+              const v = val as Record<string, unknown>;
+              acc[key] = {
+                enabled: typeof v.enabled === 'boolean' ? v.enabled : undefined,
+                minSizeKB:
+                  typeof v.minSizeKB === 'number' ? v.minSizeKB : undefined,
+                operator:
+                  v.operator && SIZE_OPERATORS[v.operator as string]
+                    ? (v.operator as FormatOverride['operator'])
+                    : undefined,
+              };
+            }
+            return acc;
+          }, {} as FormatOverrides)
+        : {},
   };
 }
 
@@ -152,6 +239,12 @@ export async function saveSettings(settings: Settings): Promise<void> {
       captureDataImages: settings.captureDataImages,
       dataImageMinSizeKB: settings.dataImageMinSizeKB,
       openMode: settings.openMode,
+      enableDeepSearch: settings.enableDeepSearch,
+      regexRules: Array.isArray(settings.regexRules) ? settings.regexRules : [],
+      formatOverrides:
+        settings.formatOverrides && typeof settings.formatOverrides === 'object'
+          ? settings.formatOverrides
+          : {},
     },
   });
 }
@@ -231,7 +324,13 @@ export function getFormatGroup(format: string): SniffingGroup | null {
 }
 
 export function isFormatAllowed(format: string, settings: Settings): boolean {
-  const group = getFormatGroup(format.toLowerCase());
+  const f = format.toLowerCase();
+  // Per-format override takes precedence over group default.
+  const override = settings.formatOverrides?.[f];
+  if (override && typeof override.enabled === 'boolean') {
+    return override.enabled;
+  }
+  const group = getFormatGroup(f);
   if (!group) {
     return false;
   }
@@ -270,7 +369,18 @@ export function isSizeAllowed(
   if (contentLength === undefined) {
     return true;
   }
-  const group = getFormatGroup(format.toLowerCase());
+  const f = format.toLowerCase();
+  // Per-format override takes precedence: use its minSizeKB + operator.
+  const override = settings.formatOverrides?.[f];
+  if (override && typeof override.minSizeKB === 'number') {
+    const thresholdBytes = override.minSizeKB * 1024;
+    const op = override.operator ?? '>=';
+    const fn = SIZE_OPERATORS[op] ?? SIZE_OPERATORS['>='];
+    return fn
+      ? fn(contentLength, thresholdBytes)
+      : contentLength >= thresholdBytes;
+  }
+  const group = getFormatGroup(f);
   if (!group) {
     return true;
   }
@@ -311,4 +421,45 @@ export function isDomainExcluded(url: string, settings: Settings): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Result of evaluating regex rules against a URL.
+ * - 'block': the URL should be suppressed entirely.
+ * - { format }: the URL should be force-captured as this format.
+ * - null: no rule matched, fall through to normal detection.
+ */
+export type RegexMatchResult = 'block' | { format: string } | null;
+
+/**
+ * Evaluate user-defined regex rules against a URL.
+ * Returns the first matching rule's action, or null if none match.
+ */
+export function matchRegexRules(
+  url: string,
+  settings: Settings
+): RegexMatchResult {
+  if (!settings.regexRules || settings.regexRules.length === 0) {
+    return null;
+  }
+  for (const rule of settings.regexRules) {
+    if (!rule.enabled || !rule.pattern) {
+      continue;
+    }
+    try {
+      const re = new RegExp(rule.pattern, rule.flags || 'i');
+      if (re.test(url)) {
+        if (rule.action === 'block') {
+          return 'block';
+        }
+        if (rule.format) {
+          return { format: rule.format };
+        }
+      }
+    } catch {
+      // invalid regex — skip this rule
+      continue;
+    }
+  }
+  return null;
 }

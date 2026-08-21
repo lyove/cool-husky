@@ -24,6 +24,7 @@ import {
   isMediaAllowed,
   isSizeAllowed,
   isDomainExcluded,
+  matchRegexRules,
   type Settings,
   DEFAULT_SETTINGS,
 } from '../utils/settings';
@@ -517,6 +518,164 @@ async function mapWithConcurrency<T, R>(
 
   browser.runtime.onStartup.addListener(() => {});
 
+  // Keyboard shortcut commands (declared in manifest.json).
+  try {
+    browser.commands?.onCommand?.addListener(async (command: string) => {
+      if (command === 'toggle_enable') {
+        sniffingEnabled = !sniffingEnabled;
+        void persistSniffingEnabled();
+        try {
+          await browser.notifications.create({
+            type: 'basic',
+            iconUrl: browser.runtime.getURL(
+              '/assets/icons/favicon-128.png' as any
+            ),
+            title: sniffingEnabled ? 'CoolHusky' : 'CoolHusky',
+            message: sniffingEnabled ? 'Sniffing enabled' : 'Sniffing paused',
+          });
+        } catch {}
+        return;
+      }
+      if (command === 'clear_list') {
+        try {
+          const tabs = await browser.tabs.query({
+            active: true,
+            currentWindow: true,
+          });
+          const tabId = tabs[0]?.id;
+          if (tabId !== undefined) {
+            clearTabMediaData(tabId);
+            try {
+              updateBadge(tabId);
+            } catch {}
+            broadcast(tabId, []);
+          }
+        } catch {}
+        return;
+      }
+      if (command === 'deep_search') {
+        try {
+          const tabs = await browser.tabs.query({
+            active: true,
+            currentWindow: true,
+          });
+          const tabId = tabs[0]?.id;
+          if (tabId !== undefined) {
+            browser.tabs
+              .sendMessage(tabId, {
+                type: 'COOLHUSKY_RUN_DEEP_SEARCH',
+              })
+              .catch(() => {});
+          }
+        } catch {}
+        return;
+      }
+      if (command === 'preview') {
+        try {
+          const tabs = await browser.tabs.query({
+            active: true,
+            currentWindow: true,
+          });
+          const tabId = tabs[0]?.id;
+          if (tabId !== undefined) {
+            // Open the sidepanel/popup to preview the current tab's media.
+            if (supportsChromeSidepanel && chromeGlobal?.sidePanel?.open) {
+              chromeGlobal.sidePanel.open({ tabId }).catch(() => {});
+            }
+          }
+        } catch {}
+        return;
+      }
+    });
+  } catch {
+    // Firefox may not expose browser.commands in some contexts.
+  }
+
+  // Context menu (right-click) actions.
+  try {
+    const contextMenus = (browser as any).contextMenus;
+    if (contextMenus) {
+      const MENU_TOGGLE = 'coolhusky-toggle-enable';
+      const MENU_DEEP_SEARCH = 'coolhusky-deep-search';
+      const MENU_CLEAR = 'coolhusky-clear-list';
+      const MENU_PREVIEW = 'coolhusky-preview';
+
+      const setupContextMenu = async (): Promise<void> => {
+        try {
+          await contextMenus.removeAll();
+          contextMenus.create({
+            id: MENU_TOGGLE,
+            title: 'Toggle Sniffing',
+            contexts: ['action'],
+          });
+          contextMenus.create({
+            id: MENU_DEEP_SEARCH,
+            title: 'Deep Search This Page',
+            contexts: ['action', 'page'],
+          });
+          contextMenus.create({
+            id: MENU_CLEAR,
+            title: 'Clear Media List',
+            contexts: ['action'],
+          });
+          contextMenus.create({
+            id: MENU_PREVIEW,
+            title: 'Preview Media',
+            contexts: ['action'],
+          });
+        } catch {}
+      };
+      void setupContextMenu();
+
+      contextMenus.onClicked.addListener(
+        async (
+          info: { menuItemId: string },
+          tab?: { id?: number }
+        ): Promise<void> => {
+          if (info.menuItemId === MENU_TOGGLE) {
+            sniffingEnabled = !sniffingEnabled;
+            void persistSniffingEnabled();
+            try {
+              await browser.notifications.create({
+                type: 'basic',
+                iconUrl: browser.runtime.getURL(
+                  '/assets/icons/favicon-128.png' as any
+                ),
+                title: 'CoolHusky',
+                message: sniffingEnabled
+                  ? 'Sniffing enabled'
+                  : 'Sniffing paused',
+              });
+            } catch {}
+            return;
+          }
+          if (info.menuItemId === MENU_DEEP_SEARCH && tab?.id !== undefined) {
+            browser.tabs
+              .sendMessage(tab.id, { type: 'COOLHUSKY_RUN_DEEP_SEARCH' })
+              .catch(() => {});
+            return;
+          }
+          if (info.menuItemId === MENU_CLEAR && tab?.id !== undefined) {
+            clearTabMediaData(tab.id);
+            try {
+              updateBadge(tab.id);
+            } catch {}
+            broadcast(tab.id, []);
+            return;
+          }
+          if (info.menuItemId === MENU_PREVIEW && tab?.id !== undefined) {
+            if (supportsChromeSidepanel && chromeGlobal?.sidePanel?.open) {
+              chromeGlobal.sidePanel.open({ tabId: tab.id }).catch(() => {});
+            }
+            return;
+          }
+        }
+      );
+    }
+  } catch {
+    // contextMenus unavailable
+  }
+
   const tabMap = new Map<number, Map<string, MediaEntry>>();
   const bilibiliManagedUrls = new Map<number, Set<string>>();
   const platformManagedUrls = new Map<number, Set<string>>();
@@ -635,7 +794,28 @@ async function mapWithConcurrency<T, R>(
     captureDataImages: DEFAULT_SETTINGS.captureDataImages,
     dataImageMinSizeKB: DEFAULT_SETTINGS.dataImageMinSizeKB,
     openMode: DEFAULT_SETTINGS.openMode,
+    enableDeepSearch: DEFAULT_SETTINGS.enableDeepSearch,
+    regexRules: [],
+    formatOverrides: {},
   };
+  // Global sniffing toggle, bound to the toggle_enable keyboard shortcut.
+  let sniffingEnabled = true;
+  // Persist sniffingEnabled across SW restarts via storage.session.
+  (browser.storage.session as any)
+    ?.get?.('coolhusky_sniffing_enabled')
+    .then((res: any) => {
+      if (res && typeof res.coolhusky_sniffing_enabled === 'boolean') {
+        sniffingEnabled = res.coolhusky_sniffing_enabled;
+      }
+    })
+    .catch(() => {});
+  async function persistSniffingEnabled(): Promise<void> {
+    try {
+      await (browser.storage.session as any)?.set?.({
+        coolhusky_sniffing_enabled: sniffingEnabled,
+      });
+    } catch {}
+  }
   loadSettings()
     .then((s) => {
       currentSettings = s;
@@ -686,6 +866,7 @@ async function mapWithConcurrency<T, R>(
                       enableMseCapture: s.enableMseCapture,
                       captureDataImages: s.captureDataImages,
                       dataImageMinSizeKB: s.dataImageMinSizeKB,
+                      enableDeepSearch: s.enableDeepSearch,
                     })
                     .catch(() => {});
                 }
@@ -2222,7 +2403,7 @@ async function mapWithConcurrency<T, R>(
   function addMedia(
     url: string,
     tabId: number,
-    format: string,
+    detectedFormat: string,
     size?: number,
     category: MediaCategory = 'media',
     requestHeaders?: Record<string, string>,
@@ -2231,9 +2412,21 @@ async function mapWithConcurrency<T, R>(
     tabTitle?: string
   ) {
     const pageUrlForCheck = tabPageUrls.get(tabId);
+    if (!sniffingEnabled) {
+      return;
+    }
     if (pageUrlForCheck && isDomainExcluded(pageUrlForCheck, currentSettings)) {
       return;
     }
+    // User-defined regex rules: block or force-match the URL.
+    const regexResult = matchRegexRules(url, currentSettings);
+    if (regexResult === 'block') {
+      return;
+    }
+    const format =
+      regexResult && typeof regexResult === 'object'
+        ? regexResult.format
+        : detectedFormat;
     if (!isFormatAllowed(format, currentSettings)) {
       return;
     }
