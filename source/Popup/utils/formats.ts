@@ -1,12 +1,7 @@
 import { t } from '../../utils/i18n';
 
 export type MediaType =
-  | 'stream'
-  | 'video'
-  | 'audio'
-  | 'image'
-  | 'doc'
-  | 'other';
+  'stream' | 'video' | 'audio' | 'image' | 'doc' | 'other';
 
 export const STREAM_FORMATS = ['m3u8', 'mpd', 'mse', 'flv'];
 export const VIDEO_DOWNLOAD_FORMATS = [

@@ -232,102 +232,11 @@ const InlineMediaPlayer: FC<InlineMediaPlayerProps> = ({
           />
           <audio
             ref={audioRef}
+            controls
             autoPlay
             src={item.url}
-            className={styles.hiddenMedia}
+            className={styles.audio}
           />
-          <div className={styles.customControls}>
-            <button
-              type="button"
-              className={styles.controlBtn}
-              onClick={togglePlay}
-              aria-label={isPlaying ? 'Pause' : 'Play'}
-            >
-              {isPlaying ? <PauseIcon /> : <PlayIcon />}
-            </button>
-
-            <span className={styles.time}>
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </span>
-
-            <div
-              ref={progressRef}
-              className={styles.progressWrap}
-              onClick={handleSeek}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  const media = audioRef.current;
-                  if (!media || !Number.isFinite(media.duration)) {
-                    return;
-                  }
-                  const step = media.duration * 0.05;
-                  const nextTime =
-                    e.key === ' '
-                      ? media.currentTime + step
-                      : media.currentTime;
-                  media.currentTime = Math.min(
-                    media.duration,
-                    Math.max(0, nextTime)
-                  );
-                }
-              }}
-              role="slider"
-              tabIndex={0}
-              aria-label="Audio progress"
-              aria-valuenow={currentTime}
-              aria-valuemin={0}
-              aria-valuemax={duration}
-            >
-              <div className={styles.progressTrack}>
-                <div
-                  className={styles.progressFill}
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className={styles.controlBtn}
-              onClick={toggleMute}
-              aria-label={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {isMuted || volume === 0 ? <MuteIcon /> : <VolumeIcon />}
-            </button>
-
-            <div
-              className={styles.volumeSlider}
-              onClick={handleVolumeSliderClick}
-              role="slider"
-              tabIndex={0}
-              aria-label="Volume"
-              aria-valuemin={0}
-              aria-valuemax={1}
-              aria-valuenow={isMuted ? 0 : volume}
-              onKeyDown={handleVolumeSliderKeyDown}
-            >
-              <div className={styles.volumeTrack}>
-                <div
-                  className={styles.volumeFill}
-                  style={{ width: `${(isMuted ? 0 : volume) * 100}%` }}
-                />
-              </div>
-              <div
-                className={styles.volumeHandle}
-                style={{ left: `${(isMuted ? 0 : volume) * 100}%` }}
-              />
-            </div>
-
-            <button
-              type="button"
-              className={styles.controlBtn}
-              onClick={handleDownload}
-              aria-label="Download"
-            >
-              <DownloadIcon />
-            </button>
-          </div>
         </div>
       )}
 
