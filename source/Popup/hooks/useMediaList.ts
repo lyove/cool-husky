@@ -282,14 +282,6 @@ export function useMediaList(options?: UseMediaListOptions): {
         return;
       }
       if (m.tabId !== tabIdRef.current) {
-        if (
-          followActiveTabRef.current &&
-          document.visibilityState === 'visible'
-        ) {
-          tabIdRef.current = m.tabId;
-          setCurrentTabId(m.tabId);
-          void loadMediaList(m.tabId);
-        }
         return;
       }
       pendingRef.current = m.list;
@@ -297,7 +289,7 @@ export function useMediaList(options?: UseMediaListOptions): {
         flushTimerRef.current = setTimeout(flush, coalesceMsRef.current);
       }
     },
-    [flush, loadMediaList]
+    [flush]
   );
 
   useEffect(() => {
@@ -319,6 +311,8 @@ export function useMediaList(options?: UseMediaListOptions): {
         return;
       }
       if (info.tabId !== tabIdRef.current) {
+        tabIdRef.current = info.tabId;
+        setCurrentTabId(info.tabId);
         void loadMediaList(info.tabId);
       }
     };

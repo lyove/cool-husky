@@ -318,6 +318,23 @@
   }
 
   // Dedup set with eviction: oldest 1000 entries pruned at 5000 cap
+  const sendPending: Array<{ url: string; format: string }> = [];
+  let tabHidden = false;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && !tabHidden) {
+      tabHidden = true;
+    } else if (!document.hidden && tabHidden) {
+      tabHidden = false;
+      const batch = sendPending.splice(0, sendPending.length);
+      for (const p of batch) {
+        window.postMessage(
+          { type: 'COOLHUSKY_M3U8_DETECTED', url: p.url, format: p.format },
+          '*'
+        );
+      }
+    }
+  });
+
   function send(url: string, format: string) {
     if (sentUrls.has(url)) {
       return;
@@ -332,6 +349,12 @@
         }
         sentUrls.delete(v.value);
       }
+    }
+    if (tabHidden) {
+      if (sendPending.length < 2000) {
+        sendPending.push({ url, format });
+      }
+      return;
     }
     window.postMessage({ type: 'COOLHUSKY_M3U8_DETECTED', url, format }, '*');
   }
@@ -433,18 +456,13 @@
   const mseCaptureIds = new WeakMap<MediaSource, string>();
   let mseCaptureSeq = 0;
   const MSE_SEGMENT_SIZE = 1024 * 1024 * 1024;
+  // Cap the number of retained MSE captures. Each capture holds full copies
+  // of every appendBuffer call, so without an cap a long-lived page that plays
+  // many videos (e.g. an SPA) would grow this map without bound and OOM.
+  // Evict the oldest when the cap is reached; recent captures stay available
+  // for download requests.
+  const MSE_CAPTURE_MAX = 8;
   let mseProxyInstalled = false;
-
-  void formatBytes;
-  function formatBytes(b: number): string {
-    if (b < 1024 * 1024) {
-      return (b / 1024).toFixed(1) + 'KB';
-    }
-    if (b < 1024 * 1024 * 1024) {
-      return (b / 1024 / 1024).toFixed(1) + 'MB';
-    }
-    return (b / 1024 / 1024 / 1024).toFixed(1) + 'GB';
-  }
 
   function notifyMseUpdate(capture: MseCapture) {
     window.postMessage(
@@ -488,6 +506,13 @@
               title: document.title,
             };
             mseCaptures.set(captureId, capture);
+            // Evict oldest capture when the cap is reached to bound memory.
+            if (mseCaptures.size > MSE_CAPTURE_MAX) {
+              const oldestKey = mseCaptures.keys().next().value;
+              if (oldestKey !== undefined) {
+                mseCaptures.delete(oldestKey);
+              }
+            }
             notifyMseUpdate(capture);
           }
 

@@ -16,6 +16,7 @@
   --fp-tag-bg: rgba(128, 128, 128, 0.12);
   --fp-overlay: rgba(0, 0, 0, 0.6);
   --fp-danger: #e5484d;
+  --fp-surface: #f0f0f0;
 }
 
 html.dark {
@@ -31,6 +32,7 @@ html.dark {
   --fp-tag-bg: rgba(148, 163, 184, 0.16);
   --fp-overlay: rgba(0, 0, 0, 0.75);
   --fp-danger: #f87171;
+  --fp-surface: #2a2a2e;
 }
 
 /* Fallback: explicitly set the theme background on the page canvas to

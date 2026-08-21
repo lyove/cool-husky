@@ -43,6 +43,18 @@ const mediaInfoCache = new Map<
 // Negative cache: skip retrying failed URLs for 60s
 const mediaInfoFailCache = new Map<string, number>();
 const MEDIA_INFO_FAIL_TTL_MS = 60_000;
+// Cap these module-level caches so they don't grow without bound during a
+// long-lived service worker. Evict the oldest entries when the cap is hit.
+const MEDIA_INFO_CACHE_MAX = 1000;
+function evictOldest<K, V>(map: Map<K, V>, max: number): void {
+  while (map.size > max) {
+    const first = map.keys().next().value;
+    if (first === undefined) {
+      break;
+    }
+    map.delete(first);
+  }
+}
 const metadataBatchControllers = new Map<string, AbortController>();
 
 async function fetchMediaInfo(
@@ -143,6 +155,7 @@ async function fetchMediaInfo(
         parsed = JSON.parse(result);
       } catch {
         mediaInfoFailCache.set(url, Date.now());
+        evictOldest(mediaInfoFailCache, MEDIA_INFO_CACHE_MAX);
         return null;
       }
       const info: { width?: number; height?: number; duration?: number } = {};
@@ -169,6 +182,7 @@ async function fetchMediaInfo(
 
       if (info.width || info.height || info.duration) {
         mediaInfoCache.set(url, info);
+        evictOldest(mediaInfoCache, MEDIA_INFO_CACHE_MAX);
         return info;
       }
     }
@@ -183,6 +197,7 @@ async function fetchMediaInfo(
       (e as Error)?.message || e
     );
     mediaInfoFailCache.set(url, Date.now());
+    evictOldest(mediaInfoFailCache, MEDIA_INFO_CACHE_MAX);
   }
   return null;
 }
@@ -366,7 +381,9 @@ async function mapWithConcurrency<T, R>(
     };
 
     applyOpenMode('sidepanel');
-    loadSettings().then((s) => applyOpenMode(s.openMode));
+    loadSettings()
+      .then((s) => applyOpenMode(s.openMode))
+      .catch((e) => console.warn('[CoolHusky] loadSettings openMode:', e));
 
     if (canOpenSidepanel) {
       browser.runtime.onConnect.addListener((port) => {
@@ -380,6 +397,16 @@ async function mapWithConcurrency<T, R>(
             msg?.type === 'SIDEPANEL_TAB_ID' &&
             typeof msg.tabId === 'number'
           ) {
+            // Clean up any previous registration for this port so the old
+            // tabId doesn't linger in sidePanelPorts after the Sidepanel
+            // re-associates with a new tab (Sidepanel re-sends this on tab
+            // switch via browser.tabs.onActivated).
+            if (
+              registeredTabId !== undefined &&
+              registeredTabId !== msg.tabId
+            ) {
+              sidePanelPorts.delete(registeredTabId);
+            }
             registeredTabId = msg.tabId;
             sidePanelPorts.set(msg.tabId, port);
             const pushList = (mm?: Map<string, MediaEntry>) => {
@@ -609,78 +636,86 @@ async function mapWithConcurrency<T, R>(
     dataImageMinSizeKB: DEFAULT_SETTINGS.dataImageMinSizeKB,
     openMode: DEFAULT_SETTINGS.openMode,
   };
-  loadSettings().then((s) => {
-    currentSettings = s;
-  });
+  loadSettings()
+    .then((s) => {
+      currentSettings = s;
+    })
+    .catch((e) => {
+      console.warn('[CoolHusky] loadSettings failed:', e);
+    });
 
   browser.storage.local.onChanged.addListener((changes) => {
     if (changes['coolhusky_settings']) {
-      loadSettings().then((s) => {
-        currentSettings = s;
-        if (supportsChromeSidepanel && chromeGlobal?.action?.setPopup) {
-          if (s.openMode === 'popup') {
-            if (typeof chromeGlobal.sidePanel?.setOptions === 'function') {
-              try {
-                chromeGlobal.sidePanel
-                  .setOptions({ enabled: false })
-                  .catch(() => {});
-              } catch {}
-              void setSidePanelForAllTabs(false);
-            }
-            chromeGlobal.action.setPopup({ popup: 'Popup/popup.html' });
-          } else {
-            chromeGlobal.action.setPopup({ popup: '' });
-            if (typeof chromeGlobal.sidePanel?.setOptions === 'function') {
-              try {
-                chromeGlobal.sidePanel
-                  .setOptions({
-                    path: 'Sidepanel/sidepanel.html',
-                    enabled: true,
-                  })
-                  .catch(() => {});
-              } catch {}
-              void setSidePanelForAllTabs(true, 'Sidepanel/sidepanel.html');
-            }
-          }
-        }
-        browser.tabs
-          .query({})
-          .then((tabs) => {
-            for (const tab of tabs) {
-              if (tab.id) {
-                browser.tabs
-                  .sendMessage(tab.id, {
-                    type: 'COOLHUSKY_SETTINGS_CHANGED',
-                    enableMseCapture: s.enableMseCapture,
-                    captureDataImages: s.captureDataImages,
-                    dataImageMinSizeKB: s.dataImageMinSizeKB,
-                  })
-                  .catch(() => {});
+      loadSettings()
+        .then((s) => {
+          currentSettings = s;
+          if (supportsChromeSidepanel && chromeGlobal?.action?.setPopup) {
+            if (s.openMode === 'popup') {
+              if (typeof chromeGlobal.sidePanel?.setOptions === 'function') {
+                try {
+                  chromeGlobal.sidePanel
+                    .setOptions({ enabled: false })
+                    .catch(() => {});
+                } catch {}
+                void setSidePanelForAllTabs(false);
+              }
+              chromeGlobal.action.setPopup({ popup: 'Popup/popup.html' });
+            } else {
+              chromeGlobal.action.setPopup({ popup: '' });
+              if (typeof chromeGlobal.sidePanel?.setOptions === 'function') {
+                try {
+                  chromeGlobal.sidePanel
+                    .setOptions({
+                      path: 'Sidepanel/sidepanel.html',
+                      enabled: true,
+                    })
+                    .catch(() => {});
+                } catch {}
+                void setSidePanelForAllTabs(true, 'Sidepanel/sidepanel.html');
               }
             }
-          })
-          .catch(() => {});
-        void (async () => {
-          try {
-            const restored = await loadAllTabData();
-            restored.forEach((mediaMap, tabId) => {
-              const existing = tabMap.get(tabId);
-              if (!existing || existing.size === 0) {
-                tabMap.set(tabId, mediaMap);
-              }
-            });
-          } catch {
-            //
           }
-          tabMap.forEach((_entries, tabId) => {
+          browser.tabs
+            .query({})
+            .then((tabs) => {
+              for (const tab of tabs) {
+                if (tab.id) {
+                  browser.tabs
+                    .sendMessage(tab.id, {
+                      type: 'COOLHUSKY_SETTINGS_CHANGED',
+                      enableMseCapture: s.enableMseCapture,
+                      captureDataImages: s.captureDataImages,
+                      dataImageMinSizeKB: s.dataImageMinSizeKB,
+                    })
+                    .catch(() => {});
+                }
+              }
+            })
+            .catch(() => {});
+          void (async () => {
             try {
-              updateBadge(tabId);
+              const restored = await loadAllTabData();
+              restored.forEach((mediaMap, tabId) => {
+                const existing = tabMap.get(tabId);
+                if (!existing || existing.size === 0) {
+                  tabMap.set(tabId, mediaMap);
+                }
+              });
             } catch {
               //
             }
-          });
-        })();
-      });
+            tabMap.forEach((_entries, tabId) => {
+              try {
+                updateBadge(tabId);
+              } catch {
+                //
+              }
+            });
+          })();
+        })
+        .catch((e) => {
+          console.warn('[CoolHusky] settings reload failed:', e);
+        });
     }
   });
 
@@ -693,6 +728,23 @@ async function mapWithConcurrency<T, R>(
     douyinNativeTracks.delete(tabId);
     masterPrefixIndex.delete(tabId);
     tabMediaVersion.delete(tabId);
+    tabPageUrls.delete(tabId);
+    tabPageTitles.delete(tabId);
+    pendingNavigationCheck.delete(tabId);
+    sidebarClosedTabs.delete(tabId);
+    manifestParseTabLastAt.delete(tabId);
+    // NOTE: do NOT delete uiListeningTabs / sidePanelPorts here — this runs on
+    // CLEAR_LIST (user clicked "clear"), and removing the UI listening
+    // registration would stop Background from broadcasting the tab's
+    // rediscovered resources after a page reload, so the list stays empty.
+    // Those are cleaned only on tab removal (onRemoved).
+    // Cancel any pending debounced broadcast for this tab so its timer
+    // doesn't fire after the data is gone.
+    const pendingTimer = broadcastDebounceTimers.get(tabId);
+    if (pendingTimer) {
+      clearTimeout(pendingTimer);
+      broadcastDebounceTimers.delete(tabId);
+    }
     deleteTabList(tabId).catch(() => {});
     for (const key of processedRequests) {
       if (key.startsWith(`${tabId}:`)) {
@@ -811,23 +863,12 @@ async function mapWithConcurrency<T, R>(
       pendingMessages.length = 0;
     });
 
-  let currentActiveTabId = -1;
   browser.tabs.onActivated.addListener(({ tabId }) => {
-    currentActiveTabId = tabId;
     try {
       updateBadge(tabId);
     } catch {}
     broadcast(tabId, serializeTabMediaList(tabMap.get(tabId)));
   });
-  browser.tabs
-    .query({ active: true, currentWindow: true })
-    .then(([tab]) => {
-      if (tab?.id) {
-        currentActiveTabId = tab.id;
-      }
-    })
-    .catch(() => {});
-  void currentActiveTabId;
 
   const broadcastDebounceTimers = new Map<
     number,
@@ -962,13 +1003,15 @@ async function mapWithConcurrency<T, R>(
     if (isMediaSegmentRequest(details.url)) {
       return;
     }
-    let effectiveTabId = details.tabId;
+    const effectiveTabId = details.tabId;
     if (effectiveTabId <= 0) {
-      if (currentActiveTabId > 0) {
-        effectiveTabId = currentActiveTabId;
-      } else {
-        return;
-      }
+      // Requests without a real tab id (tabId <= 0) come from the extension's
+      // own service worker (e.g. our manifest sampling fetches), prerender, or
+      // browser-internal contexts. Attributing them to the active tab
+      // wrongly associates another origin's media with the active tab, so the
+      // list shows the active tab's title on media that doesn't belong to it.
+      // Skip these instead of guessing.
+      return;
     }
     const requestKey = `${effectiveTabId}:${details.url}`;
     if (processedRequests.has(requestKey)) {
@@ -1025,7 +1068,10 @@ async function mapWithConcurrency<T, R>(
       if (!details.requestHeaders?.length) {
         return;
       }
-      if (details.tabId <= 0 && !isPotentialMediaRequest(details.url)) {
+      if (details.tabId <= 0) {
+        // No real tab: extension SW / prerender / browser-internal. Skip
+        // entirely — onHeadersReceived and sniffMediaFromUrl skip these too,
+        // so capturing auth headers here would only leak.
         return;
       }
       if (details.type === 'other' && !isPotentialMediaRequest(details.url)) {
@@ -1076,6 +1122,20 @@ async function mapWithConcurrency<T, R>(
     }
   );
 
+  // Clean up per-request bookkeeping when a request completes normally.
+  // onErrorOccurred only fires on failure; without this, requests that finish
+  // without triggering onHeadersReceived (e.g. cancelled by another extension)
+  // would leak entries in pendingRequestHeaders / urlSniffPending.
+  browser.webRequest.onCompleted.addListener(
+    (details) => {
+      pendingRequestHeaders.delete(details.requestId);
+      urlSniffPending.delete(details.requestId);
+    },
+    {
+      urls: ['<all_urls>'],
+    }
+  );
+
   function addProcessedRequest(key: string) {
     if (processedRequests.size >= PROCESSED_REQUESTS_MAX) {
       const first = processedRequests.values().next().value;
@@ -1088,16 +1148,15 @@ async function mapWithConcurrency<T, R>(
 
   browser.webRequest.onHeadersReceived.addListener(
     (details) => {
-      let effectiveTabId = details.tabId;
+      const effectiveTabId = details.tabId;
       if (effectiveTabId <= 0) {
-        if (details.type !== 'media' && !isPotentialMediaRequest(details.url)) {
-          return undefined;
-        }
-        if (currentActiveTabId > 0) {
-          effectiveTabId = currentActiveTabId;
-        } else {
-          return undefined;
-        }
+        // See sniffMediaFromUrl: requests without a real tab id come from the
+        // extension SW / prerender / browser-internal contexts. Attributing
+        // them to the active tab mixes another origin's media with the
+        // active tab. Skip instead of guessing. Clean up any auth headers
+        // captured in onSendHeaders so they don't leak.
+        pendingRequestHeaders.delete(details.requestId);
+        return undefined;
       }
       if (isMediaSegmentRequest(details.url)) {
         pendingRequestHeaders.delete(details.requestId);
@@ -1469,6 +1528,8 @@ async function mapWithConcurrency<T, R>(
     masterPrefixIndex.delete(tabId);
     tabMediaVersion.delete(tabId);
     uiListeningTabs.delete(tabId);
+    manifestParseTabLastAt.delete(tabId);
+    sidePanelPorts.delete(tabId);
     deleteTabList(tabId);
     deleteTabPageUrl(tabId).catch(() => {});
   });
@@ -1478,12 +1539,18 @@ async function mapWithConcurrency<T, R>(
   browser.notifications.onClicked.addListener((notificationId) => {
     handleNotificationClick(String(notificationId));
   });
+  // Clean up stored page urls for notifications dismissed without clicking.
+  browser.notifications.onClosed.addListener((notificationId) => {
+    notifyPages.delete(String(notificationId));
+  });
 
   async function handleNotificationClick(tag: string) {
     if (tag !== 'download-complete' && tag !== 'download-error') {
       return;
     }
     const target = notifyPages.get(tag) || 'https://192.168.1.3:3001/';
+    // Clean up the stored page url — the notification is being dismissed.
+    notifyPages.delete(tag);
     let tabId: number | undefined;
     try {
       const host = new URL(target).host;
@@ -1683,12 +1750,10 @@ async function mapWithConcurrency<T, R>(
 
     if (msg.type === 'GET_LIST') {
       (async () => {
-        let tabId =
+        let tabId: number | undefined =
           typeof msg.tabId === 'number' && msg.tabId >= 0
             ? msg.tabId
-            : currentActiveTabId >= 0
-              ? currentActiveTabId
-              : undefined;
+            : undefined;
         let title = '';
         if (tabId === undefined) {
           try {
@@ -1742,22 +1807,19 @@ async function mapWithConcurrency<T, R>(
 
     if (msg.type === 'GET_ACTIVE_TAB') {
       (async () => {
-        let tabId = currentActiveTabId >= 0 ? currentActiveTabId : undefined;
+        // Always query the live active tab — the Sidepanel needs the real
+        // currently-active tab so it isn't associated with a stale one
+        // (which would cause title/content mismatch).
+        let tabId: number | undefined;
         let title = '';
-        if (tabId === undefined) {
-          try {
-            const tabs = await browser.tabs.query({
-              active: true,
-              currentWindow: true,
-            });
-            tabId = tabs[0]?.id;
-            title = tabs[0]?.title || '';
-          } catch {}
-        } else {
-          try {
-            title = (await browser.tabs.get(tabId))?.title || '';
-          } catch {}
-        }
+        try {
+          const tabs = await browser.tabs.query({
+            active: true,
+            currentWindow: true,
+          });
+          tabId = tabs[0]?.id;
+          title = tabs[0]?.title || '';
+        } catch {}
         sendResponse({ tabId, title });
       })();
       return true;
@@ -1944,7 +2006,9 @@ async function mapWithConcurrency<T, R>(
     }
 
     if (msg.type === 'GET_SETTINGS') {
-      loadSettings().then((s) => sendResponse(s));
+      loadSettings()
+        .then((s) => sendResponse(s))
+        .catch((e) => sendResponse({ ...DEFAULT_SETTINGS, error: String(e) }));
       return true;
     }
 
@@ -2073,7 +2137,7 @@ async function mapWithConcurrency<T, R>(
                 options.referrer || '',
                 options.authHeaders
               );
-            } catch (_) {}
+            } catch {}
           }
           const response = await fetch(url, {
             headers,
@@ -2106,9 +2170,10 @@ async function mapWithConcurrency<T, R>(
           });
         } catch (e: any) {
           if (e?.name === 'AbortError') {
+            sendResponse({ ok: false, cancelled: true });
             return;
           }
-          sendResponse({ ok: false, error: e.message });
+          sendResponse({ ok: false, error: e?.message });
         } finally {
           pendingProxyFetches.delete(requestId);
         }
@@ -2304,12 +2369,16 @@ async function mapWithConcurrency<T, R>(
       (format === 'm3u8' || format === 'mpd') &&
       !manifestParseCache.has(url)
     ) {
-      parseAndGroupManifest(
-        url,
-        tabId,
-        format as 'm3u8' | 'mpd',
-        requestHeaders
-      ).catch(() => {});
+      const lastAt = manifestParseTabLastAt.get(tabId) ?? 0;
+      if (Date.now() - lastAt >= MANIFEST_PARSE_TAB_THROTTLE) {
+        manifestParseTabLastAt.set(tabId, Date.now());
+        parseAndGroupManifest(
+          url,
+          tabId,
+          format as 'm3u8' | 'mpd',
+          requestHeaders
+        ).catch(() => {});
+      }
     }
   }
 
@@ -3289,6 +3358,18 @@ async function mapWithConcurrency<T, R>(
   const manifestParseCache = new Set<string>();
   const manifestFailCache = new Map<string, number>();
   const MANIFEST_PARSE_FAIL_TTL = 60_000;
+  const MANIFEST_CACHE_MAX = 1000;
+  function evictOldestSet<T>(set: Set<T>, max: number): void {
+    while (set.size > max) {
+      const first = set.values().next().value;
+      if (first === undefined) {
+        break;
+      }
+      set.delete(first);
+    }
+  }
+  const manifestParseTabLastAt = new Map<number, number>();
+  const MANIFEST_PARSE_TAB_THROTTLE = 30_000;
 
   async function parseAndGroupManifest(
     masterUrl: string,
@@ -3366,8 +3447,10 @@ async function mapWithConcurrency<T, R>(
         }
         if (parsed.estimatedSize || parsed.duration) {
           manifestParseCache.add(masterUrl);
+          evictOldestSet(manifestParseCache, MANIFEST_CACHE_MAX);
         } else {
           manifestFailCache.set(masterUrl, Date.now());
+          evictOldest(manifestFailCache, MANIFEST_CACHE_MAX);
         }
         return;
       }
@@ -3439,9 +3522,11 @@ async function mapWithConcurrency<T, R>(
 
       saveTabList(tabId, mediaMap).catch(() => {});
       manifestParseCache.add(masterUrl);
+      evictOldestSet(manifestParseCache, MANIFEST_CACHE_MAX);
       broadcastDebounced(tabId);
     } catch (e) {
       manifestFailCache.set(masterUrl, Date.now());
+      evictOldest(manifestFailCache, MANIFEST_CACHE_MAX);
       console.warn(
         '[CoolHusky] manifest parse failed:',
         masterUrl,

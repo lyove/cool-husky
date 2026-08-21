@@ -28,7 +28,21 @@ browser.runtime
   })
   .catch(() => {});
 
+const reassociate = (activeInfo: { tabId: number }): void => {
+  browser.runtime
+    .sendMessage({ type: 'GET_ACTIVE_TAB' })
+    .then((res: any) => {
+      const tabId = res?.tabId ?? activeInfo.tabId;
+      if (typeof tabId === 'number') {
+        port.postMessage({ type: 'SIDEPANEL_TAB_ID', tabId });
+      }
+    })
+    .catch(() => {});
+};
+browser.tabs.onActivated.addListener(reassociate);
+
 window.addEventListener('pagehide', () => {
+  browser.tabs.onActivated.removeListener(reassociate);
   browser.runtime.sendMessage({ type: 'SIDEPANEL_CLOSED' }).catch(() => {});
 });
 

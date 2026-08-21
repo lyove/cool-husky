@@ -11,6 +11,7 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  gap: 6px;
   width: 100%;
 }
 
@@ -19,8 +20,8 @@
   max-width: 100%;
   height: 72px;
   display: block;
-  border-radius: 6px 6px 0 0;
-  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  background: var(--fp-surface);
 }
 
 .audio,
@@ -30,12 +31,24 @@
   outline: none;
 }
 
-.hiddenMedia {
-  width: 0;
-  height: 0;
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
+.audio {
+  height: 32px;
+  display: block;
+}
+
+.audio::-webkit-media-controls-panel {
+  height: 32px;
+  padding: 0 6px;
+}
+
+.audio::-webkit-media-controls-enclosure {
+  height: 32px;
+  border-radius: 6px;
+}
+
+.audio::-webkit-media-controls {
+  height: 32px;
+  min-height: 32px;
 }
 
 .videoWrap {
@@ -115,7 +128,7 @@
   width: 100%;
   height: 6px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.16);
   position: relative;
   overflow: hidden;
 }
@@ -140,7 +153,7 @@
   width: 100%;
   height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.16);
   position: relative;
   overflow: hidden;
 }

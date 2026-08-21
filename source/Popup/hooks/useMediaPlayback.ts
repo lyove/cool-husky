@@ -2,11 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import browser from 'webextension-polyfill';
 import type HlsInstance from 'hls.js';
 import type { MediaPlayerClass as DashPlayer } from 'dashjs';
-import type mpegts from 'mpegts.js';
 import type { MediaItem } from '../../utils/popup-types';
 import { createHlsProxyLoader } from '../utils/hlsProxyLoader';
 import { loadDash, loadHls, loadMpegts } from './useStreamThumbnails';
 import { useI18n } from './useI18n';
+
+type MpegtsPlayer = {
+  on: (event: string, listener: (...args: unknown[]) => void) => void;
+  attachMediaElement: (mediaElement: HTMLMediaElement) => void;
+  load: () => void;
+  destroy: () => void;
+};
 
 const IMAGE_FORMATS = new Set([
   'png',
@@ -37,6 +43,55 @@ const AUDIO_FORMATS = new Set([
 ]);
 
 const MAX_RECORD_BYTES = 500 * 1024 * 1024;
+
+/**
+ * Parse a CSS color string (#hex, rgb(), rgba()) into an [r, g, b] tuple.
+ * Returns null when the value cannot be parsed.
+ */
+function parseRgb(color: string): [number, number, number] | null {
+  const trimmed = color.trim();
+  if (trimmed.startsWith('#')) {
+    let hex = trimmed.slice(1);
+    if (hex.length === 3) {
+      hex = hex
+        .split('')
+        .map((c) => c + c)
+        .join('');
+    }
+    if (hex.length !== 6) {
+      return null;
+    }
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)
+      ? null
+      : [r, g, b];
+  }
+  const match = trimmed.match(/rgba?\(([^)]+)\)/i);
+  if (!match) {
+    return null;
+  }
+  const parts = match[1]!.split(',').map((p) => parseFloat(p));
+  if (parts.length < 3 || parts.some((p) => Number.isNaN(p))) {
+    return null;
+  }
+  return [parts[0]!, parts[1]!, parts[2]!];
+}
+
+/**
+ * Linearly mix two CSS colors and return an #rrggbb string.
+ * `ratio` is the weight of `to` (0 = fully `from`, 1 = fully `to`).
+ */
+function mixColor(from: string, to: string, ratio: number): string {
+  const a = parseRgb(from) ?? [59, 130, 246]; // fallback: primary blue
+  const b = parseRgb(to) ?? [255, 255, 255];
+  const t = Math.max(0, Math.min(1, ratio));
+  const r = Math.round(a[0]! + (b[0]! - a[0]!) * t);
+  const g = Math.round(a[1]! + (b[1]! - a[1]!) * t);
+  const bl = Math.round(a[2]! + (b[2]! - a[2]!) * t);
+  return `#${[r, g, bl].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
 
 export interface PlaybackContext {
   referrer: string;
@@ -83,7 +138,7 @@ export function useMediaPlayback(
   } | null>(null);
   const hlsInstance = useRef<HlsInstance | null>(null);
   const dashInstance = useRef<DashPlayer | null>(null);
-  const flvInstance = useRef<mpegts.Player | null>(null);
+  const flvInstance = useRef<MpegtsPlayer | null>(null);
   const recording = useRef<RecordingState | null>(null);
   const [error, setError] = useState<string>('');
   const [drm, setDrm] = useState(false);
@@ -273,6 +328,11 @@ export function useMediaPlayback(
       envelope[k] = 0.3 + 0.7 * Math.cos(d * Math.PI * 0.5);
     }
     let frame = 0;
+    // Cache the theme accent color once (read in setup) instead of calling
+    // getComputedStyle on every animation frame — that would force a style
+    // recalcation 60 times per second.
+    let accentColor = '#3b82f6';
+    let topColor = mixColor(accentColor, '#ffffff', 0.45);
     const draw = (): void => {
       if (!drawing) {
         return;
@@ -307,8 +367,8 @@ export function useMediaPlayback(
       );
       const stride = (w - barWidth) / (BAR_COUNT - 1);
       const gradient = g.createLinearGradient(0, h, 0, 0);
-      gradient.addColorStop(0, '#2a5fff');
-      gradient.addColorStop(1, '#8fb3ff');
+      gradient.addColorStop(0, accentColor);
+      gradient.addColorStop(1, topColor);
       g.fillStyle = gradient;
       frame++;
       for (let i = 0; i < BAR_COUNT; i++) {
@@ -349,6 +409,12 @@ export function useMediaPlayback(
         analyser.connect(ctx.destination);
         data = new Uint8Array(analyser.frequencyBinCount);
         g = canvas.getContext('2d');
+        // Read the theme accent color once at setup so the spectrum bars
+        // match the playback control bar in both light and dark mode.
+        accentColor =
+          getComputedStyle(canvas).getPropertyValue('--fp-accent').trim() ||
+          '#3b82f6';
+        topColor = mixColor(accentColor, '#ffffff', 0.45);
         started = true;
       } catch {
         // AudioContext unavailable
@@ -669,6 +735,26 @@ export function useMediaPlayback(
           const filename = `recording_${startTime}.${format}`;
           browser.downloads
             .download({ url: blobUrl, filename, saveAs: false })
+            .then((downloadId) => {
+              // Revoke the object URL once the download settles so we don't
+              // leak it on success (previously only revoked on failure).
+              const onChanged = (delta: {
+                id?: number;
+                state?: { current?: string };
+              }): void => {
+                if (delta.id !== downloadId) {
+                  return;
+                }
+                if (
+                  delta.state?.current === 'complete' ||
+                  delta.state?.current === 'interrupted'
+                ) {
+                  URL.revokeObjectURL(blobUrl);
+                  browser.downloads.onChanged.removeListener(onChanged);
+                }
+              };
+              browser.downloads.onChanged.addListener(onChanged);
+            })
             .catch(() => {
               URL.revokeObjectURL(blobUrl);
             });
