@@ -74,6 +74,9 @@
     "audioPlayError":{
         "message": "오디오 재생 오류"
     },
+    "audioEncryptedTip":{
+        "message": "이 스트림은 암호화(DRM 보호)되어 플레이어가 디코딩할 수 없습니다. HD/4K 콘텐츠는 일반적으로 이렇게 보호됩니다. 원본 사이트에서 시청하세요."
+    },
     "optionsTitle":{
         "message": "설정"
     },

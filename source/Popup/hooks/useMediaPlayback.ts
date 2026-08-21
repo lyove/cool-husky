@@ -555,6 +555,15 @@ export function useMediaPlayback(
               if (!data.fatal || hlsInstance.current !== hls) {
                 return;
               }
+              const reason = String(data.reason ?? data.details ?? '');
+              if (
+                data.type === Hls.ErrorTypes.MEDIA_ERROR &&
+                data.details === 'fragParsingError' &&
+                /ADTS|AAC PES|syncword|NAL|start.?code/i.test(reason)
+              ) {
+                setError(t('audioEncryptedTip'));
+                return;
+              }
               if (
                 data.type === Hls.ErrorTypes.NETWORK_ERROR &&
                 !useProxy &&

@@ -1897,6 +1897,16 @@ export default function Popup({
               </button>
             )}
           </div>
+          {masterSource &&
+            !hasChildren &&
+            playingItem?.url === masterSource.url && (
+              <div className={styles.inlinePlayer}>
+                <InlineMediaPlayer
+                  item={playingItem}
+                  currentTabId={currentTabId}
+                />
+              </div>
+            )}
           {expanded && hasChildren && (
             <div className={styles.groupBody}>
               {master && !syntheticMasterUrl && renderRow(master)}

@@ -74,6 +74,9 @@
     "audioPlayError":{
         "message": "音声の再生に失敗しました"
     },
+    "audioEncryptedTip":{
+        "message": "このストリームは暗号化（DRM保護）されており、プレーヤーでデコードできません。HD/4Kコンテンツは通常このように保護されています。元のサイトで視聴してください。"
+    },
     "optionsTitle":{
         "message": "設定"
     },

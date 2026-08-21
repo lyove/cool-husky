@@ -74,6 +74,9 @@
     "audioPlayError":{
         "message": "音频播放失败"
     },
+    "audioEncryptedTip":{
+        "message": "该流已加密（DRM 保护），播放器无法解码。高清/4K 内容通常采用此保护，请在源网站播放。"
+    },
     "optionsTitle":{
         "message": "设置"
     },

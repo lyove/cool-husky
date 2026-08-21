@@ -74,6 +74,9 @@
     "audioPlayError":{
         "message": "Audio play error"
     },
+    "audioEncryptedTip":{
+        "message": "This stream is encrypted (DRM-protected) and cannot be decoded by the player. HD/4K content is usually protected this way; please watch it on the source website."
+    },
     "optionsTitle":{
         "message": "Settings"
     },

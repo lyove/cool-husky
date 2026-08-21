@@ -74,6 +74,9 @@
     "audioPlayError":{
         "message": "Audio-Wiedergabefehler"
     },
+    "audioEncryptedTip":{
+        "message": "Dieser Stream ist verschlüsselt (DRM-geschützt) und kann vom Player nicht dekodiert werden. HD/4K-Inhalte sind normalerweise auf diese Weise geschützt. Bitte schauen Sie auf der Originalseite."
+    },
     "optionsTitle":{
         "message": "Einstellungen"
     },

@@ -74,6 +74,9 @@
     "audioPlayError":{
         "message": "Error de reproducción de audio"
     },
+    "audioEncryptedTip":{
+        "message": "Esta transmisión está cifrada (protegida por DRM) y el reproductor no puede decodificarla. El contenido HD/4K suele estar protegido de esta manera; mírelo en el sitio web de origen."
+    },
     "optionsTitle":{
         "message": "Configuración"
     },
