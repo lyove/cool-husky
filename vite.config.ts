@@ -116,15 +116,15 @@ export default defineConfig(({ mode }) => {
 				scripts: [
 					{
 						name: 'contentScript',
-						entry: path.resolve(sourcePath, 'ContentScript/index.ts'),
+						entry: path.resolve(sourcePath, 'scripts/content/index.ts'),
 					},
 					{
 						name: 'injected',
-						entry: path.resolve(sourcePath, 'ContentScript/injected.ts'),
+						entry: path.resolve(sourcePath, 'scripts/content/injected.ts'),
 					},
 					{
 						name: 'douyin',
-						entry: path.resolve(sourcePath, 'ContentScript/douyin.ts'),
+						entry: path.resolve(sourcePath, 'scripts/content/douyin.ts'),
 					},
 				],
 				outDir: getOutDir(),
@@ -156,12 +156,12 @@ export default defineConfig(({ mode }) => {
 				input: {
 					// For UI pages, use the HTML file as the entry.
 					// Vite will find the <script> tag inside and bundle it.
-					popup: path.resolve(sourcePath, 'Popup/popup.html'),
-					sidepanel: path.resolve(sourcePath, 'Sidepanel/sidepanel.html'),
-					welcome: path.resolve(sourcePath, 'Welcome/welcome.html'),
+					popup: path.resolve(sourcePath, 'pages/popup/popup.html'),
+					sidepanel: path.resolve(sourcePath, 'pages/sidepanel/sidepanel.html'),
+					welcome: path.resolve(sourcePath, 'pages/welcome/welcome.html'),
 					// Background script (service worker in Chrome, background script in Firefox)
 					// Both MV3 implementations support ES modules
-					background: path.resolve(sourcePath, 'Background/index.ts'),
+					background: path.resolve(sourcePath, 'scripts/background/index.ts'),
 					// Note: contentScript is built separately as IIFE via buildIIFEScripts plugin
 				},
 

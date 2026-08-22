@@ -84,13 +84,13 @@
   },
 
   "__chrome__side_panel": {
-    "default_path": "Sidepanel/sidepanel.html"
+    "default_path": "pages/sidepanel/sidepanel.html"
   },
 
   "__firefox__sidebar_action": {
-    "default_panel": "Sidepanel/sidepanel.html",
+    "default_panel": "pages/sidepanel/sidepanel.html",
     "default_title": "__MSG_extName__",
-    "default_popup": "Popup/popup.html",
+    "default_popup": "pages/popup/popup.html",
     "default_icon": {
       "16": "assets/icons/favicon-16.png",
       "32": "assets/icons/favicon-32.png",

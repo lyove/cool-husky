@@ -100,7 +100,7 @@
 
 #### 请求过滤与去重
 
-**CoolHusky**（`Background/index.ts`）：
+**CoolHusky**（`scripts/background/index.ts`）：
 - `processedRequests` Set（key=`tabId:url`，上限 10000，FIFO 淘汰）
 - `tabMap.get(tabId).get(url)` 二级去重
 - `isPotentialMediaRequest` 正则预过滤（m3u8/mp4/mp3 等扩展名）

@@ -69,11 +69,14 @@ npm run build         # Build for all browsers
 
 ```
 source/
-├── Background/        # Service worker (Chrome MV3) / Background script (Firefox)
-├── ContentScript/     # Content scripts (injected into web pages)
-├── Popup/             # Extension popup UI
-├── Sidepanel/         # Extension sidepanel UI
-├── Welcome/           # Post-install welcome page
+├── pages/             # User-facing UI pages
+│   ├── popup/         # Extension popup UI
+│   ├── sidepanel/     # Extension sidepanel UI
+│   └── welcome/       # Post-install welcome page
+├── scripts/           # Background-running scripts
+│   ├── background/    # Service worker (Chrome MV3) / Background script (Firefox)
+│   └── content/       # Content scripts (injected into web pages)
+├── components/        # Shared components across entries
 ├── styles/            # Global styles and variables
 ├── types/             # TypeScript type definitions (ambient .d.ts)
 ├── utils/             # Utility functions

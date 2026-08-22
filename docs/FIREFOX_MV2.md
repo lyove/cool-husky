@@ -68,7 +68,7 @@ Replace the unified manifest with browser-specific versions:
   "__chrome__minimum_chrome_version": "88",
 
   "__chrome__action": {
-    "default_popup": "Popup/popup.html",
+    "default_popup": "pages/popup/popup.html",
     "default_icon": {
       "16": "assets/icons/favicon-16.png",
       "32": "assets/icons/favicon-32.png",
@@ -79,7 +79,7 @@ Replace the unified manifest with browser-specific versions:
   },
 
   "__firefox__browser_action": {
-    "default_popup": "Popup/popup.html",
+    "default_popup": "pages/popup/popup.html",
     "default_icon": {
       "16": "assets/icons/favicon-16.png",
       "32": "assets/icons/favicon-32.png",
@@ -90,9 +90,9 @@ Replace the unified manifest with browser-specific versions:
     "browser_style": false
   },
 
-  "__chrome__options_page": "Options/options.html",
+  "__chrome__options_page": "pages/options/options.html",
   "options_ui": {
-    "page": "Options/options.html",
+    "page": "pages/options/options.html",
     "open_in_tab": true
   },
 
@@ -142,14 +142,14 @@ buildIIFEScripts({
   scripts: [
     {
       name: 'contentScript',
-      entry: path.resolve(sourcePath, 'ContentScript/index.ts'),
+      entry: path.resolve(sourcePath, 'scripts/content/index.ts'),
     },
     // Firefox MV2 background scripts don't support ES modules
     ...(targetBrowser === 'firefox'
       ? [
           {
             name: 'background',
-            entry: path.resolve(sourcePath, 'Background/index.ts'),
+            entry: path.resolve(sourcePath, 'scripts/background/index.ts'),
           },
         ]
       : []),
@@ -164,12 +164,12 @@ Also update the rollup input to exclude background for Firefox (since it's built
 ```typescript
 rollupOptions: {
   input: {
-    popup: path.resolve(sourcePath, 'Popup/popup.html'),
-    options: path.resolve(sourcePath, 'Options/options.html'),
+    popup: path.resolve(sourcePath, 'pages/popup/popup.html'),
+    options: path.resolve(sourcePath, 'pages/options/options.html'),
     // Background script: Chrome MV3 uses ES modules (service worker)
     // Firefox MV2 is built separately as IIFE via buildIIFEScripts plugin
     ...(targetBrowser !== 'firefox'
-      ? { background: path.resolve(sourcePath, 'Background/index.ts') }
+      ? { background: path.resolve(sourcePath, 'scripts/background/index.ts') }
       : {}),
   },
   // ... rest of config
