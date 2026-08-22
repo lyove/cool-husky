@@ -1,4 +1,5 @@
 import browser from 'webextension-polyfill';
+import { META } from '../../config/meta';
 
 export type LocaleCode =
   'system' | 'en' | 'zh_CN' | 'zh_TW' | 'de' | 'es' | 'ja' | 'ko' | 'ru';
@@ -25,8 +26,8 @@ type Messages = Record<string, string>;
 
 const messagesMap: Record<string, Messages> = {
   en: {
-    extName: 'CoolHusky - Media Sniffer & Downloader',
-    title: 'CoolHusky',
+    extName: META.fullName.en,
+    title: META.name.en,
     home: 'Home',
     download: 'Download',
     help: 'Help',
@@ -204,8 +205,8 @@ const messagesMap: Record<string, Messages> = {
       'Override sniffing rules per format (leave blank to use group defaults)',
   },
   zh_CN: {
-    extName: '酷哈 - 智能网页媒体嗅探与下载工具',
-    title: '酷哈',
+    extName: META.fullName.zh_CN,
+    title: META.name.zh_CN,
     home: '主页',
     download: '下载',
     help: '帮助',
@@ -377,8 +378,8 @@ const messagesMap: Record<string, Messages> = {
     advancedFormatOverridesDesc: '按格式独立覆盖嗅探规则（留空使用分组默认值）',
   },
   zh_TW: {
-    extName: '酷哈 - 萬能網頁影片/音訊/圖片下載器',
-    title: '酷哈',
+    extName: META.fullName.zh_TW,
+    title: META.name.zh_TW,
     home: '首頁',
     download: '下載',
     help: '說明',
@@ -532,8 +533,8 @@ const messagesMap: Record<string, Messages> = {
     startRecording: '錄製直播串流',
   },
   de: {
-    extName: 'CoolHusky: Video-, Audio- & Bild-Downloader',
-    title: 'CoolHusky',
+    extName: META.fullName.de,
+    title: META.name.de,
     home: 'Startseite',
     download: 'Herunterladen',
     help: 'Hilfe',
@@ -701,8 +702,8 @@ const messagesMap: Record<string, Messages> = {
     startRecording: 'Live-Stream aufnehmen',
   },
   es: {
-    extName: 'CoolHusky: Descargador de Video, Audio e Imágenes',
-    title: 'CoolHusky',
+    extName: META.fullName.es,
+    title: META.name.es,
     home: 'Inicio',
     download: 'Descargar',
     help: 'Ayuda',
@@ -864,8 +865,8 @@ const messagesMap: Record<string, Messages> = {
     startRecording: 'Grabar transmisión en vivo',
   },
   ja: {
-    extName: 'CoolHusky - 動画・音楽・画像一括ダウンロード',
-    title: 'CoolHusky',
+    extName: META.fullName.ja,
+    title: META.name.ja,
     home: 'ホーム',
     download: 'ダウンロード',
     help: 'ヘルプ',
@@ -1024,8 +1025,8 @@ const messagesMap: Record<string, Messages> = {
     startRecording: 'ライブ配信を録画',
   },
   ko: {
-    extName: 'CoolHusky - 미디어 스니퍼 & 다운로더',
-    title: 'CoolHusky',
+    extName: META.fullName.ko,
+    title: META.name.ko,
     home: '홈',
     download: '다운로드',
     help: '도움말',
@@ -1183,8 +1184,8 @@ const messagesMap: Record<string, Messages> = {
     startRecording: '라이브 스트림 녹화',
   },
   ru: {
-    extName: 'CoolHusky — Сниффер медиа и загрузчик',
-    title: 'CoolHusky',
+    extName: META.fullName.ru,
+    title: META.name.ru,
     home: 'Главная',
     download: 'Скачать',
     help: 'Помощь',

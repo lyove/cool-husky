@@ -1,404 +1,392 @@
 {
-    "extName": {
-        "message": "酷哈 - 智能网页媒体嗅探与下载工具"
-    },
-    "extDescription": {
-        "message": "自动嗅探网页中的 M3U8/HLS 流媒体、视频、音频和图片，内置播放预览，支持批量下载，全程本地运行，隐私安全。"
-    },
-    "title":{
-        "message": "酷哈"
-    },
-    "home":{
+    "home": {
         "message": "主页"
     },
-    "download":{
+    "download": {
         "message": "下载"
     },
-    "help":{
+    "help": {
         "message": "帮助"
     },
-    "about":{
+    "about": {
         "message": "关于"
     },
-    "copy":{
+    "copy": {
         "message": "复制"
     },
-    "copyTips":{
+    "copyTips": {
         "message": "复制成功！"
     },
-    "copyUrl":{
+    "copyUrl": {
         "message": "复制URL"
     },
-    "settings":{
+    "settings": {
         "message": "设置"
     },
-    "more":{
+    "more": {
         "message": "更多"
     },
-    "clear":{
+    "clear": {
         "message": "清空"
     },
-    "unknown":{
+    "unknown": {
         "message": "未知"
     },
-    "feedback":{
+    "feedback": {
         "message": "反馈"
     },
-    "found":{
+    "found": {
         "message": "已发现: "
     },
-    "item":{
+    "item": {
         "message": "条"
     },
-    "play":{
+    "play": {
         "message": "播放"
     },
-    "pause":{
+    "pause": {
         "message": "暂停"
     },
-    "notFound":{
+    "notFound": {
         "message": "未检测到任何媒体资源"
     },
-    "playTips":{
+    "playTips": {
         "message": "播放视频或音频，或加载图片即可检测媒体资源。"
     },
-    "unplayable":{
+    "unplayable": {
         "message": "您的浏览器不支持视频播放。"
     },
-    "playError":{
+    "playError": {
         "message": "播放错误: "
     },
-    "stopPlay":{
+    "stopPlay": {
         "message": "停止播放"
     },
-    "audioPlayError":{
+    "audioPlayError": {
         "message": "音频播放失败"
     },
-    "audioEncryptedTip":{
+    "audioEncryptedTip": {
         "message": "该流已加密（DRM 保护），播放器无法解码。高清/4K 内容通常采用此保护，请在源网站播放。"
     },
-    "optionsTitle":{
+    "optionsTitle": {
         "message": "设置"
     },
-    "saved":{
+    "saved": {
         "message": "已保存"
     },
-    "sniffingRules":{
+    "sniffingRules": {
         "message": "嗅探规则"
     },
-    "type":{
+    "type": {
         "message": "类型"
     },
-    "sniff":{
+    "sniff": {
         "message": "启用"
     },
-    "minSizeKB":{
+    "minSizeKB": {
         "message": "最小大小 (KB)"
     },
-    "streaming":{
+    "streaming": {
         "message": "流媒体"
     },
-    "streamingHint":{
+    "streamingHint": {
         "message": "HLS / DASH / M3U8"
     },
-    "video":{
+    "video": {
         "message": "视频"
     },
-    "videoHint":{
+    "videoHint": {
         "message": "MP4, WebM, MKV…"
     },
-    "audio":{
+    "audio": {
         "message": "音频"
     },
-    "audioHint":{
+    "audioHint": {
         "message": "MP3, AAC, FLAC…"
     },
-    "image":{
+    "image": {
         "message": "图片"
     },
-    "imageHint":{
+    "imageHint": {
         "message": "PNG, JPG, WebP…"
     },
-    "kb":{
+    "kb": {
         "message": "KB"
     },
-    "excludeDomains":{
+    "excludeDomains": {
         "message": "排除域名"
     },
-    "maxItems":{
+    "maxItems": {
         "message": "每标签页最大条目数"
     },
-    "maxItemsDesc":{
+    "maxItemsDesc": {
         "message": "每个标签页最多抓取的媒体条目数（10–5000），超出后自动淘汰最旧的条目。"
     },
-    "excludeDomainsDesc":{
+    "excludeDomainsDesc": {
         "message": "在这些域名上将禁用嗅探。每行一个域名（例如：twitter.com）"
     },
-    "excludeDomainsPlaceholder":{
+    "excludeDomainsPlaceholder": {
         "message": "twitter.com\nfacebook.com\ninstagram.com"
     },
-    "keyboardShortcuts":{
+    "keyboardShortcuts": {
         "message": "键盘快捷键"
     },
-    "keyboardShortcutsDesc":{
+    "keyboardShortcutsDesc": {
         "message": "配置打开扩展面板的快捷键"
     },
-    "manageShortcuts":{
+    "manageShortcuts": {
         "message": "在 Chrome 扩展设置中管理键盘快捷键"
     },
-    "openShortcuts":{
+    "openShortcuts": {
         "message": "打开快捷键设置"
     },
-    "resetToDefaults":{
+    "resetToDefaults": {
         "message": "恢复默认设置"
     },
-    "resetConfirm":{
+    "resetConfirm": {
         "message": "再次点击确认重置"
     },
-    "welcome":{
+    "welcome": {
         "message": "欢迎"
     },
-    "welcomeTitle":{
-        "message": "欢迎使用 CoolHusky"
+    "welcomeTitle": {
+        "message": "欢迎使用 {{META_REF}}"
     },
-    "welcomeIntro":{
-        "message": "CoolHusky（酷哈）是一款智能的浏览器媒体嗅探与下载工具，帮你轻松捕获网页中的视频、音频和图片资源。\n\n它会在你浏览网页时自动检测页面上的媒体资源，并以清晰的列表呈现。你可以按类型（流媒体、视频、音频、图片）筛选，也可以按格式和大小精确查找，还支持批量下载与一键复制资源地址。\n\n无论是日常学习、资料留存还是内容创作，CoolHusky 都能让你更高效地获取所需的媒体资源。"
+    "welcomeIntro": {
+        "message": "{{META_REF}}是一款智能的浏览器媒体嗅探与下载工具，帮你轻松捕获网页中的视频、音频和图片资源。\n\n它会在你浏览网页时自动检测页面上的媒体资源，并以清晰的列表呈现。你可以按类型（流媒体、视频、音频、图片）筛选，也可以按格式和大小精确查找，还支持批量下载与一键复制资源地址。\n\n无论是日常学习、资料留存还是内容创作，{{META_REF}} 都能让你更高效地获取所需的媒体资源。"
     },
-    "welcomeFeaturesTitle":{
+    "welcomeFeaturesTitle": {
         "message": "核心特性"
     },
-    "featureAutoSniff":{
+    "featureAutoSniff": {
         "message": "自动嗅探：浏览网页时实时检测页面中的视频、音频和图片资源，无需手动操作。"
     },
-    "featureFilter":{
+    "featureFilter": {
         "message": "智能筛选：按类型、格式和大小精确过滤，快速定位你想要的资源。"
     },
-    "featureBatchDownload":{
+    "featureBatchDownload": {
         "message": "批量下载：支持一次性下载多个资源，高效留存所需素材。"
     },
-    "featureCopyUrl":{
+    "featureCopyUrl": {
         "message": "一键复制：轻松复制资源地址，方便在其他工具中直接使用。"
     },
-    "welcomeSubtitle":{
-        "message": "智能媒体嗅探与下载工具"
-    },
-    "tutorialTitle":{
+    "tutorialTitle": {
         "message": "使用教程"
     },
-    "step1Title":{
+    "step1Title": {
         "message": "安装扩展"
     },
-    "step1Desc":{
-        "message": "安装完成后，浏览器工具栏会出现 酷哈 图标。点击图标即可打开扩展弹窗。"
+    "step1Desc": {
+        "message": "安装完成后，浏览器工具栏会出现 {{META_REF}} 图标。点击图标即可打开扩展弹窗。"
     },
-    "step2Title":{
+    "step2Title": {
         "message": "打开视频页面"
     },
-    "step2Desc":{
-        "message": "访问包含视频或音频的网页，酷哈 会自动检测页面中的媒体资源。当检测到资源时，扩展图标上会显示检测到的数量。"
+    "step2Desc": {
+        "message": "访问包含视频或音频的网页，{{META_REF}} 会自动检测页面中的媒体资源。当检测到资源时，扩展图标上会显示检测到的数量。"
     },
-    "step3Title":{
+    "step3Title": {
         "message": "播放视频以触发检测"
     },
-    "step3Desc":{
+    "step3Desc": {
         "message": "部分视频需要先点击播放，扩展才能捕获到流媒体地址。如果图标上没有显示数量，请尝试播放视频。"
     },
-    "step4Title":{
+    "step4Title": {
         "message": "查看检测到的资源"
     },
-    "step4Desc":{
+    "step4Desc": {
         "message": "点击扩展图标，弹窗中会列出当前页面检测到的所有媒体资源。你可以按类型（流媒体、视频、音频、图片）进行筛选，也可以使用格式和大小过滤器精确查找。"
     },
-    "step5Title":{
+    "step5Title": {
         "message": "下载或复制"
     },
-    "step5Desc":{
+    "step5Desc": {
         "message": "在资源列表中，点击下载按钮即可下载文件，点击复制按钮可复制资源地址。你也可以勾选多个文件进行批量下载。"
     },
-    "step6Title":{
+    "step6Title": {
         "message": "自定义设置"
     },
-    "step6Desc":{
+    "step6Desc": {
         "message": "点击弹窗中的设置图标，可以按类型开关嗅探功能、设置最小捕获大小、排除特定域名，以及配置键盘快捷键。"
     },
-    "faqTitle":{
+    "faqTitle": {
         "message": "常见问题"
     },
-    "faq1Q":{
+    "faq1Q": {
         "message": "为什么有些视频检测不到？"
     },
-    "faq1A":{
+    "faq1A": {
         "message": "部分网站使用了特殊的加密或动态加载技术（如 DRM 保护），导致扩展无法捕获到视频流。此外，如果视频尚未开始播放，某些流媒体地址也不会被触发。建议先播放视频，等待扩展图标上出现数字提示后再查看。"
     },
-    "faq2Q":{
+    "faq2Q": {
         "message": "下载的 M3U8 文件无法播放怎么办？"
     },
-    "faq2A":{
+    "faq2A": {
         "message": "M3U8 是一个索引文件，不是视频本身。你需要使用支持 HLS 的播放器（如 VLC）来播放它，或者使用专门的下载工具将 M3U8 转换为 MP4 格式。扩展会在检测到 M3U8 流时尝试提供直接下载选项。"
     },
-    "faq3Q":{
+    "faq3Q": {
         "message": "扩展会收集我的隐私数据吗？"
     },
-    "faq3A":{
+    "faq3A": {
         "message": "不会。本扩展完全在本地运行，不会将任何数据发送到外部服务器。所有检测和下载操作都在你的浏览器中完成。"
     },
-    "faq4Q":{
+    "faq4Q": {
         "message": "为什么图标上没有显示检测数量？"
     },
-    "faq4A":{
+    "faq4A": {
         "message": "扩展仅在当前标签页检测到媒体资源时才会在图标上显示数量。请确保：1) 你已打开包含视频的网页；2) 视频已经开始播放；3) 该网站未被添加到排除域名列表中。"
     },
-    "faq5Q":{
+    "faq5Q": {
         "message": "如何排除不需要的域名？"
     },
-    "faq5A":{
+    "faq5A": {
         "message": "点击扩展弹窗中的设置图标，在\"排除域名\"区域输入你想要排除的域名（每行一个），例如：twitter.com。保存后，这些域名上的媒体嗅探将被禁用。"
     },
-    "faq6Q":{
+    "faq6Q": {
         "message": "为什么下载速度很慢？"
     },
-    "faq6A":{
+    "faq6A": {
         "message": "下载速度取决于视频源服务器的带宽和你的网络环境。扩展使用浏览器原生下载功能，速度与你在浏览器中直接下载文件一致。如果速度持续很慢，可能是源服务器限制了下载速度。"
     },
-    "faq7Q":{
+    "faq7Q": {
         "message": "如何设置快捷键？"
     },
-    "faq7A":{
+    "faq7A": {
         "message": "在扩展弹窗的设置页面中，找到\"键盘快捷键\"部分，点击\"打开快捷键设置\"按钮即可跳转到浏览器的快捷键管理页面进行配置。"
     },
-    "faq8Q":{
+    "faq8Q": {
         "message": "为什么 Firefox 显示的布局与 Chrome 不一样？"
     },
-    "faq8A":{
-        "message": "Firefox 和 Chrome 在 CSS flexbox 和 grid 布局渲染上存在一些差异。酷哈 已针对两个浏览器进行优化以保持一致的 UI。如果你发现任何显示问题，请在 GitHub 上报告。"
+    "faq8A": {
+        "message": "Firefox 和 Chrome 在 CSS flexbox 和 grid 布局渲染上存在一些差异。{{META_REF}} 已针对两个浏览器进行优化以保持一致的 UI。如果你发现任何显示问题，请在 GitHub 上报告。"
     },
-    "faq9Q":{
+    "faq9Q": {
         "message": "为什么在某些页面上找不到视频？"
     },
-    "faq9A":{
+    "faq9A": {
         "message": "某些网站使用了特殊的加密、DRM 保护或混淆加载技术，导致无法捕获媒体 URL。视频也可能通过带有跨域限制的嵌入式 iframe 提供。请尝试刷新页面并先播放视频来触发检测。"
     },
-    "siteName":{
+    "siteName": {
         "message": "网站名称："
     },
-    "subtitle":{
+    "subtitle": {
         "message": "智能嗅探，一键下载"
     },
-    "tabAll":{
+    "tabAll": {
         "message": "全部"
     },
-    "tabStream":{
+    "tabStream": {
         "message": "流媒体"
     },
-    "tabVideo":{
+    "tabVideo": {
         "message": "视频"
     },
-    "tabAudio":{
+    "tabAudio": {
         "message": "音频"
     },
-    "tabImage":{
+    "tabImage": {
         "message": "图片"
     },
-    "tabDoc":{
+    "tabDoc": {
         "message": "文档"
     },
-    "selectAll":{
+    "selectAll": {
         "message": "全选"
     },
-    "deselectAll":{
+    "deselectAll": {
         "message": "取消全选"
     },
-    "downloadSelected":{
+    "downloadSelected": {
         "message": "下载所选"
     },
-    "toggleEnable":{
+    "toggleEnable": {
         "message": "开启/关闭嗅探"
     },
-    "deepSearch":{
+    "deepSearch": {
         "message": "深度搜索"
     },
-"clearList":{
+    "clearList": {
         "message": "清理当前页面媒体列表"
     },
-    "refresh":{
+    "refresh": {
         "message": "刷新"
     },
-    "refreshPage":{
+    "refreshPage": {
         "message": "刷新当前页面"
     },
-    "filter":{
+    "filter": {
         "message": "过滤"
     },
-    "filterType":{
+    "filterType": {
         "message": "类型"
     },
-    "any":{
+    "any": {
         "message": "任意"
     },
-    "filterSize":{
+    "filterSize": {
         "message": "大小"
     },
-    "min":{
+    "min": {
         "message": "最小"
     },
-    "max":{
+    "max": {
         "message": "最大"
     },
-    "filterDimension":{
+    "filterDimension": {
         "message": "尺寸"
     },
-    "width":{
+    "width": {
         "message": "宽"
     },
-    "height":{
+    "height": {
         "message": "高"
     },
-    "filterResolution":{
+    "filterResolution": {
         "message": "分辨率"
     },
-    "reset":{
+    "reset": {
         "message": "重置"
     },
-    "sortByTime":{
+    "sortByTime": {
         "message": "按检测时间排序（点击启用）"
     },
-    "sortDesc":{
+    "sortDesc": {
         "message": "最新优先（点击改为最早优先）"
     },
-    "sortAsc":{
+    "sortAsc": {
         "message": "最早优先（点击关闭排序）"
     },
-    "preview":{
+    "preview": {
         "message": "预览"
     },
-    "batchDownloadStarted":{
+    "batchDownloadStarted": {
         "message": "已开始下载 $1 个文件"
     },
-    "downloadBatchRenamed":{
+    "downloadBatchRenamed": {
         "message": "重命名下载"
     },
-    "downloadBatchRenamedStarted":{
+    "downloadBatchRenamedStarted": {
         "message": "已开始重命名下载 $1 个文件"
     },
-    "open":{
+    "open": {
         "message": "打开"
     },
-    "changelogTitle":{
+    "changelogTitle": {
         "message": "版本更新"
     },
-    "changelogVersion":{
+    "changelogVersion": {
         "message": "v1.0.0"
     },
-    "changelogFeaturesTitle":{
+    "changelogFeaturesTitle": {
         "message": "新增功能"
     },
-    "changelogFeatures":{
+    "changelogFeatures": {
         "message": "• 版本号更新至 1.0.0。"
     },
-    "changelogFixesTitle":{
+    "changelogFixesTitle": {
         "message": "问题修复"
     },
-    "changelogFixes":{
+    "changelogFixes": {
         "message": ""
     }
 }

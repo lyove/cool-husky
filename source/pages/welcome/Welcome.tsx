@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import browser from 'webextension-polyfill';
 import { loadAppearance } from '../../utils/i18n';
+import { META } from '../../../config/meta';
 import styles from './Welcome.module.scss';
 
 const version = browser.runtime.getManifest().version;
@@ -194,7 +195,7 @@ function Welcome(): ReactElement {
       <footer className={styles.footer}>
         <span className={styles.version}>{t('title')} v{version}</span>
         <a
-          href="https://github.com/lyove/cool-husky/"
+          href={META.homepageUrl}
           target="_blank"
           rel="noopener noreferrer"
           className={styles.githubBtn}

@@ -4,7 +4,6 @@
   "version": "0.0.0",
   "default_locale": "en",
   "description": "__MSG_extDescription__",
-  "homepage_url": "https://github.com/lyove/cool-husky",
   "short_name": "__MSG_extName__",
 
   "icons": {
@@ -68,8 +67,6 @@
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
   },
-
-  "__chrome|firefox__author": "lyove",
 
   "__chrome__minimum_chrome_version": "102",
 

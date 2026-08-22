@@ -6,6 +6,7 @@ import zipPack from 'vite-plugin-zip-pack';
 import checker from 'vite-plugin-checker';
 import clean from 'vite-plugin-clean';
 import WextManifest from './config/vite-plugin-wext-manifest';
+import { vitePluginAppMeta } from './config/vite-plugin-app-meta.js';
 
 import type {Plugin} from 'vite';
 
@@ -130,6 +131,9 @@ export default defineConfig(({ mode }) => {
 				outDir: getOutDir(),
 				isDevelopment,
 			}),
+
+			// Inject app meta (brand name/description/links) into _locales & manifest
+			vitePluginAppMeta({ sourcePath, outDir: getOutDir() }),
 
 			!isDevelopment &&
 				zipPack({

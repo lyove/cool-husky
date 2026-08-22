@@ -1,404 +1,392 @@
 {
-    "extName": {
-        "message": "CoolHusky: Video-, Audio- & Bild-Downloader"
-    },
-    "extDescription": {
-        "message": "Automatische Erkennung und Download von M3U8/HLS-Streams, Videos, Audio und Bildern. Integrierter Player. Stapel-Download. 100% lokal und privat."
-    },
-    "title":{
-        "message": "CoolHusky"
-    },
-    "home":{
+    "home": {
         "message": "Startseite"
     },
-    "download":{
+    "download": {
         "message": "Herunterladen"
     },
-    "help":{
+    "help": {
         "message": "Hilfe"
     },
-    "about":{
+    "about": {
         "message": "Über"
     },
-    "copy":{
+    "copy": {
         "message": "Kopieren"
     },
-    "copyTips":{
+    "copyTips": {
         "message": "Erfolgreich kopiert!"
     },
-    "copyUrl":{
+    "copyUrl": {
         "message": "URL kopieren"
     },
-    "settings":{
+    "settings": {
         "message": "Einstellungen"
     },
-    "more":{
+    "more": {
         "message": "Mehr"
     },
-    "clear":{
+    "clear": {
         "message": "Löschen"
     },
-    "unknown":{
+    "unknown": {
         "message": "Unbekannt"
     },
-    "feedback":{
+    "feedback": {
         "message": "Feedback"
     },
-    "found":{
+    "found": {
         "message": "Erkannt: "
     },
-    "item":{
+    "item": {
         "message": "Element"
     },
-    "play":{
+    "play": {
         "message": "Abspielen"
     },
-    "pause":{
+    "pause": {
         "message": "Pause"
     },
-    "notFound":{
+    "notFound": {
         "message": "Keine Medien erkannt"
     },
-    "playTips":{
+    "playTips": {
         "message": "Spielen Sie ein Video oder Audio ab, oder laden Sie ein Bild, um Medienressourcen zu erkennen."
     },
-    "unplayable":{
+    "unplayable": {
         "message": "Ihr Browser unterstützt die Videowiedergabe nicht."
     },
-    "playError":{
+    "playError": {
         "message": "Wiedergabefehler: "
     },
-    "stopPlay":{
+    "stopPlay": {
         "message": "Wiedergabe beenden"
     },
-    "audioPlayError":{
+    "audioPlayError": {
         "message": "Audio-Wiedergabefehler"
     },
-    "audioEncryptedTip":{
+    "audioEncryptedTip": {
         "message": "Dieser Stream ist verschlüsselt (DRM-geschützt) und kann vom Player nicht dekodiert werden. HD/4K-Inhalte sind normalerweise auf diese Weise geschützt. Bitte schauen Sie auf der Originalseite."
     },
-    "optionsTitle":{
+    "optionsTitle": {
         "message": "Einstellungen"
     },
-    "saved":{
+    "saved": {
         "message": "Gespeichert"
     },
-    "sniffingRules":{
+    "sniffingRules": {
         "message": "Erkennungsregeln"
     },
-    "type":{
+    "type": {
         "message": "Typ"
     },
-    "sniff":{
+    "sniff": {
         "message": "Aktiviert"
     },
-    "minSizeKB":{
+    "minSizeKB": {
         "message": "Min. Größe (KB)"
     },
-    "streaming":{
+    "streaming": {
         "message": "Streaming"
     },
-    "streamingHint":{
+    "streamingHint": {
         "message": "HLS / DASH / M3U8"
     },
-    "video":{
+    "video": {
         "message": "Video"
     },
-    "videoHint":{
+    "videoHint": {
         "message": "MP4, WebM, MKV…"
     },
-    "audio":{
+    "audio": {
         "message": "Audio"
     },
-    "audioHint":{
+    "audioHint": {
         "message": "MP3, AAC, FLAC…"
     },
-    "image":{
+    "image": {
         "message": "Bild"
     },
-    "imageHint":{
+    "imageHint": {
         "message": "PNG, JPG, WebP…"
     },
-    "kb":{
+    "kb": {
         "message": "KB"
     },
-    "excludeDomains":{
+    "excludeDomains": {
         "message": "Ausgeschlossene Domains"
     },
-    "maxItems":{
+    "maxItems": {
         "message": "Max. Einträge pro Tab"
     },
-    "maxItemsDesc":{
+    "maxItemsDesc": {
         "message": "Maximale Anzahl erfasster Medieneinträge pro Tab (10–5000). Älteste Einträge werden ersetzt, wenn das Limit erreicht ist."
     },
-    "excludeDomainsDesc":{
+    "excludeDomainsDesc": {
         "message": "Die Erkennung wird auf diesen Domains deaktiviert. Eine pro Zeile (z.B. twitter.com)"
     },
-    "excludeDomainsPlaceholder":{
+    "excludeDomainsPlaceholder": {
         "message": "twitter.com\nfacebook.com\ninstagram.com"
     },
-    "keyboardShortcuts":{
+    "keyboardShortcuts": {
         "message": "Tastenkürzel"
     },
-    "keyboardShortcutsDesc":{
+    "keyboardShortcutsDesc": {
         "message": "Tastenkürzel zum Öffnen des Erweiterungs-Panels konfigurieren"
     },
-    "manageShortcuts":{
+    "manageShortcuts": {
         "message": "Tastenkürzel in den Chrome-Erweiterungseinstellungen verwalten"
     },
-    "openShortcuts":{
+    "openShortcuts": {
         "message": "Tastenkürzel öffnen"
     },
-    "resetToDefaults":{
+    "resetToDefaults": {
         "message": "Auf Standardwerte zurücksetzen"
     },
-    "resetConfirm":{
+    "resetConfirm": {
         "message": "Klicken Sie erneut, um das Zurücksetzen zu bestätigen"
     },
-    "welcome":{
+    "welcome": {
         "message": "Willkommen"
     },
-    "welcomeTitle":{
-        "message": "Willkommen bei CoolHusky"
+    "welcomeTitle": {
+        "message": "Willkommen bei {{META_REF}}"
     },
-    "welcomeIntro":{
-        "message": "CoolHusky ist ein intelligenter Browser-Media-Sniffer und -Downloader, mit dem Sie Video-, Audio- und Bildressourcen aus Webseiten einfach erfassen können.\n\nEr erkennt automatisch Mediendateien auf den besuchten Seiten und zeigt sie in einer übersichtlichen Liste an. Sie können nach Typ (Streaming, Video, Audio, Bild) filtern, gezielt nach Format und Größe suchen sowie mehrere Ressourcen gleichzeitig herunterladen oder URLs mit einem Klick kopieren.\n\nOb für tägliches Lernen, Archivierung oder Content-Erstellung – CoolHusky hilft Ihnen, benötigte Medienressourcen effizienter zu erhalten."
+    "welcomeIntro": {
+        "message": "{{META_REF}} ist ein intelligenter Browser-Media-Sniffer und -Downloader, mit dem Sie Video-, Audio- und Bildressourcen aus Webseiten einfach erfassen können.\n\nEr erkennt automatisch Mediendateien auf den besuchten Seiten und zeigt sie in einer übersichtlichen Liste an. Sie können nach Typ (Streaming, Video, Audio, Bild) filtern, gezielt nach Format und Größe suchen sowie mehrere Ressourcen gleichzeitig herunterladen oder URLs mit einem Klick kopieren.\n\nOb für tägliches Lernen, Archivierung oder Content-Erstellung – {{META_REF}} hilft Ihnen, benötigte Medienressourcen effizienter zu erhalten."
     },
-    "welcomeFeaturesTitle":{
+    "welcomeFeaturesTitle": {
         "message": "Hauptfunktionen"
     },
-    "featureAutoSniff":{
+    "featureAutoSniff": {
         "message": "Automatisches Sniffing: Erkennt Video-, Audio- und Bildressourcen beim Surfen in Echtzeit – ohne manuellen Aufwand."
     },
-    "featureFilter":{
+    "featureFilter": {
         "message": "Intelligentes Filtern: Präzises Filtern nach Typ, Format und Größe, um Ressourcen schnell zu finden."
     },
-    "featureBatchDownload":{
+    "featureBatchDownload": {
         "message": "Stapeldownload: Mehrere Ressourcen gleichzeitig herunterladen und benötigte Materialien effizient archivieren."
     },
-    "featureCopyUrl":{
+    "featureCopyUrl": {
         "message": "Ein-Klick-Kopieren: Ressourcen-URLs einfach kopieren und direkt in anderen Tools verwenden."
     },
-"welcomeSubtitle":{
-        "message": "Intelligenter Medien-Sniffer und Downloader"
-    },
-    "tutorialTitle":{
+    "tutorialTitle": {
         "message": "Erste Schritte"
     },
-    "step1Title":{
+    "step1Title": {
         "message": "Erweiterung installieren"
     },
-    "step1Desc":{
-        "message": "Nach der Installation erscheint das CoolHusky-Symbol in der Browser-Symbolleiste. Klicken Sie auf das Symbol, um das Erweiterungs-Popup zu öffnen."
+    "step1Desc": {
+        "message": "Nach der Installation erscheint das {{META_REF}}-Symbol in der Browser-Symbolleiste. Klicken Sie auf das Symbol, um das Erweiterungs-Popup zu öffnen."
     },
-    "step2Title":{
+    "step2Title": {
         "message": "Eine Videoseite öffnen"
     },
-    "step2Desc":{
-        "message": "Besuchen Sie eine Webseite mit Video- oder Audioinhalten, und CoolHusky erkennt automatisch Medienressourcen. Wenn Ressourcen erkannt werden, zeigt das Erweiterungssymbol die Anzahl an."
+    "step2Desc": {
+        "message": "Besuchen Sie eine Webseite mit Video- oder Audioinhalten, und {{META_REF}} erkennt automatisch Medienressourcen. Wenn Ressourcen erkannt werden, zeigt das Erweiterungssymbol die Anzahl an."
     },
-    "step3Title":{
+    "step3Title": {
         "message": "Video abspielen, um Erkennung auszulösen"
     },
-    "step3Desc":{
+    "step3Desc": {
         "message": "Einige Videos müssen zuerst abgespielt werden, bevor die Erweiterung die Streaming-URL erfassen kann. Wenn keine Zahl auf dem Symbol erscheint, versuchen Sie, das Video abzuspielen."
     },
-    "step4Title":{
+    "step4Title": {
         "message": "Erkannte Ressourcen anzeigen"
     },
-    "step4Desc":{
+    "step4Desc": {
         "message": "Klicken Sie auf das Erweiterungssymbol, um alle erkannten Medienressourcen im Popup anzuzeigen. Sie können nach Typ (Streaming, Video, Audio, Bild) filtern und Format- oder Größenfilter für eine präzise Suche verwenden."
     },
-    "step5Title":{
+    "step5Title": {
         "message": "Herunterladen oder Kopieren"
     },
-    "step5Desc":{
+    "step5Desc": {
         "message": "Klicken Sie in der Ressourcenliste auf die Download-Schaltfläche, um eine Datei herunterzuladen, oder auf die Kopier-Schaltfläche, um die Ressourcen-URL zu kopieren. Sie können auch mehrere Dateien für den Stapel-Download auswählen."
     },
-    "step6Title":{
+    "step6Title": {
         "message": "Einstellungen anpassen"
     },
-    "step6Desc":{
+    "step6Desc": {
         "message": "Klicken Sie auf das Einstellungssymbol im Popup, um die Erkennung nach Typ ein-/auszuschalten, die minimale Erfassungsgröße festzulegen, bestimmte Domains auszuschließen und Tastenkürzel zu konfigurieren."
     },
-    "faqTitle":{
+    "faqTitle": {
         "message": "Häufig gestellte Fragen"
     },
-    "faq1Q":{
+    "faq1Q": {
         "message": "Warum werden einige Videos nicht erkannt?"
     },
-    "faq1A":{
+    "faq1A": {
         "message": "Einige Websites verwenden spezielle Verschlüsselung oder dynamische Ladetechniken (z.B. DRM-Schutz), was verhindert, dass die Erweiterung Videostreams erfasst. Außerdem werden bestimmte Streaming-URLs erst ausgelöst, wenn das Video abgespielt wird. Wir empfehlen, das Video zuerst abzuspielen und zu warten, bis eine Zahl auf dem Erweiterungssymbol erscheint."
     },
-    "faq2Q":{
+    "faq2Q": {
         "message": "Was soll ich tun, wenn die heruntergeladene M3U8-Datei nicht abgespielt wird?"
     },
-    "faq2A":{
+    "faq2A": {
         "message": "M3U8 ist eine Indexdatei, nicht das Video selbst. Sie müssen einen HLS-kompatiblen Player (wie VLC) verwenden, um sie abzuspielen, oder ein dediziertes Tool verwenden, um M3U8 in das MP4-Format zu konvertieren. Die Erweiterung versucht, eine direkte Download-Option bereitzustellen, wenn ein M3U8-Stream erkannt wird."
     },
-    "faq3Q":{
+    "faq3Q": {
         "message": "Erfasst die Erweiterung meine privaten Daten?"
     },
-    "faq3A":{
+    "faq3A": {
         "message": "Nein. Diese Erweiterung läuft vollständig lokal und sendet keine Daten an externe Server. Alle Erkennungs- und Download-Vorgänge werden in Ihrem Browser abgeschlossen."
     },
-    "faq4Q":{
+    "faq4Q": {
         "message": "Warum zeigt das Symbol keine Erkennungsanzahl?"
     },
-    "faq4A":{
+    "faq4A": {
         "message": "Die Erweiterung zeigt nur dann eine Anzahl auf dem Symbol an, wenn Medienressourcen auf der aktuellen Registerkarte erkannt werden. Bitte stellen Sie sicher, dass: 1) Sie eine Webseite mit Video geöffnet haben; 2) Das Video abgespielt wird; 3) Die Website nicht in der Liste der ausgeschlossenen Domains ist."
     },
-    "faq5Q":{
+    "faq5Q": {
         "message": "Wie schließe ich unerwünschte Domains aus?"
     },
-    "faq5A":{
+    "faq5A": {
         "message": "Klicken Sie auf das Einstellungssymbol im Erweiterungs-Popup, geben Sie die Domains, die Sie ausschließen möchten, im Abschnitt \"Ausgeschlossene Domains\" ein (eine pro Zeile, z.B. twitter.com). Nach dem Speichern wird die Medienerkennung auf diesen Domains deaktiviert."
     },
-    "faq6Q":{
+    "faq6Q": {
         "message": "Warum ist die Download-Geschwindigkeit langsam?"
     },
-    "faq6A":{
+    "faq6A": {
         "message": "Die Download-Geschwindigkeit hängt von der Bandbreite des Video-Quellservers und Ihrer Netzwerkumgebung ab. Die Erweiterung verwendet die native Download-Funktion des Browsers, sodass die Geschwindigkeit dieselbe ist wie beim direkten Herunterladen von Dateien im Browser. Wenn die Geschwindigkeit ständig langsam ist, drosselt der Quellserver möglicherweise die Downloads."
     },
-    "faq7Q":{
+    "faq7Q": {
         "message": "Wie richte ich Tastenkürzel ein?"
     },
-    "faq7A":{
+    "faq7A": {
         "message": "Finden Sie auf der Einstellungsseite des Erweiterungs-Popups den Abschnitt \"Tastenkürzel\" und klicken Sie auf die Schaltfläche \"Tastenkürzel öffnen\", um zur Tastenkürzel-Verwaltungsseite des Browsers zu gelangen und diese zu konfigurieren."
     },
-    "faq8Q":{
+    "faq8Q": {
         "message": "Warum zeigt Firefox ein anderes Layout als Chrome?"
     },
-    "faq8A":{
-        "message": "Firefox und Chrome unterscheiden sich in der Darstellung von CSS-Flexbox- und Grid-Layouts. CoolHusky wurde optimiert, um eine konsistente Benutzeroberfläche in beiden Browsern zu gewährleisten. Wenn Sie Anzeigeprobleme feststellen, melden Sie diese bitte auf GitHub."
+    "faq8A": {
+        "message": "Firefox und Chrome unterscheiden sich in der Darstellung von CSS-Flexbox- und Grid-Layouts. {{META_REF}} wurde optimiert, um eine konsistente Benutzeroberfläche in beiden Browsern zu gewährleisten. Wenn Sie Anzeigeprobleme feststellen, melden Sie diese bitte auf GitHub."
     },
-    "faq9Q":{
+    "faq9Q": {
         "message": "Warum finde ich auf bestimmten Seiten keine Videos?"
     },
-    "faq9A":{
+    "faq9A": {
         "message": "Einige Websites verwenden spezielle Verschlüsselung, DRM-Schutz oder verschleierte Lade-Techniken, die die Medien-URL-Erfassung verhindern. Videos können auch über eingebettete iframes mit Cross-Origin-Einschränkungen bereitgestellt werden. Versuchen Sie, die Seite zu aktualisieren und das Video zuerst abzuspielen, um die Erkennung auszulösen."
     },
-    "siteName":{
+    "siteName": {
         "message": "Website:"
     },
-    "subtitle":{
+    "subtitle": {
         "message": "Intelligentes Sniffing, Einklick-Download"
     },
-    "tabAll":{
+    "tabAll": {
         "message": "Alle"
     },
-    "tabStream":{
+    "tabStream": {
         "message": "Stream"
     },
-    "tabVideo":{
+    "tabVideo": {
         "message": "Video"
     },
-    "tabAudio":{
+    "tabAudio": {
         "message": "Audio"
     },
-    "tabImage":{
+    "tabImage": {
         "message": "Bild"
     },
-    "tabDoc":{
+    "tabDoc": {
         "message": "Dok"
     },
-    "selectAll":{
+    "selectAll": {
         "message": "Alle auswählen"
     },
-    "deselectAll":{
+    "deselectAll": {
         "message": "Auswahl aufheben"
     },
-    "downloadSelected":{
+    "downloadSelected": {
         "message": "Ausgewählte herunterladen"
     },
-    "toggleEnable":{
+    "toggleEnable": {
         "message": "Toggle Sniffing On/Off"
     },
-    "deepSearch":{
+    "deepSearch": {
         "message": "Deep Search"
     },
-"clearList":{
+    "clearList": {
         "message": "Aktuelle Seiten-Medienliste löschen"
     },
-    "refresh":{
+    "refresh": {
         "message": "Aktualisieren"
     },
-    "refreshPage":{
+    "refreshPage": {
         "message": "Aktuelle Seite aktualisieren"
     },
-    "filter":{
+    "filter": {
         "message": "Filter"
     },
-    "filterType":{
+    "filterType": {
         "message": "Typ"
     },
-    "any":{
+    "any": {
         "message": "Beliebig"
     },
-    "filterSize":{
+    "filterSize": {
         "message": "Größe"
     },
-    "min":{
+    "min": {
         "message": "Min."
     },
-    "max":{
+    "max": {
         "message": "Max."
     },
-    "filterDimension":{
+    "filterDimension": {
         "message": "Abmessungen"
     },
-    "width":{
+    "width": {
         "message": "Breite"
     },
-    "height":{
+    "height": {
         "message": "Höhe"
     },
-    "filterResolution":{
+    "filterResolution": {
         "message": "Auflösung"
     },
-    "reset":{
+    "reset": {
         "message": "Zurücksetzen"
     },
-    "sortByTime":{
+    "sortByTime": {
         "message": "Nach Erkennungszeit sortieren (klicken zum Aktivieren)"
     },
-    "sortDesc":{
+    "sortDesc": {
         "message": "Neueste zuerst (klicken für älteste zuerst)"
     },
-    "sortAsc":{
+    "sortAsc": {
         "message": "Älteste zuerst (klicken zum Deaktivieren)"
     },
-    "preview":{
+    "preview": {
         "message": "Vorschau"
     },
-    "batchDownloadStarted":{
+    "batchDownloadStarted": {
         "message": "Download von $1 Datei(en) gestartet"
     },
-    "downloadBatchRenamed":{
+    "downloadBatchRenamed": {
         "message": "Mit Umbenennung herunterladen"
     },
-    "downloadBatchRenamedStarted":{
+    "downloadBatchRenamedStarted": {
         "message": "Umbenannter Download von $1 Datei(en) gestartet"
     },
-    "open":{
+    "open": {
         "message": "Öffnen"
     },
-    "changelogTitle":{
+    "changelogTitle": {
         "message": "Neu in dieser Version"
     },
-    "changelogVersion":{
+    "changelogVersion": {
         "message": "v1.1.1"
     },
-    "changelogFeaturesTitle":{
+    "changelogFeaturesTitle": {
         "message": "Neue Funktionen"
     },
-    "changelogFeatures":{
+    "changelogFeatures": {
         "message": "• Proxy-Vorschau für gegen Hotlinking geschützte Bilder mit Referer- und Authentifizierungs-Headern.\n• Proxy-Downloads für geschützte Bilder, Audiodateien, Dokumente und Untertitel.\n• Schnellere Cover-Anzeige: Bei erforderlichem Referer wird der Proxy direkt verwendet.\n• Verbesserte Firefox-Unterstützung mit webRequestBlocking, Header-Injektion und automatischer Entfernung von Origin.\n• Versionsnummer auf 1.1.1 aktualisiert."
     },
-    "changelogFixesTitle":{
+    "changelogFixesTitle": {
         "message": "Fehlerbehebungen"
     },
-    "changelogFixes":{
+    "changelogFixes": {
         "message": "• Anzeige von Bildern nach Hotlinking-Blockierung repariert.\n• Fehler behoben, durch den Bilddownloads als HTML-Seiten gespeichert wurden.\n• Fehlende Header bei geschützten Audio- und Dokumentdownloads ergänzt.\n• Fehler beim Laden von Cross-Origin-Medien in Firefox behoben.\n• Fehlerhafte oder unvollständige Proxy-Antworten durch weitergeleitete Cache-Header behoben."
     }
 }

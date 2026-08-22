@@ -1,404 +1,392 @@
 {
-    "extName": {
-        "message": "CoolHusky - Media Sniffer & Downloader"
-    },
-    "extDescription": {
-        "message": "Auto-detect & download M3U8/HLS streams, videos, audio & images. Built-in player. Batch download. 100% local & private."
-    },
-    "title":{
-        "message": "CoolHusky"
-    },
-    "home":{
+    "home": {
         "message": "Home"
     },
-    "download":{
+    "download": {
         "message": "Download"
     },
-    "help":{
+    "help": {
         "message": "Help"
     },
-    "about":{
+    "about": {
         "message": "About"
     },
-    "copy":{
+    "copy": {
         "message": "Copy"
     },
-    "copyTips":{
+    "copyTips": {
         "message": "Copy success!"
     },
-    "copyUrl":{
+    "copyUrl": {
         "message": "Copy URL"
     },
-    "settings":{
+    "settings": {
         "message": "Settings"
     },
-    "more":{
+    "more": {
         "message": "More"
     },
-    "clear":{
+    "clear": {
         "message": "Clear"
     },
-    "unknown":{
+    "unknown": {
         "message": "Unknown"
     },
-    "feedback":{
+    "feedback": {
         "message": "Feedback"
     },
-    "found":{
+    "found": {
         "message": "Found: "
     },
-    "item":{
+    "item": {
         "message": "item"
     },
-    "play":{
+    "play": {
         "message": "Play"
     },
-    "pause":{
+    "pause": {
         "message": "Pause"
     },
-    "notFound":{
+    "notFound": {
         "message": "No media detected"
     },
-    "playTips":{
+    "playTips": {
         "message": "Play a video or audio, or load an image to detect media resources."
     },
-    "unplayable":{
+    "unplayable": {
         "message": "Your browser does not support video playback."
     },
-    "playError":{
+    "playError": {
         "message": "Play error: "
     },
-    "stopPlay":{
+    "stopPlay": {
         "message": "Stop play"
     },
-    "audioPlayError":{
+    "audioPlayError": {
         "message": "Audio play error"
     },
-    "audioEncryptedTip":{
+    "audioEncryptedTip": {
         "message": "This stream is encrypted (DRM-protected) and cannot be decoded by the player. HD/4K content is usually protected this way; please watch it on the source website."
     },
-    "optionsTitle":{
+    "optionsTitle": {
         "message": "Settings"
     },
-    "saved":{
+    "saved": {
         "message": "Saved"
     },
-    "sniffingRules":{
+    "sniffingRules": {
         "message": "Sniffing Rules"
     },
-    "type":{
+    "type": {
         "message": "Type"
     },
-    "sniff":{
+    "sniff": {
         "message": "Enabled"
     },
-    "minSizeKB":{
+    "minSizeKB": {
         "message": "Min Size (KB)"
     },
-    "streaming":{
+    "streaming": {
         "message": "Streaming"
     },
-    "streamingHint":{
+    "streamingHint": {
         "message": "HLS / DASH / M3U8"
     },
-    "video":{
+    "video": {
         "message": "Video"
     },
-    "videoHint":{
+    "videoHint": {
         "message": "MP4, WebM, MKV…"
     },
-    "audio":{
+    "audio": {
         "message": "Audio"
     },
-    "audioHint":{
+    "audioHint": {
         "message": "MP3, AAC, FLAC…"
     },
-    "image":{
+    "image": {
         "message": "Image"
     },
-    "imageHint":{
+    "imageHint": {
         "message": "PNG, JPG, WebP…"
     },
-    "kb":{
+    "kb": {
         "message": "KB"
     },
-    "excludeDomains":{
+    "excludeDomains": {
         "message": "Exclude Domains"
     },
-    "maxItems":{
+    "maxItems": {
         "message": "Max Items Per Tab"
     },
-    "maxItemsDesc":{
+    "maxItemsDesc": {
         "message": "Max media items captured per tab (10–5000). Oldest items are replaced when the limit is reached."
     },
-    "excludeDomainsDesc":{
+    "excludeDomainsDesc": {
         "message": "Sniffing will be disabled on these domains. One per line (e.g. twitter.com)"
     },
-    "excludeDomainsPlaceholder":{
+    "excludeDomainsPlaceholder": {
         "message": "twitter.com\nfacebook.com\ninstagram.com"
     },
-    "keyboardShortcuts":{
+    "keyboardShortcuts": {
         "message": "Keyboard Shortcuts"
     },
-    "keyboardShortcutsDesc":{
+    "keyboardShortcutsDesc": {
         "message": "Configure shortcuts to open the extension panel"
     },
-    "manageShortcuts":{
+    "manageShortcuts": {
         "message": "Manage keyboard shortcuts in Chrome's extension settings"
     },
-    "openShortcuts":{
+    "openShortcuts": {
         "message": "Open Shortcuts"
     },
-    "resetToDefaults":{
+    "resetToDefaults": {
         "message": "Reset to defaults"
     },
-    "resetConfirm":{
+    "resetConfirm": {
         "message": "Click again to confirm reset"
     },
-    "welcome":{
+    "welcome": {
         "message": "Welcome"
     },
-    "welcomeTitle":{
-        "message": "Welcome to CoolHusky"
+    "welcomeTitle": {
+        "message": "Welcome to {{META_REF}}"
     },
-    "welcomeIntro":{
-        "message": "CoolHusky is a smart browser media sniffer and downloader that helps you easily capture video, audio, and image resources from web pages.\n\nIt automatically detects media resources on the pages you browse and presents them in a clear list. You can filter by type (streaming, video, audio, image), search precisely by format and size, and even batch download or copy resource URLs with one click.\n\nWhether for daily learning, archiving, or content creation, CoolHusky helps you obtain the media resources you need more efficiently."
+    "welcomeIntro": {
+        "message": "{{META_REF}} is a smart browser media sniffer and downloader that helps you easily capture video, audio, and image resources from web pages.\n\nIt automatically detects media resources on the pages you browse and presents them in a clear list. You can filter by type (streaming, video, audio, image), search precisely by format and size, and even batch download or copy resource URLs with one click.\n\nWhether for daily learning, archiving, or content creation, {{META_REF}} helps you obtain the media resources you need more efficiently."
     },
-    "welcomeFeaturesTitle":{
+    "welcomeFeaturesTitle": {
         "message": "Key Features"
     },
-    "featureAutoSniff":{
+    "featureAutoSniff": {
         "message": "Auto Sniffing: Detects video, audio, and image resources on web pages in real time as you browse — no manual action needed."
     },
-    "featureFilter":{
+    "featureFilter": {
         "message": "Smart Filtering: Precisely filter by type, format, and size to quickly locate the resources you want."
     },
-    "featureBatchDownload":{
+    "featureBatchDownload": {
         "message": "Batch Download: Download multiple resources at once to efficiently archive the materials you need."
     },
-    "featureCopyUrl":{
+    "featureCopyUrl": {
         "message": "One-Click Copy: Easily copy resource URLs for direct use in other tools."
     },
-    "welcomeSubtitle":{
-        "message": "Smart Media Sniffer & Downloader"
-    },
-    "tutorialTitle":{
+    "tutorialTitle": {
         "message": "Getting Started"
     },
-    "step1Title":{
+    "step1Title": {
         "message": "Install the Extension"
     },
-    "step1Desc":{
-        "message": "After installation, the CoolHusky icon will appear in your browser toolbar. Click the icon to open the extension popup."
+    "step1Desc": {
+        "message": "After installation, the {{META_REF}} icon will appear in your browser toolbar. Click the icon to open the extension popup."
     },
-    "step2Title":{
+    "step2Title": {
         "message": "Open a Video Page"
     },
-    "step2Desc":{
-        "message": "Visit a webpage containing video or audio, and CoolHusky will automatically detect media resources. When resources are detected, the extension icon will show the count."
+    "step2Desc": {
+        "message": "Visit a webpage containing video or audio, and {{META_REF}} will automatically detect media resources. When resources are detected, the extension icon will show the count."
     },
-    "step3Title":{
+    "step3Title": {
         "message": "Play Video to Trigger Detection"
     },
-    "step3Desc":{
+    "step3Desc": {
         "message": "Some videos need to be played first before the extension can capture the streaming URL. If no count appears on the icon, try playing the video."
     },
-    "step4Title":{
+    "step4Title": {
         "message": "View Detected Resources"
     },
-    "step4Desc":{
+    "step4Desc": {
         "message": "Click the extension icon to see all detected media resources in the popup. You can filter by type (streaming, video, audio, image) and use format or size filters for precise searching."
     },
-    "step5Title":{
+    "step5Title": {
         "message": "Download or Copy"
     },
-    "step5Desc":{
+    "step5Desc": {
         "message": "In the resource list, click the download button to download a file, or click the copy button to copy the resource URL. You can also select multiple files for batch download."
     },
-    "step6Title":{
+    "step6Title": {
         "message": "Customize Settings"
     },
-    "step6Desc":{
+    "step6Desc": {
         "message": "Click the settings icon in the popup to toggle sniffing by type, set minimum capture size, exclude specific domains, and configure keyboard shortcuts."
     },
-    "faqTitle":{
+    "faqTitle": {
         "message": "FAQ"
     },
-    "faq1Q":{
+    "faq1Q": {
         "message": "Why can't some videos be detected?"
     },
-    "faq1A":{
+    "faq1A": {
         "message": "Some websites use special encryption or dynamic loading techniques (such as DRM protection), which prevents the extension from capturing video streams. Additionally, certain streaming URLs are not triggered until the video starts playing. We recommend playing the video first and waiting for a number to appear on the extension icon."
     },
-    "faq2Q":{
+    "faq2Q": {
         "message": "What should I do if the downloaded M3U8 file won't play?"
     },
-    "faq2A":{
+    "faq2A": {
         "message": "M3U8 is an index file, not the video itself. You need to use an HLS-compatible player (such as VLC) to play it, or use a dedicated tool to convert M3U8 to MP4 format. The extension will attempt to provide a direct download option when an M3U8 stream is detected."
     },
-    "faq3Q":{
+    "faq3Q": {
         "message": "Does the extension collect my private data?"
     },
-    "faq3A":{
+    "faq3A": {
         "message": "No. This extension runs entirely locally and does not send any data to external servers. All detection and download operations are completed in your browser."
     },
-    "faq4Q":{
+    "faq4Q": {
         "message": "Why doesn't the icon show the detection count?"
     },
-    "faq4A":{
+    "faq4A": {
         "message": "The extension only shows a count on the icon when media resources are detected on the current tab. Please make sure: 1) You have opened a webpage with video; 2) The video has started playing; 3) The website is not in the excluded domains list."
     },
-    "faq5Q":{
+    "faq5Q": {
         "message": "How do I exclude unwanted domains?"
     },
-    "faq5A":{
+    "faq5A": {
         "message": "Click the settings icon in the extension popup, enter the domains you want to exclude in the \"Exclude Domains\" section (one per line), e.g. twitter.com. After saving, media sniffing will be disabled on those domains."
     },
-    "faq6Q":{
+    "faq6Q": {
         "message": "Why is the download speed slow?"
     },
-    "faq6A":{
+    "faq6A": {
         "message": "Download speed depends on the video source server's bandwidth and your network environment. The extension uses the browser's native download function, so the speed is the same as downloading files directly in the browser. If the speed is consistently slow, the source server may be throttling downloads."
     },
-    "faq7Q":{
+    "faq7Q": {
         "message": "How do I set up keyboard shortcuts?"
     },
-    "faq7A":{
+    "faq7A": {
         "message": "In the extension popup's settings page, find the \"Keyboard Shortcuts\" section and click the \"Open Shortcuts\" button to jump to the browser's shortcut management page for configuration."
     },
-    "faq8Q":{
+    "faq8Q": {
         "message": "Why does Firefox show a different layout than Chrome?"
     },
-    "faq8A":{
-        "message": "Firefox and Chrome have some differences in CSS flexbox and grid layout rendering. CoolHusky has been optimized to maintain consistent UI across both browsers. If you notice any display issues, please report them on GitHub."
+    "faq8A": {
+        "message": "Firefox and Chrome have some differences in CSS flexbox and grid layout rendering. {{META_REF}} has been optimized to maintain consistent UI across both browsers. If you notice any display issues, please report them on GitHub."
     },
-    "faq9Q":{
+    "faq9Q": {
         "message": "Why can't I find videos on certain pages?"
     },
-    "faq9A":{
+    "faq9A": {
         "message": "Some websites use special encryption, DRM protection, or obfuscated loading techniques that prevent media URL capture. Videos may also be served from embedded iframes with cross-origin restrictions. Try refreshing the page and playing the video first to trigger detection."
     },
-    "siteName":{
+    "siteName": {
         "message": "Website:"
     },
-    "subtitle":{
+    "subtitle": {
         "message": "Smart Sniff, One-Click Download"
     },
-    "tabAll":{
+    "tabAll": {
         "message": "All"
     },
-    "tabStream":{
+    "tabStream": {
         "message": "Stream"
     },
-    "tabVideo":{
+    "tabVideo": {
         "message": "Video"
     },
-    "tabAudio":{
+    "tabAudio": {
         "message": "Audio"
     },
-    "tabImage":{
+    "tabImage": {
         "message": "Image"
     },
-    "tabDoc":{
+    "tabDoc": {
         "message": "Doc"
     },
-    "selectAll":{
+    "selectAll": {
         "message": "Select All"
     },
-    "deselectAll":{
+    "deselectAll": {
         "message": "Deselect All"
     },
-    "downloadSelected":{
+    "downloadSelected": {
         "message": "Download Selected"
     },
-    "toggleEnable":{
+    "toggleEnable": {
         "message": "Toggle Sniffing On/Off"
     },
-    "deepSearch":{
+    "deepSearch": {
         "message": "Deep Search"
     },
-"clearList":{
+    "clearList": {
         "message": "Clear current page media list"
     },
-    "refresh":{
+    "refresh": {
         "message": "Refresh"
     },
-    "refreshPage":{
+    "refreshPage": {
         "message": "Refresh current page"
     },
-    "filter":{
+    "filter": {
         "message": "Filter"
     },
-    "filterType":{
+    "filterType": {
         "message": "Type"
     },
-    "any":{
+    "any": {
         "message": "Any"
     },
-    "filterSize":{
+    "filterSize": {
         "message": "Size"
     },
-    "min":{
+    "min": {
         "message": "Min"
     },
-    "max":{
+    "max": {
         "message": "Max"
     },
-    "filterDimension":{
+    "filterDimension": {
         "message": "Dimensions"
     },
-    "width":{
+    "width": {
         "message": "Width"
     },
-    "height":{
+    "height": {
         "message": "Height"
     },
-    "filterResolution":{
+    "filterResolution": {
         "message": "Resolution"
     },
-    "reset":{
+    "reset": {
         "message": "Reset"
     },
-    "sortByTime":{
+    "sortByTime": {
         "message": "Sort by time (click to enable)"
     },
-    "sortDesc":{
+    "sortDesc": {
         "message": "Newest first (click for oldest first)"
     },
-    "sortAsc":{
+    "sortAsc": {
         "message": "Oldest first (click to disable)"
     },
-    "preview":{
+    "preview": {
         "message": "Preview"
     },
-    "batchDownloadStarted":{
+    "batchDownloadStarted": {
         "message": "Started downloading $1 file(s)"
     },
-    "downloadBatchRenamed":{
+    "downloadBatchRenamed": {
         "message": "Download with Rename"
     },
-    "downloadBatchRenamedStarted":{
+    "downloadBatchRenamedStarted": {
         "message": "Started renamed download of $1 file(s)"
     },
-    "open":{
+    "open": {
         "message": "Open"
     },
-    "changelogTitle":{
+    "changelogTitle": {
         "message": "What’s New"
     },
-    "changelogVersion":{
+    "changelogVersion": {
         "message": "v1.1.1"
     },
-    "changelogFeaturesTitle":{
+    "changelogFeaturesTitle": {
         "message": "New Features"
     },
-    "changelogFeatures":{
+    "changelogFeatures": {
         "message": "• Added anti-hotlink image proxy previews with Referer and authentication headers.\n• Added protected-resource proxy downloads for images, audio, documents, and subtitles.\n• Improved video cover loading by using the proxy immediately when Referer headers are required.\n• Improved Firefox support with webRequestBlocking header injection and automatic Origin removal.\n• Updated the extension version to 1.1.1."
     },
-    "changelogFixesTitle":{
+    "changelogFixesTitle": {
         "message": "Bug Fixes"
     },
-    "changelogFixes":{
+    "changelogFixes": {
         "message": "• Fixed protected images failing to load.\n• Fixed image downloads that saved an HTML error page instead of the image.\n• Fixed missing request headers for protected audio and document downloads.\n• Fixed cross-origin media resources failing to load in Firefox.\n• Fixed proxy requests returning incorrect or incomplete content because of forwarded cache headers."
     }
 }

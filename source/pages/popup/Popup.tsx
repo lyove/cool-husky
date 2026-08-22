@@ -1202,7 +1202,7 @@ export default function Popup({
   const toggleGroup = useCallback(
     (id: string): void => {
       if (expandedGroups.has(id)) {
-        // 折叠分组：暂停归零该分组内正在播放/预览的媒体
+        // Collapsing a group: pause and reset media currently playing/previewing in that group
         const group = flatMediaList.find(
           (e): e is Extract<StreamFlatItem, { kind: 'group' }> =>
             e.kind === 'group' && e.group.id === id
