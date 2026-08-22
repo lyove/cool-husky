@@ -43,6 +43,7 @@ const messagesMap: Record<string, Messages> = {
     found: 'Found: ',
     item: 'item',
     play: 'Play',
+    pause: 'Pause',
     notFound: 'No media detected',
     playTips:
       'Play a video or audio, or load an image to detect media resources.',
@@ -222,6 +223,7 @@ const messagesMap: Record<string, Messages> = {
     found: '已发现: ',
     item: '条',
     play: '播放',
+    pause: '暂停',
     notFound: '未检测到任何媒体资源',
     playTips: '播放视频或音频，或加载图片即可检测媒体资源。',
     unplayable: '您的浏览器不支持视频播放。',
@@ -395,6 +397,7 @@ const messagesMap: Record<string, Messages> = {
     found: '已發現：',
     item: '個',
     play: '播放',
+    pause: '暫停',
     notFound: '未偵測到任何媒體資源',
     playTips: '播放影片或音訊，或載入圖片即可偵測媒體資源。',
     unplayable: '您的瀏覽器不支援影片播放。',
@@ -550,6 +553,7 @@ const messagesMap: Record<string, Messages> = {
     found: 'Gefunden: ',
     item: 'Element',
     play: 'Abspielen',
+    pause: 'Pausieren',
     notFound: 'Keine Medien erkannt',
     playTips:
       'Spielen Sie ein Video oder Audio ab oder laden Sie ein Bild, um Medienressourcen zu erkennen.',
@@ -719,6 +723,7 @@ const messagesMap: Record<string, Messages> = {
     found: 'Encontrado: ',
     item: 'elemento',
     play: 'Reproducir',
+    pause: 'Pausar',
     notFound: 'No se detectaron medios',
     playTips:
       'Reproduce un video o audio, o carga una imagen para detectar recursos multimedia.',
@@ -882,6 +887,7 @@ const messagesMap: Record<string, Messages> = {
     found: '検出: ',
     item: '件',
     play: '再生',
+    pause: '一時停止',
     notFound: 'メディアが検出されませんでした',
     playTips:
       '動画や音声を再生するか、画像を読み込んでメディアリソースを検出してください。',
@@ -1042,6 +1048,7 @@ const messagesMap: Record<string, Messages> = {
     found: '발견: ',
     item: '개',
     play: '재생',
+    pause: '일시 정지',
     notFound: '감지된 미디어 없음',
     playTips:
       '동영상이나 오디오를 재생하거나 이미지를 불러와 미디어 리소스를 감지하세요.',
@@ -1201,6 +1208,7 @@ const messagesMap: Record<string, Messages> = {
     found: 'Найдено: ',
     item: 'шт.',
     play: 'Воспроизвести',
+    pause: 'Пауза',
     notFound: 'Медиа не обнаружено',
     playTips:
       'Запустите видео или аудио, либо загрузите изображение, чтобы найти медиаресурсы.',
