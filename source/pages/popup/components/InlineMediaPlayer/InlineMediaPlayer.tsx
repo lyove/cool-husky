@@ -230,13 +230,7 @@ const InlineMediaPlayer: FC<InlineMediaPlayerProps> = ({
             height={96}
             className={styles.spectrum}
           />
-          <audio
-            ref={audioRef}
-            controls
-            autoPlay
-            src={item.url}
-            className={styles.audio}
-          />
+          <audio ref={audioRef} controls className={styles.audio} />
         </div>
       )}
 

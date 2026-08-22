@@ -63,9 +63,7 @@ const VIDEO_FORMATS = new Set([
   '3gp',
 ]);
 
-// eslint-disable-next-line n/no-unsupported-features/node-builtins -- popup 运行在浏览器环境，navigator 是标准 Web API，非 Node 内置
 const isMobileBrowser = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-// eslint-disable-next-line n/no-unsupported-features/node-builtins -- popup 运行在浏览器环境，navigator.language 是标准 Web API，非 Node 内置
 const mobileCapabilityTip = /zh/i.test(navigator.language)
   ? '移动端提示：普通下载可用；直播录制和 MSE 下载可能受后台运行及内存限制。'
   : 'Mobile note: regular downloads are supported; live recording and MSE downloads may be limited by background execution and memory.';

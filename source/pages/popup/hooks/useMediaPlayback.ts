@@ -485,8 +485,37 @@ export function useMediaPlayback(
     }
 
     if (isAudio) {
-      void getPlaybackContext();
-      return;
+      const audio = audioRef.current;
+      if (!audio) {
+        return;
+      }
+      let cancelled = false;
+      const startAudio = async (): Promise<void> => {
+        try {
+          const ctx = await getPlaybackContext();
+          if (cancelled) {
+            return;
+          }
+          setDrm(ctx.drm);
+          if (ctx.drm) {
+            setError(t('drmProtected'));
+            return;
+          }
+          // 规则就绪后再设置 src 并播放，避免首次请求缺少防盗链请求头
+          audio.src = item.url;
+          void audio.play().catch(() => {});
+        } catch (e) {
+          if (!cancelled) {
+            setError(
+              e instanceof Error ? t('playError') + e.message : t('playFail')
+            );
+          }
+        }
+      };
+      void startAudio();
+      return (): void => {
+        cancelled = true;
+      };
     }
 
     const video = videoRef.current;

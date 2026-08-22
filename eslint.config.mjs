@@ -34,7 +34,7 @@ export default [
 	},
 	// Migrated from coolhusky-main (Vue) — keep original coding style for 1:1 parity
 	{
-		files: ['source/Background/index.ts', 'source/ContentScript/index.ts', 'source/ContentScript/injected.ts', 'source/ContentScript/douyin.ts', 'source/utils/*.ts'],
+		files: ['source/scripts/background/**', 'source/scripts/content/**', 'source/utils/*.ts'],
 		rules: {
 			'@typescript-eslint/explicit-function-return-type': 'off',
 			'@typescript-eslint/no-explicit-any': 'warn',
@@ -47,7 +47,7 @@ export default [
 	},
 	// Browser UI pages (popup/sidepanel/welcome) run in the browser, not Node
 	{
-		files: ['source/Popup/**', 'source/Sidepanel/**', 'source/Welcome/**'],
+		files: ['source/pages/popup/**', 'source/pages/sidepanel/**', 'source/pages/welcome/**'],
 		rules: {
 			'n/no-unsupported-features/node-builtins': 'off',
 		},
