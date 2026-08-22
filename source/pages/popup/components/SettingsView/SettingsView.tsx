@@ -24,11 +24,6 @@ const THEME_OPTIONS = [
   { value: 'dark', icon: '🌙', labelKey: 'themeDark' },
 ] as const;
 
-const DENSITY_OPTIONS = [
-  { value: 'comfortable', labelKey: 'densityComfortable' },
-  { value: 'compact', labelKey: 'densityCompact' },
-] as const;
-
 const OPEN_MODE_OPTIONS = [
   { value: 'sidepanel', labelKey: 'openModeSidepanel' },
   { value: 'popup', labelKey: 'openModePopup' },
@@ -90,8 +85,7 @@ const SettingsView: FC<SettingsViewProps> = ({
   onBack,
   onOpenShortcuts,
 }) => {
-  const { t, locale, theme, density, setLocale, setTheme, setDensity } =
-    useI18n();
+  const { t, locale, theme, setLocale, setTheme } = useI18n();
   const [draft, setDraft] = useState<Settings | null>(null);
   const [excludeDomainsText, setExcludeDomainsText] = useState('');
   const [regexRulesText, setRegexRulesText] = useState('');
@@ -360,23 +354,6 @@ const SettingsView: FC<SettingsViewProps> = ({
                   onClick={() => void setTheme(opt.value)}
                 >
                   <span className={styles.segmentIcon}>{opt.icon}</span>
-                  {t(opt.labelKey)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className={styles.field}>
-            <p className={styles.fieldLabel}>{t('density')}</p>
-            <div className={styles.segment}>
-              {DENSITY_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  className={`${styles.segmentBtn} ${
-                    density === opt.value ? styles.segmentBtnActive : ''
-                  }`}
-                  onClick={() => void setDensity(opt.value)}
-                >
                   {t(opt.labelKey)}
                 </button>
               ))}

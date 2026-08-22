@@ -63,7 +63,9 @@ const VIDEO_FORMATS = new Set([
   '3gp',
 ]);
 
+// eslint-disable-next-line n/no-unsupported-features/node-builtins -- popup 运行在浏览器环境，navigator 是标准 Web API，非 Node 内置
 const isMobileBrowser = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+// eslint-disable-next-line n/no-unsupported-features/node-builtins -- popup 运行在浏览器环境，navigator.language 是标准 Web API，非 Node 内置
 const mobileCapabilityTip = /zh/i.test(navigator.language)
   ? '移动端提示：普通下载可用；直播录制和 MSE 下载可能受后台运行及内存限制。'
   : 'Mobile note: regular downloads are supported; live recording and MSE downloads may be limited by background execution and memory.';
@@ -184,6 +186,21 @@ const TrashIconSvg = (): ReactNode => (
   </svg>
 );
 
+const FilterIconSvg = ({ active }: { active: boolean }): ReactNode => (
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill={active ? 'currentColor' : 'none'}
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M3 5h18M7 12h10M10 19h4" />
+  </svg>
+);
+
 const RefreshIconSvg = (): ReactNode => (
   <svg
     viewBox="0 0 24 24"
@@ -197,21 +214,6 @@ const RefreshIconSvg = (): ReactNode => (
   >
     <path d="M21 12a9 9 0 01-9 9 9 9 0 010-18 9 9 0 017.1 3.5" />
     <path d="M21 3v6h-6" />
-  </svg>
-);
-
-const FilterIconSvg = ({ active }: { active: boolean }): ReactNode => (
-  <svg
-    viewBox="0 0 24 24"
-    width="16"
-    height="16"
-    fill={active ? 'currentColor' : 'none'}
-    stroke="currentColor"
-    strokeWidth={1.5}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M3 5h18M7 12h10M10 19h4" />
   </svg>
 );
 
@@ -700,7 +702,7 @@ export default function Popup({
   embedded,
   followActiveTab,
 }: PopupProps): ReactNode {
-  const { t, locale, density } = useI18n();
+  const { t, locale } = useI18n();
   const { settings, saveSettings } = useSettings();
   const {
     isFailed: isVideoThumbFailed,
@@ -1146,8 +1148,8 @@ export default function Popup({
   const getDisplayName = useCallback(
     (item: MediaListItem): string =>
       customNames.get(item.url) ||
-      (item.tabTitle && item.tabTitle.trim() ? item.tabTitle : '') ||
       getFileName(item.url) ||
+      (item.tabTitle && item.tabTitle.trim() ? item.tabTitle : '') ||
       'download',
     [customNames]
   );
@@ -1157,8 +1159,8 @@ export default function Popup({
       setEditingUrl(item.url);
       setEditingName(
         customNames.get(item.url) ||
-          (item.tabTitle && item.tabTitle.trim() ? item.tabTitle : '') ||
           getFileName(item.url) ||
+          (item.tabTitle && item.tabTitle.trim() ? item.tabTitle : '') ||
           ''
       );
     },
@@ -1233,11 +1235,11 @@ export default function Popup({
     (entry: StreamFlatItem): number => {
       if (entry.kind === 'group') {
         const group = entry.group;
-        const base = density === 'comfortable' ? 60 : 52;
+        const base = 52;
         if (!expandedGroups.has(group.id)) {
           return base;
         }
-        const rowH = density === 'comfortable' ? 38 : 34;
+        const rowH = 34;
         const masterRows =
           group.master && /^https?:\/\//i.test(group.master.url || '') ? 1 : 0;
         return (
@@ -1248,15 +1250,12 @@ export default function Popup({
           8
         );
       }
-      return density === 'comfortable' ? 98 : 82;
+      return 82;
     },
-    [expandedGroups, density]
+    [expandedGroups]
   );
 
-  const estimateItemHeight = useCallback(
-    (): number => (density === 'comfortable' ? 98 : 82),
-    [density]
-  );
+  const estimateItemHeight = useCallback((): number => 82, []);
 
   const imageColumns = useMemo(() => {
     const cols: MediaListItem[][] = [[], []];
@@ -1361,13 +1360,6 @@ export default function Popup({
           ? 'video'
           : 'file';
 
-      let hostname = '';
-      try {
-        hostname = new URL(item.url).hostname;
-      } catch {
-        hostname = '';
-      }
-
       return (
         <div
           className={`${styles.item} ${selected ? styles.itemSelected : ''}`}
@@ -1441,20 +1433,27 @@ export default function Popup({
                     onKeyDown={onRenameKeyDown}
                   />
                 ) : (
-                  <span
-                    className={styles.itemName}
-                    title={item.tabTitle || item.url}
-                    role="button"
-                    tabIndex={0}
-                    onDoubleClick={() => startRename(item)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        startRename(item);
-                      }
-                    }}
-                  >
-                    {displayName}
+                  <span className={styles.itemNameWrap}>
+                    <span
+                      className={styles.itemName}
+                      title={item.tabTitle || item.url}
+                      role="button"
+                      tabIndex={0}
+                      onDoubleClick={() => startRename(item)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          startRename(item);
+                        }
+                      }}
+                    >
+                      {displayName}
+                    </span>
+                    {item.format && (
+                      <span className={styles.itemExt}>
+                        .{item.format.toLowerCase()}
+                      </span>
+                    )}
                   </span>
                 )}
                 <span className={styles.itemTime}>
@@ -1482,11 +1481,11 @@ export default function Popup({
                     {getResolutionLabel(effectiveWidth, effectiveHeight)}
                   </span>
                 )}
-                {hostname && (
+                {/* {hostname && (
                   <span className={styles.metaTag} title={item.url}>
                     {hostname}
                   </span>
-                )}
+                )} */}
                 <span
                   className={styles.itemUrl}
                   title={item.url}
@@ -2053,7 +2052,7 @@ export default function Popup({
         }
         estimateHeight={estimateFlatHeight}
         renderItem={renderFlatItem}
-        gap={density === 'comfortable' ? 10 : 6}
+        gap={6}
       />
     ) : (
       <div className={styles.empty}>
@@ -2070,7 +2069,7 @@ export default function Popup({
         getKey={(item) => getMediaKey(item)}
         estimateHeight={estimateItemHeight}
         renderItem={(item) => renderItemCard(item)}
-        gap={density === 'comfortable' ? 10 : 6}
+        gap={6}
       />
     ) : (
       <div className={styles.empty}>
@@ -2085,7 +2084,7 @@ export default function Popup({
     <div
       className={`${styles.popup} ${embedded ? styles.popupEmbedded : ''} ${
         showSettings ? styles.popupSettings : ''
-      } ${density === 'comfortable' ? styles.densityComfortable : ''}`}
+      }`}
     >
       <TooltipProvider>
         {showSettings ? (
@@ -2100,14 +2099,10 @@ export default function Popup({
             {!embedded && (
               <header className={styles.header}>
                 <div className={styles.headerTop}>
-                  <div>
-                    <h1 className={styles.title}>{t('title')}</h1>
-                    <p className={styles.subtitle}>{t('subtitle')}</p>
-                  </div>
+                  <h1 className={styles.title}>{t('title')}</h1>
+                  <p className={styles.subtitle}>{t('subtitle')}</p>
                 </div>
-                <p className={styles.greeting} title={currentTabTitle}>
-                  {t('siteName')} {currentTabTitle}
-                </p>
+
                 {isMobileBrowser && !hideMobileTip && (
                   <div className={styles.mobileBanner}>
                     <span>{mobileCapabilityTip}</span>
@@ -2220,55 +2215,50 @@ export default function Popup({
                     <RefreshIconSvg />
                   </button>
                 </div>
-                <button
-                  type="button"
-                  className={`${styles.iconBtn} ${
-                    showFilters ? styles.filterToolbarBtnActive : ''
-                  }`}
-                  onClick={() => setShowFilters(!showFilters)}
-                  data-tooltip={t('filter')}
-                >
-                  <FilterIconSvg active={showFilters} />
-                </button>
-              </div>
-
-              <div
-                className={`${styles.searchFilter} ${
-                  showFilters ? styles.searchFilterExpanded : ''
-                }`}
-              >
-                <div className={styles.searchRow}>
-                  <input
-                    className={styles.searchInput}
-                    type="search"
-                    placeholder={t('searchPlaceholder')}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
+                <div className={styles.actionToolbarRight}>
                   <button
                     type="button"
-                    className={`${styles.iconBtn} ${useRegex ? styles.iconBtnActive : ''}`}
-                    onClick={() => setUseRegex(!useRegex)}
-                    data-tooltip={t('searchRegexTitle')}
+                    className={`${styles.iconBtn} ${
+                      showFilters ? styles.filterToolbarBtnActive : ''
+                    }`}
+                    onClick={() => setShowFilters(!showFilters)}
+                    data-tooltip={t('filter')}
                   >
-                    .*
+                    <FilterIconSvg active={showFilters} />
                   </button>
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      className={styles.iconBtn}
-                      onClick={clearSearch}
-                      data-tooltip={t('searchClear')}
-                    >
-                      ✕
-                    </button>
-                  )}
                 </div>
-                {!regexValid && searchError && (
-                  <p className={styles.searchError}>{searchError}</p>
-                )}
-                {showFilters && (
-                  <div className={styles.filterRow}>
+              </div>
+
+              {showFilters && (
+                <div className={styles.searchFilter}>
+                  <div className={styles.searchRow}>
+                    <div className={styles.searchInputWrap}>
+                      <input
+                        className={styles.searchInput}
+                        type="search"
+                        placeholder={t('searchPlaceholder')}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className={`${styles.iconBtn} ${useRegex ? styles.iconBtnActive : ''}`}
+                        onClick={() => setUseRegex(!useRegex)}
+                        data-tooltip={t('searchRegexTitle')}
+                      >
+                        .*
+                      </button>
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          className={styles.iconBtn}
+                          onClick={clearSearch}
+                          data-tooltip={t('searchClear')}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                     {activeTab === 'video' && typeOptions.length > 1 && (
                       <select
                         className={styles.select}
@@ -2276,6 +2266,20 @@ export default function Popup({
                         onChange={(e) => setTypeFilter(e.target.value as never)}
                       >
                         {typeOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {activeTab === 'video' && (
+                      <select
+                        className={styles.select}
+                        value={resolutionFilter}
+                        onChange={(e) => setResolutionFilter(e.target.value)}
+                      >
+                        <option value="any">{t('any')}</option>
+                        {resolutionOptions.map((opt) => (
                           <option key={opt.value} value={opt.value}>
                             {opt.label}
                           </option>
@@ -2349,23 +2353,12 @@ export default function Popup({
                         <span className={styles.sizeUnit}>px</span>
                       </div>
                     )}
-                    {activeTab === 'video' && (
-                      <select
-                        className={styles.select}
-                        value={resolutionFilter}
-                        onChange={(e) => setResolutionFilter(e.target.value)}
-                      >
-                        <option value="any">{t('any')}</option>
-                        {resolutionOptions.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    )}
                   </div>
-                )}
-              </div>
+                  {!regexValid && searchError && (
+                    <p className={styles.searchError}>{searchError}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             {listBody}
@@ -2398,6 +2391,11 @@ export default function Popup({
                     />
                   </svg>
                 </button>
+              </div>
+              <div className={styles.footerCenter}>
+                <span className={styles.siteName}>
+                  {t('siteName')} {currentTabTitle}
+                </span>
               </div>
               <div className={styles.footerRight}>
                 <span className={styles.listSummary}>

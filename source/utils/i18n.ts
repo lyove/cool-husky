@@ -1373,22 +1373,17 @@ function detectSystemLocale(): string {
 }
 
 export type ThemeMode = 'system' | 'light' | 'dark';
-export type DensityMode = 'compact' | 'comfortable';
 
 const APPEARANCE_KEY = 'coolhusky_appearance';
 
 let currentLocale: LocaleCode = 'system';
 let currentTheme: ThemeMode = 'light';
-let currentDensity: DensityMode = 'compact';
 
 export function getCurrentLocale(): LocaleCode {
   return currentLocale;
 }
 export function getCurrentTheme(): ThemeMode {
   return currentTheme;
-}
-export function getCurrentDensity(): DensityMode {
-  return currentDensity;
 }
 
 const listeners = new Set<() => void>();
@@ -1422,12 +1417,6 @@ export function setTheme(theme: ThemeMode): void {
   notify();
 }
 
-export function setDensity(density: DensityMode): void {
-  manualChangeVersion += 1;
-  currentDensity = density;
-  notify();
-}
-
 export async function loadAppearance(): Promise<void> {
   const versionAtStart = manualChangeVersion;
   const result = await browser.storage.local.get(APPEARANCE_KEY);
@@ -1447,12 +1436,6 @@ export async function loadAppearance(): Promise<void> {
     ) {
       currentTheme = stored.theme as ThemeMode;
     }
-    if (
-      stored.density &&
-      ['compact', 'comfortable'].includes(String(stored.density))
-    ) {
-      currentDensity = stored.density as DensityMode;
-    }
   }
   applyTheme(currentTheme);
   notify();
@@ -1463,7 +1446,6 @@ export async function saveAppearance(): Promise<void> {
     [APPEARANCE_KEY]: {
       locale: currentLocale,
       theme: currentTheme,
-      density: currentDensity,
     },
   });
 }

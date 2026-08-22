@@ -3,31 +3,28 @@ import {
   subscribeAppearance,
   getCurrentLocale,
   getCurrentTheme,
-  getCurrentDensity,
   getResolvedLocale,
   loadAppearance,
   saveAppearance,
   setLocale as setLocaleStore,
   setTheme as setThemeStore,
-  setDensity as setDensityStore,
   t as translate,
   LOCALE_OPTIONS,
 } from '../../../utils/i18n';
-import type { DensityMode, LocaleCode, ThemeMode } from '../../../utils/i18n';
+import type { LocaleCode, ThemeMode } from '../../../utils/i18n';
 
 function getSnapshot(): string {
-  return `${getCurrentLocale()}|${getCurrentTheme()}|${getCurrentDensity()}`;
+  return `${getCurrentLocale()}|${getCurrentTheme()}`;
 }
 
 export function useI18n(): {
   t: typeof translate;
   locale: LocaleCode;
   theme: ThemeMode;
-  density: DensityMode;
+  density: 'compact';
   resolvedLocale: string;
   setLocale: (locale: LocaleCode) => Promise<void>;
   setTheme: (theme: ThemeMode) => Promise<void>;
-  setDensity: (density: DensityMode) => Promise<void>;
 } {
   useSyncExternalStore(subscribeAppearance, getSnapshot);
 
@@ -53,23 +50,14 @@ export function useI18n(): {
     await saveAppearance();
   }, []);
 
-  const setDensity = useCallback(
-    async (density: DensityMode): Promise<void> => {
-      setDensityStore(density);
-      await saveAppearance();
-    },
-    []
-  );
-
   return {
     t: translate,
     locale: getCurrentLocale(),
     theme: getCurrentTheme(),
-    density: getCurrentDensity(),
+    density: 'compact',
     resolvedLocale: getResolvedLocale(),
     setLocale,
     setTheme,
-    setDensity,
   };
 }
 
