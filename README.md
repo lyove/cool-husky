@@ -23,6 +23,12 @@
 - React 19 with automatic JSX runtime
 - ESLint 9 flat config with Prettier
 
+## Screenshots
+
+![CoolHusky Popup](source/public/screenshot/cool-husky-1.png)
+
+![CoolHusky Sidepanel](source/public/screenshot/cool-husky-2.png)
+
 ## Tech Stack
 
 - **Bundler**: [Vite](https://vitejs.dev/) 7
