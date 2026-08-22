@@ -1576,6 +1576,7 @@ export default function Popup({
               <InlineMediaPlayer
                 item={playingItem}
                 currentTabId={currentTabId}
+                onClose={() => setPlayingItem(null)}
               />
             </div>
           )}
@@ -1752,6 +1753,7 @@ export default function Popup({
                 <InlineMediaPlayer
                   item={playingItem}
                   currentTabId={currentTabId}
+                  onClose={() => setPlayingItem(null)}
                 />
               </div>
             )}
@@ -1901,6 +1903,7 @@ export default function Popup({
                 <InlineMediaPlayer
                   item={playingItem}
                   currentTabId={currentTabId}
+                  onClose={() => setPlayingItem(null)}
                 />
               </div>
             )}
