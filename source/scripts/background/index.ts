@@ -28,7 +28,10 @@ import {
   type Settings,
   DEFAULT_SETTINGS,
 } from '../../utils/settings';
-import { parseM3U8Manifest, parseDashManifest } from '../../utils/stream-parser';
+import {
+  parseM3U8Manifest,
+  parseDashManifest,
+} from '../../utils/stream-parser';
 import MediaInfoFactory from 'mediainfo.js';
 import type {
   MetadataBatchItem,
@@ -398,10 +401,6 @@ async function mapWithConcurrency<T, R>(
             msg?.type === 'SIDEPANEL_TAB_ID' &&
             typeof msg.tabId === 'number'
           ) {
-            // Clean up any previous registration for this port so the old
-            // tabId doesn't linger in sidePanelPorts after the Sidepanel
-            // re-associates with a new tab (Sidepanel re-sends this on tab
-            // switch via browser.tabs.onActivated).
             if (
               registeredTabId !== undefined &&
               registeredTabId !== msg.tabId
@@ -511,7 +510,9 @@ async function mapWithConcurrency<T, R>(
 
   browser.runtime.onInstalled.addListener((details) => {
     if (details.reason === 'install') {
-      const welcomeUrl = browser.runtime.getURL('/pages/welcome/welcome.html' as any);
+      const welcomeUrl = browser.runtime.getURL(
+        '/pages/welcome/welcome.html' as any
+      );
       browser.tabs.create({ url: welcomeUrl });
     }
   });
@@ -851,7 +852,10 @@ async function mapWithConcurrency<T, R>(
                     })
                     .catch(() => {});
                 } catch {}
-                void setSidePanelForAllTabs(true, 'pages/sidepanel/sidepanel.html');
+                void setSidePanelForAllTabs(
+                  true,
+                  'pages/sidepanel/sidepanel.html'
+                );
               }
             }
           }
@@ -1526,7 +1530,8 @@ async function mapWithConcurrency<T, R>(
         (h) => h.name.toLowerCase() === 'x-coolhusky-proxy'
       );
       let playbackRule:
-        { referer: string; authHeaders?: Record<string, string> } | undefined;
+        | { referer: string; authHeaders?: Record<string, string> }
+        | undefined;
       if (isFirefox && !proxyHeader) {
         try {
           playbackRule = playbackHeaderHosts.get(new URL(details.url).host);
@@ -3125,7 +3130,7 @@ async function mapWithConcurrency<T, R>(
         }> = [
           {
             url: videoUrl,
-            format: detectFormatFromUrl(videoUrl),
+            format: detectFormatFromUrl(videoUrl) ?? 'mp4',
             role: 'video',
             label: '视频',
           },
@@ -3133,7 +3138,7 @@ async function mapWithConcurrency<T, R>(
         if (audioUrl) {
           candidates.push({
             url: audioUrl,
-            format: detectFormatFromUrl(audioUrl),
+            format: detectFormatFromUrl(audioUrl) ?? 'm4a',
             role: 'audio',
             label: '音频',
           });

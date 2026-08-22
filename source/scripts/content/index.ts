@@ -213,13 +213,13 @@ import {
           candidates: [
             {
               url: video,
-              format: detectFormatFromUrl(video),
+              format: detectFormatFromUrl(video) ?? 'mp4',
               role: 'video',
               label: '视频',
             },
             {
               url: audio,
-              format: detectFormatFromUrl(audio),
+              format: detectFormatFromUrl(audio) ?? 'm4a',
               role: 'audio',
               label: '音频',
             },

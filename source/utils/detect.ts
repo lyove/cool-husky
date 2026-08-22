@@ -343,8 +343,9 @@ export function detectMediaFromUrl(url: string): string | null {
 
     const lastSegment = pathname.split('/').pop() || '';
     const lastSegmentWithoutQuery = lastSegment.split('?')[0]!;
+    const cleanSegment = lastSegmentWithoutQuery.split(/[~@]/)[0] || '';
     for (const [ext, format] of Object.entries(EXTENSION_MAP)) {
-      if (lastSegmentWithoutQuery.endsWith(ext)) {
+      if (lastSegmentWithoutQuery.endsWith(ext) || cleanSegment.endsWith(ext)) {
         return format;
       }
     }
@@ -390,7 +391,7 @@ export function detectMediaFromUrl(url: string): string | null {
   }
 }
 
-export function detectFormatFromUrl(url: string): string {
+export function detectFormatFromUrl(url: string): string | null {
   if (/\.m3u8(?:[?#]|$)/i.test(url)) {
     return 'm3u8';
   }
@@ -404,7 +405,7 @@ export function detectFormatFromUrl(url: string): string {
   if (audioMatch) {
     return audioMatch[1]!.toLowerCase();
   }
-  return 'mp4';
+  return null;
 }
 
 export function detectMedia(
